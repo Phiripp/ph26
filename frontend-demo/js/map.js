@@ -38,6 +38,8 @@
 // Sites are HTML markers (glowing dot + pulse ring + label pill on hover/focus/selection), which
 // follow the terrain and never stack like the old extruded columns.
 
+import { ringsOfChile, clipSatTile, clipDemTile } from './tile-clip.js';
+
 const URL_OF = (p) => new URL(p, import.meta.url).href;
 const CHILE_URL = URL_OF('../data/chile.geojson');
 const WORLD_URL = URL_OF('../data/world.geojson');
@@ -200,17 +202,53 @@ function blankTile(kind) {
 const SAT = { rings: null, remote: 'eox' };
 const EOX_URL = (z, x, y) => `https://tiles.maps.eox.at/wmts/1.0.0/s2cloudless-2023_3857/default/g/${z}/${y}/${x}.jpg`;
 const ESRI_URL = (z, x, y) => `https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/${z}/${y}/${x}`;
-const lon2tx = (lon, z) => ((lon + 180) / 360) * 2 ** z;
-const lat2ty = (lat, z) => {
-  const r = (lat * Math.PI) / 180;
-  return ((1 - Math.log(Math.tan(r) + 1 / Math.cos(r)) / Math.PI) / 2) * 2 ** z;
-};
 function prepareChileRings(chile) {
-  SAT.rings = polysOf(chile).map((poly) => {
-    let w = 180, e = -180, s = 90, n = -90;
-    for (const [lo, la] of poly[0]) { if (lo < w) w = lo; if (lo > e) e = lo; if (la < s) s = la; if (la > n) n = la; }
-    return { poly, w, e, s, n };
-  });
+  SAT.rings = ringsOfChile(chile);
+  startClipWorker(SAT.rings);
+}
+/**
+ * Every Chile tile is decoded, clipped to the border on a canvas and re-encoded as PNG. That ran on
+ * the main thread, in the middle of the intro flight; a worker does it now (js/tile-clip-worker.js).
+ * Without module workers / OffscreenCanvas, or if the worker fails, the same code runs here.
+ */
+const CLIP = { worker: null, failed: false, seq: 0, pending: new Map() };
+function startClipWorker(rings) {
+  if (CLIP.worker || CLIP.failed || typeof Worker !== 'function' || typeof OffscreenCanvas !== 'function') return;
+  const fail = () => {
+    CLIP.failed = true;
+    if (CLIP.worker) { try { CLIP.worker.terminate(); } catch (_) { /* already gone */ } }
+    CLIP.worker = null;
+    for (const p of CLIP.pending.values()) p.reject(new Error('clip worker no disponible'));
+    CLIP.pending.clear();
+  };
+  try {
+    const w = new Worker(new URL('./tile-clip-worker.js', import.meta.url), { type: 'module' });
+    w.onmessage = (ev) => {
+      const { id, buf, error } = ev.data || {};
+      const p = CLIP.pending.get(id);
+      if (!p) return;
+      CLIP.pending.delete(id);
+      if (error) p.reject(new Error(error)); else p.resolve(buf);
+    };
+    w.onerror = () => { console.warn('[map] recorte de tiles: worker no disponible, sigo en el hilo principal'); fail(); };
+    w.postMessage({ type: 'init', rings });
+    CLIP.worker = w;
+  } catch (_) { fail(); }
+}
+/** Clip through the worker when it is up; on any failure, clip here with the same function. */
+async function clipTile(kind, buf, z, x, y) {
+  if (!SAT.rings) return buf;
+  const local = kind === 'dem' ? clipDemTile : clipSatTile;
+  if (!CLIP.worker) return local(buf, z, x, y, SAT.rings);
+  try {
+    return await new Promise((resolve, reject) => {
+      const id = ++CLIP.seq;
+      CLIP.pending.set(id, { resolve, reject });
+      CLIP.worker.postMessage({ id, kind, buf, z, x, y }); // copied, not transferred: kept for the fallback
+    });
+  } catch (_) {
+    return local(buf, z, x, y, SAT.rings);
+  }
 }
 let transparentTile = null;
 function blankTransparent() {
@@ -222,38 +260,6 @@ function blankTransparent() {
     });
   }
   return transparentTile.then((buf) => buf.slice(0));
-}
-/** Draw the tile and keep only the pixels inside Chile. Returns PNG bytes, or null if no overlap. */
-async function clipToChile(buf, z, x, y) {
-  if (!SAT.rings) return buf;
-  // tile bounds in lon/lat
-  const n2 = 2 ** z;
-  const w = (x / n2) * 360 - 180, e = ((x + 1) / n2) * 360 - 180;
-  const merc = (t) => (Math.atan(Math.sinh(Math.PI * (1 - (2 * t) / n2))) * 180) / Math.PI;
-  const nLat = merc(y), sLat = merc(y + 1);
-  const hits = SAT.rings.filter((r) => r.e >= w && r.w <= e && r.n >= sLat && r.s <= nLat);
-  if (!hits.length) return null;
-  const bmp = await createImageBitmap(new Blob([buf]));
-  const S = bmp.width || 256;
-  const c = typeof OffscreenCanvas === 'function' ? new OffscreenCanvas(S, S) : Object.assign(document.createElement('canvas'), { width: S, height: S });
-  const g = c.getContext('2d');
-  g.drawImage(bmp, 0, 0, S, S);
-  bmp.close && bmp.close();
-  g.globalCompositeOperation = 'destination-in';
-  g.beginPath();
-  for (const { poly } of hits) {
-    for (const ring of poly) {
-      ring.forEach(([lo, la], i) => {
-        const px = (lon2tx(lo, z) - x) * S, py = (lat2ty(la, z) - y) * S;
-        if (i) g.lineTo(px, py); else g.moveTo(px, py);
-      });
-      g.closePath();
-    }
-  }
-  g.fillStyle = '#000';
-  g.fill('evenodd');
-  const blob = c.convertToBlob ? await c.convertToBlob({ type: 'image/png' }) : await new Promise((r) => c.toBlob(r, 'image/png'));
-  return blob.arrayBuffer();
 }
 function registerSatProtocol(maplibregl, local) {
   if (registerSatProtocol.done || typeof maplibregl.addProtocol !== 'function') return;
@@ -280,39 +286,11 @@ function registerSatProtocol(maplibregl, local) {
       if (z > ((s2 && s2.maxzoom) || 0)) throw new Error('remote tile ' + r.status); // lets the Esri fallback count errors
       return { data: await blankTransparent() };
     }
-    const clipped = await clipToChile(await r.arrayBuffer(), z, x, y);
+    const clipped = await clipTile('sat', await r.arrayBuffer(), z, x, y);
     return { data: clipped || (await blankTransparent()) };
   });
 }
 
-/** Same clip for the hillshade DEM: outside Chile the elevation becomes flat 0 m, so no relief
- *  (ocean floor, Argentine Andes) is ever shaded there. Terrarium 0 m = rgb(128,0,0). */
-async function clipDemToChile(buf, z, x, y) {
-  if (!SAT.rings) return buf;
-  const bmp = await createImageBitmap(new Blob([buf]));
-  const S = bmp.width || 256;
-  const c = typeof OffscreenCanvas === 'function' ? new OffscreenCanvas(S, S) : Object.assign(document.createElement('canvas'), { width: S, height: S });
-  const g = c.getContext('2d');
-  g.drawImage(bmp, 0, 0, S, S);
-  bmp.close && bmp.close();
-  const n2 = 2 ** z;
-  const w = (x / n2) * 360 - 180, e = ((x + 1) / n2) * 360 - 180;
-  const merc = (t) => (Math.atan(Math.sinh(Math.PI * (1 - (2 * t) / n2))) * 180) / Math.PI;
-  const hits = SAT.rings.filter((r) => r.e >= w && r.w <= e && r.n >= merc(y + 1) && r.s <= merc(y));
-  g.globalCompositeOperation = 'destination-in';
-  g.beginPath();
-  for (const { poly } of hits) for (const ring of poly) {
-    ring.forEach(([lo, la], i) => { const px = (lon2tx(lo, z) - x) * S, py = (lat2ty(la, z) - y) * S; if (i) g.lineTo(px, py); else g.moveTo(px, py); });
-    g.closePath();
-  }
-  g.fillStyle = '#000';
-  if (hits.length) g.fill('evenodd'); else g.clearRect(0, 0, S, S);
-  g.globalCompositeOperation = 'destination-over';
-  g.fillStyle = 'rgb(128,0,0)';
-  g.fillRect(0, 0, S, S);
-  const blob = c.convertToBlob ? await c.convertToBlob({ type: 'image/png' }) : await new Promise((r) => c.toBlob(r, 'image/png'));
-  return blob.arrayBuffer();
-}
 /**
  * Terrain ('dem') and hillshade ('dem-hs') ask for the same DEM file through two protocols: share
  * the download (small bounded cache; each caller gets its own copy of the bytes). Not abortable on
@@ -342,7 +320,7 @@ function registerHillshadeProtocol(maplibregl, local) {
     const url = local.dem ? LOCAL_FILE.dem(key) : `https://s3.amazonaws.com/elevation-tiles-prod/terrarium/${key}.png`;
     const buf = await fetchDemShared(url);
     if (!buf) return { data: await blankTile('dem') };
-    return { data: await clipDemToChile(buf, z, x, y) };
+    return { data: await clipTile('dem', buf, z, x, y) };
   });
 }
 

@@ -197,6 +197,36 @@ Se trabaja por bloques en este orden; hay que ajustarlos a las horas reales que 
 | Expediente | PDF con campos de la guía y adjuntos | Borrador con la afectación del denunciante |
 | Decisión física | Ruta de inspección | Plan de vuelo para dron |
 
+## Métricas de impacto
+
+La métrica responde dos preguntas: cuántos casos encuentra Caudal que la fiscalización no encontró, y cuánta agua y cuánto dinero representan. Un predio con señal alta que nunca fue fiscalizado es un candidato, no un caso. Por eso las cifras de candidatos se multiplican por una precisión medida y se muestran como rango.
+
+Línea base (planilla de fiscalización de la DGA, extracción no autorizada, comunas de Z1 y Z2 declaradas en la planilla, 2018–2026):
+
+| Dato | Valor |
+| --- | --- |
+| Fiscalizaciones por año | Entre 20 y 90 por zona; hay unos 18.200 predios con rol válido en las dos zonas, así que cada año se revisa menos del 0,5 % |
+| Tasa de acierto de la DGA (2022–2025) | 27 %: una de cada cuatro fiscalizaciones constata infracción |
+| Multas por extracción | 112 multas, 44.031 UTM en total (unos $3.190 millones) |
+| Multa mediana | 146,8 UTM (unos $10,6 millones); Z1: 166 UTM y Z2: 143 UTM |
+| Valor UTM usado | $72.440 (noviembre de 2026, mindicador.cl) |
+
+Métricas:
+
+1. **Adelanto de detección** (se puede probar con casos conocidos). Para cada caso positivo, se mide cuántos meses antes de la inspección de la DGA el predio entra en la banda alta. Agua evitable = suma del exceso mensual (m³ estimados menos m³ con derecho) entre la primera señal y la inspección. Ejemplo para el pitch: "Caudal marcaba el predio del caso FO-0501-462 X meses antes de que llegara la DGA; en ese tiempo se extrajeron entre A y B m³".
+2. **Acierto frente a la DGA** (se puede probar, con muestra chica). De los predios fiscalizados que caen en la banda alta de Caudal, qué fracción tuvo infracción. Se compara con el 27 % de la DGA. Advertencia: los predios fiscalizados no son una muestra al azar, y en las zonas hay pocos casos.
+3. **Candidatos no fiscalizados** (estimación). Predios en banda alta sin ninguna fiscalización registrada desde 2018 en un radio de 500 m. Casos esperados = candidatos × acierto de la métrica 2. Si la métrica 2 no tiene suficientes casos, se usa el 27 % de la DGA como piso conservador.
+4. **Agua en juego** (estimación). Suma del exceso anual de los candidatos × acierto, en rango de m³. Se traduce a personas abastecidas en un año con la dotación por persona de los camiones aljibe (valor por verificar, tarea D14).
+5. **Dinero** (estimación, dos cifras que no se suman):
+   - Multas que no se cursaron = casos esperados × multa mediana de la zona × valor UTM.
+   - Costo de reemplazar esa agua con camiones aljibe = m³ en juego × costo por m³ de camión aljibe (valor por verificar, tarea D14).
+
+Reglas para mostrar las métricas:
+
+- Siempre en rango (mínimo y máximo), con el supuesto de acierto a la vista.
+- En el pitch se dice "predios con señal alta que nunca fueron fiscalizados", no "infractores" ni "casos encontrados".
+- Los candidatos no se identifican en la demo pública: se muestran como conteo y en un mapa agregado, sin rol ni ubicación exacta.
+
 ## Demo, riesgos y preguntas abiertas
 
 Guion de demo (3 minutos), con la ruta de inspección como cierre:
@@ -206,6 +236,7 @@ Guion de demo (3 minutos), con la ruta de inspección como cierre:
 3. La serie satelital del predio del caso FO-0501-462 con la ventana seca marcada por las estaciones: el riego aparece antes de que llegue la DGA. Cierra con la escena más reciente del mismo predio.
 4. Los m³ estimados frente a los derechos, en banda y con su confianza.
 5. Botón "generar expediente" en vivo y, como cierre, la ruta de inspección de los predios top, que es la decisión central.
+6. Cifra de impacto en una frase: adelanto de detección en el caso real, y candidatos no fiscalizados con su rango de m³ y de pesos (ver [Métricas de impacto](#métricas-de-impacto)).
 
 | Riesgo | Mitigación |
 | --- | --- |

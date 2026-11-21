@@ -50,13 +50,15 @@ Las zonas se definen en esta sección y en ningún otro lugar. Toda extracción 
 - La pertenencia a una zona se decide por comuna, no por bounding box. Los bounding boxes se solapan entre las latitudes -32.73 y -32.59. El bounding box es la extensión de los predios CIREN de esas comunas y sirve solo para filtrar descargas.
 - Los bounding boxes incluyen cordillera y cerros. Para Sentinel-2, se recorta con las geometrías de los predios, no con el bounding box.
 - Periodo de análisis: desde enero de 2020 hasta la última escena limpia antes de la demo. Mientras más reciente el dato, más fuerte la demo. Periodos prioritarios:
-  - Z1: de diciembre de 2024 a la última escena (casos de 2025, temporada seca 2025-26 y escena reciente).
-  - Z2: 2021–2022 (antecedente satelital) y de diciembre de 2024 a mayo de 2025 (caso FO-0504-157).
+  - Z1: de julio de 2023 a abril de 2024 (caso de la demo FD-0501-181, temporada seca 2023-24) y de diciembre de 2024 a la última escena (casos de 2025, temporada seca 2025-26 y escena reciente).
+  - Z2: 2021–2022 (antecedente satelital) y de julio de 2023 a mayo de 2025 (casos FD-0504-257 y FO-0504-157).
 - Ventanas para la demo: el ranking usa la temporada seca 2025-26 (diciembre de 2025 a marzo de 2026), que es la última completa. La ficha del predio muestra además la escena limpia más reciente. Esa escena se recalcula la noche antes de la demo (tarea D13).
 - Octubre de 2026 fue lluvioso: según Open-Meteo, unos 100 mm en La Ligua y unos 160 mm en Hijuelas (última lluvia fuerte: 20-10 en La Ligua y 03-11 en Hijuelas). Las escenas de noviembre de 2026 muestran todo verde y separan mal riego de secano. Por eso el ranking no usa noviembre de 2026.
-- Caso de la demo: expediente FO-0501-462, La Ligua (Z1), lat -32.44641, lon -71.21551; inspección el 07-05-2025; resolución 1170 del 25-07-2025; multa de 778,07 UTM. El pozo cae dentro del predio `88-31` (6,1 ha). Relato: la serie del verano 2024-25 muestra riego en ventana seca antes de que llegue la DGA.
+- Caso de la demo: expediente FD-0501-181, Cabildo (Z1), lat -32.41082, lon -71.02377; nació de una denuncia; inspección el 02-04-2024; resolución 992 del 31-07-2024 (acoge); multa de 710,6 UTM (unos $51 millones); con recurso de reconsideración presentado. El pozo cae dentro del predio `202-35` (17,2 ha), que tiene 16,1 ha de palto y chirimoyo (Catastro Frutícola 2025) y ningún derecho propio inscrito. Relato: un vecino tuvo que denunciar; la serie del verano 2023-24 muestra riego en ventana seca en un predio sin derechos, antes de la inspección. A 8.000–10.000 m³ por hectárea al año, son unos 130.000 a 160.000 m³ al año sin derecho (rango por confirmar con M4).
+- Por qué no FO-0501-462 (el caso anterior): su predio no tiene frutales en el catastro y su derecho (63.072 m³ al año en 6,1 ha) alcanza casi justo para regarlo, así que el modelo probablemente no lo marca. Queda como caso de validación.
+- Riesgo del caso de la demo: hay 910.000 m³ al año de derechos de pozos vecinos a 500 m o menos. Si M5 baja la confianza solo porque el entorno tiene derechos, este caso queda en confianza baja. Los derechos del entorno solo deben bajar la confianza si superan lo que necesitan los predios donde están inscritos.
 - Antecedente satelital: expediente FO-0504-95, Hijuelas (Z2), lat -32.82257, lon -71.01774; inspección el 23-11-2021; multa de 1.983,9 UTM (unos $127 millones); la DGA dice que lo detectó con imágenes satelitales ([nota de la DGA](https://dga.mop.gob.cl/dga-valparaiso-multa-a-empresario-agricola-por-extraccion-no-autorizada-de-aguas-en-la-comuna-de-hijuelas/)).
-- Otros casos de validación: FO-0504-157 (Hijuelas, 2025), FD-0501-191 y FD-0501-189 (Cabildo, 2025), FO-0501-376 y FO-0501-386 (Pullally, 2022) y FO-0501-380 (Cabildo, 2022). Todos están en [data/casos_validacion.geojson](../data/casos_validacion.geojson).
+- Otros casos de validación: FD-0504-257 (La Cruz, 2024: 8,2 ha de palto sin derechos propios, multa de 1.144 UTM), FO-0501-462 (La Ligua, 2025), FO-0504-157 (Hijuelas, 2025), FD-0501-191 y FD-0501-189 (Cabildo, 2025), FO-0501-376 y FO-0501-386 (Pullally, 2022) y FO-0501-380 (Cabildo, 2022). Todos están en [data/casos_validacion.geojson](../data/casos_validacion.geojson).
 - Solo se usan casos resueltos. Los expedientes "En trámite" no se muestran como infractores en la demo.
 - Los conteos vienen de las fuentes del 21-11-2026. Las fiscalizaciones son las de `data/processed/fiscalizacion.parquet` (D6): solo extracción no autorizada de aguas; la zona sale del predio a 50 m o menos del punto o, si no hay, de la comuna declarada.
 
@@ -226,7 +228,7 @@ Línea base (`data/processed/fiscalizacion.parquet`: planilla de fiscalización 
 
 Métricas:
 
-1. **Adelanto de detección** (se puede probar con casos conocidos). Para cada caso positivo, se mide cuántos meses antes de la inspección de la DGA el predio entra en la banda alta. Agua evitable = suma del exceso mensual (m³ estimados menos m³ con derecho) entre la primera señal y la inspección. Ejemplo para el pitch: "Caudal marcaba el predio del caso FO-0501-462 X meses antes de que llegara la DGA; en ese tiempo se extrajeron entre A y B m³".
+1. **Adelanto de detección** (se puede probar con casos conocidos). Para cada caso positivo, se mide cuántos meses antes de la inspección de la DGA el predio entra en la banda alta. Agua evitable = suma del exceso mensual (m³ estimados menos m³ con derecho) entre la primera señal y la inspección. Ejemplo para el pitch: "Caudal marcaba el predio del caso FD-0501-181 X meses antes de que llegara la DGA; en ese tiempo se extrajeron entre A y B m³".
 2. **Acierto frente a la DGA** (se puede probar, con muestra chica). De los predios fiscalizados que caen en la banda alta de Caudal, qué fracción tuvo infracción. Se compara con el 33 % de la DGA. Advertencia: los predios fiscalizados no son una muestra al azar, y en las zonas hay pocos casos.
 3. **Candidatos no fiscalizados** (estimación). Predios en banda alta sin ninguna fiscalización registrada desde 2018 en un radio de 500 m. Casos esperados = candidatos × acierto de la métrica 2. Si la métrica 2 no tiene suficientes casos, se usa el 33 % de la DGA como piso conservador.
 4. **Agua en juego** (estimación). Suma del exceso anual de los candidatos × acierto, en rango de m³. Se traduce a personas abastecidas en un año con la dotación por persona de los camiones aljibe (valor por verificar, tarea D14).
@@ -246,7 +248,7 @@ Guion de demo (3 minutos), con la ruta de inspección como cierre:
 
 1. El problema en una frase y una imagen: un camión aljibe frente a un predio verde.
 2. El mapa del valle con el ranking de predios sospechosos.
-3. La serie satelital del predio del caso FO-0501-462 con la ventana seca marcada por las estaciones: el riego aparece antes de que llegue la DGA. Cierra con la escena más reciente del mismo predio.
+3. La serie satelital del predio del caso FD-0501-181 (16 ha de palto sin derechos propios) con la ventana seca marcada por las estaciones: el riego aparece antes de que llegue la DGA. Cierra con la escena más reciente del mismo predio.
 4. Los m³ estimados frente a los derechos, en banda y con su confianza.
 5. Botón "generar expediente" en vivo y, como cierre, la ruta de inspección de los predios top, que es la decisión central.
 6. Cifra de impacto en una frase: adelanto de detección en el caso real, y candidatos no fiscalizados con su rango de m³ y de pesos (ver [Métricas de impacto](#métricas-de-impacto)).

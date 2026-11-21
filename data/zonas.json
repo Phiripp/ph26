@@ -9,7 +9,8 @@
       "comunas": ["PETORCA", "CABILDO", "LA LIGUA", "PAPUDO", "ZAPALLAR"],
       "bbox": [-71.5421, -32.7328, -70.4104, -32.0200],
       "periodos_prioritarios": [
-        {"inicio": "2024-12-01", "fin": "ultima_escena_limpia", "motivo": "Casos 2025 (FO-0501-462), temporada seca 2025-26 para el ranking y escena reciente para la demo"}
+        {"inicio": "2023-07-01", "fin": "2024-04-30", "motivo": "Caso de la demo FD-0501-181: temporada seca 2023-24, antes de la inspección del 02-04-2024"},
+        {"inicio": "2024-12-01", "fin": "ultima_escena_limpia", "motivo": "Casos 2025, temporada seca 2025-26 para el ranking y escena reciente para la demo"}
       ]
     },
     "Z2": {
@@ -19,7 +20,7 @@
       "bbox": [-71.5008, -32.9905, -70.9708, -32.5897],
       "periodos_prioritarios": [
         {"inicio": "2021-01-01", "fin": "2022-12-31", "motivo": "Antecedente satelital FO-0504-95"},
-        {"inicio": "2024-12-01", "fin": "2025-05-31", "motivo": "Caso FO-0504-157"}
+        {"inicio": "2023-07-01", "fin": "2025-05-31", "motivo": "Casos FD-0504-257 (inspección 09-07-2024) y FO-0504-157 (14-05-2025)"}
       ]
     }
   }

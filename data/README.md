@@ -55,6 +55,7 @@ Datos de entrada de Caudal. Las zonas, las fuentes y las convenciones están en 
 | `processed/predio_cauce.parquet` | Sí | Cauce, río o estero y canal más cercanos a cada predio elegible, con distancias. Para el campo "cauce cercano" del expediente (M12, M13) | `scripts/extract/cauces_dga.py` |
 | `processed/restriccion.parquet` | Sí | 57 sectores hidrogeológicos (SHAC) de la DGA que tocan Z1 o Z2, con `tipo_limite` (`prohibicion`, `restriccion`, `abierto`), resolución y fechas. Polígonos en EPSG:4326 | `scripts/extract/restriccion_dga.py` |
 | `processed/predio_restriccion.parquet` | Sí | Por predio elegible, el SHAC donde cae la mayor parte de su superficie: `cod_shac`, `sector`, `tipo_limite`, `resolucion_dga`, `fecha_resolucion`, `frac_en_shac`, `en_prohibicion` (SHAC dominante es de prohibición) y `toca_prohibicion` (intersecta algún SHAC de prohibición). Un predio sin SHAC queda vacío (1 de 7.911). Para el contexto y el expediente (M12, M13); no entra al ranking | `scripts/extract/restriccion_dga.py` |
+| `processed/poi.parquet` | Sí | Puntos de interés dentro y junto al predio (máx. 8 por predio): `zona_riego`, `posible_tranque`, `captacion`, `pozo_derecho`, `bocatoma`, `cauce` y `canal`, cada uno con coordenada, razón, fecha de la imagen, confianza, elevación, pendiente y la señal de M3 (`senal_riego_m3`, `frac_senal_m3`). Hoy cubre 11 predios (la demo y los 10 con más señal de M3); se acumula por predio | `scripts/extract/poi_predio.py` |
 
 ## Columnas de `predio`
 

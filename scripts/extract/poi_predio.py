@@ -10,18 +10,23 @@ Tipos de POI:
 - posible_tranque: píxeles con agua (NDWI alto y verdor bajo) en varias escenas, en el predio o a menos de 50 m.
 - bocatoma: bocatoma CIREN/CNR a menos de 500 m del predio.
 - canal: canal de riego a menos de 200 m del predio.
-- captacion: pozo o captación de un expediente DGA dentro o a menos de 100 m (casos_validacion; luego derechos).
-A cada POI se le agrega elevación y pendiente (Copernicus DEM 30 m).
+- captacion: pozo o captación de un expediente DGA dentro o a menos de 100 m (casos_validacion).
+- pozo_derecho: captación de un derecho registrado (derecho.parquet, D4) dentro o a menos de 100 m del predio.
+- cauce: punto del cauce con nombre más cercano al predio, a menos de 1.500 m (posible bocatoma sin registro).
+A cada POI se le agrega elevación y pendiente (Copernicus DEM 30 m) y, si el predio está en senal_riego.parquet (M3),
+la señal de riego del predio en la temporada (`senal_riego_m3`, `frac_senal_m3`) como contexto.
 
-Provisional: sin la referencia de secano (D11/M2), el "entorno" es un anillo de 100 a 500 m alrededor del predio.
-Cuando M2 y M3 existan, zona_riego debe usar z_verdor y z_humedad en vez del anillo.
+Las zonas de riego se localizan dentro del predio con un anillo de 100 a 500 m alrededor como entorno; M2 y M3
+dan la señal por predio (no por píxel), así que no la reemplazan: la acompañan.
 
-Entradas: data/processed/predio_muestra.geojson (o predio.parquet si el predio no está en la muestra).
+Entradas: data/processed/predio.parquet (o predio_muestra.geojson), derecho.parquet, cauce.parquet y, si existe,
+senal_riego.parquet.
 Salida: data/processed/poi.parquet (una fila por POI; se acumula por predio) y, con --png, un mapa de control.
 
 Uso:
-  uv run scripts/extract/poi_predio.py                      # predio de la demo (88-31, La Ligua), verano 2024-25
-  uv run scripts/extract/poi_predio.py --predio-id 5304670 --inicio 2024-12-01 --fin 2025-03-31 --png
+  uv run scripts/extract/poi_predio.py                                 # predio de la demo (88-31, La Ligua)
+  uv run scripts/extract/poi_predio.py --predios 5330704,5331888 --png
+  uv run scripts/extract/poi_predio.py --senal-m3 10                   # los 10 predios con más señal de M3
 """
 
 import argparse
@@ -51,6 +56,8 @@ DATA = RAIZ / "data"
 CRS_M = "EPSG:32719"
 RES = 10
 BUF_PIXELES = 50  # m alrededor del predio para buscar tranques
+CAUCE_RADIO = 1500  # m
+POZO_RADIO = 100  # m
 ANILLO = (100, 500)  # m, entorno de comparación provisional
 CIREN = "https://esri.ciren.cl/server/rest/services/IDEMINAGRI/INFRAESTRUCTURA_RIEGO/MapServer"
 DEM_STAC = "https://earth-search.aws.element84.com/v1"
@@ -71,7 +78,7 @@ def cargar_predio(pid: int) -> gpd.GeoDataFrame:
         g = g[g.predio_id == pid]
         if len(g):
             return g.iloc[:1][["predio_id", "zona", "geometry"]].set_crs(4326, allow_override=True).reset_index(drop=True)
-    sys.exit(f"predio {pid} no encontrado")
+    raise ValueError(f"predio {pid} no encontrado")
 
 
 def escenas(bbox, inicio, fin, nubes_max, max_n):
@@ -145,19 +152,36 @@ def componentes(mask, transform, min_px):
     return sorted(res, key=lambda t: -t[1])
 
 
-def main():
+def argumentos():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--predio-id", type=int, default=5304670, help="mslink CIREN; por defecto 88-31 (demo)")
-    ap.add_argument("--inicio", default="2024-12-01")
-    ap.add_argument("--fin", default="2025-03-31")
+    ap.add_argument("--predios", default="5304670", help="mslink CIREN separados por coma; por defecto 88-31 (demo)")
+    ap.add_argument("--senal-m3", type=int, metavar="N",
+                    help="en vez de --predios: los N predios con más z_verdor_mediana entre los de senal_riego=True (M3)")
+    ap.add_argument("--inicio", default="2025-12-01", help="inicio del periodo de escenas (temporada seca 2025-26)")
+    ap.add_argument("--fin", default="2026-03-31")
     ap.add_argument("--nubes-max", type=float, default=30)
     ap.add_argument("--max-escenas", type=int, default=8)
     ap.add_argument("--z-umbral", type=float, default=1.0)
     ap.add_argument("--max-poi", type=int, default=8)
     ap.add_argument("--png", action="store_true")
     ap.add_argument("--salida", default=str(DATA / "processed/poi.parquet"))
-    a = ap.parse_args()
+    return ap.parse_args()
 
+
+def contexto() -> dict:
+    """Capas que no dependen del predio: se leen una vez."""
+    ctx = {}
+    d = gpd.read_parquet(DATA / "processed/derecho.parquet")
+    ctx["derechos"] = d[d.geometry.notna() & d["duplicado_de"].isna() & (d["coord_estado"] != "fuera_de_region")].to_crs(CRS_M)
+    c = gpd.read_parquet(DATA / "processed/cauce.parquet")
+    ctx["cauces"] = c[c["nombre"].notna() & (c["tipo"] != "Línea de Costa")].to_crs(CRS_M)
+    f = DATA / "processed/senal_riego.parquet"
+    ctx["senal"] = (pd.read_parquet(f).sort_values("temporada").drop_duplicates("predio_id", keep="last")
+                    .set_index("predio_id") if f.exists() else pd.DataFrame())
+    return ctx
+
+
+def procesa(a, ctx):
     pred = cargar_predio(a.predio_id)
     zona = pred.zona.iloc[0]
     pm = pred.to_crs(CRS_M)
@@ -168,7 +192,7 @@ def main():
 
     its = escenas(bbox, a.inicio, a.fin, a.nubes_max, a.max_escenas)
     if not its:
-        sys.exit("sin escenas limpias en el periodo")
+        raise ValueError("sin escenas limpias en el periodo")
     print(f"{len(its)} escenas: {[i.datetime.date().isoformat() for i in its]}", flush=True)
     tile = s2.Tile(its[0], amplio)
     pila = {"ndvi": [], "ndwi": [], "ndmi": []}
@@ -206,13 +230,16 @@ def main():
 
     zdem, pend, trd = dem(bbox)
     filas = []
+    sm3 = ctx["senal"].loc[a.predio_id] if a.predio_id in ctx["senal"].index else None
+    ctx_m3 = ({"senal_riego_m3": bool(sm3["senal_riego"]), "frac_senal_m3": float(sm3["frac_senal"])} if sm3 is not None
+              else {"senal_riego_m3": None, "frac_senal_m3": np.nan})
 
     def agrega(tipo, geom_m, razon, conf, area_ha=np.nan, extra=None):
         c = gpd.GeoSeries([geom_m.centroid], crs=CRS_M).to_crs(4326).iloc[0]
         e, p = muestrea(zdem, pend, trd, c.x, c.y)
         filas.append({"predio_id": a.predio_id, "zona": zona, "tipo": tipo, "lon": c.x, "lat": c.y, "area_ha": area_ha,
                       "razon": razon, "fecha_imagen": max(fechas), "n_escenas": len(fechas), "confianza": round(conf, 2),
-                      "elev_m": e, "pend_pct": p, **(extra or {})})
+                      "elev_m": e, "pend_pct": p, **ctx_m3, **(extra or {})})
 
     for geom, npx, m in componentes(regado, tr, 10)[:3]:
         ha = npx * RES * RES / 1e4
@@ -249,11 +276,29 @@ def main():
             cod = r.get("expediente") or r.get("codigo") or "expediente DGA"
             agrega("captacion", r.geometry, f"captación del expediente {cod} (inspección DGA), a {r.geometry.distance(area):.0f} m del predio", 0.9)
 
+    # captaciones de derechos registrados (D4) dentro o a menos de POZO_RADIO m del predio
+    dd = ctx["derechos"]
+    dd = dd[dd.distance(area) <= POZO_RADIO]
+    dd = dd.assign(d=dd.distance(area)).sort_values("d").head(2)
+    for _, r in dd.iterrows():
+        cau = f"{r['caudal_ls']:.1f} l/s" if pd.notna(r.get("caudal_ls")) else "caudal sin dato"
+        agrega("pozo_derecho", r.geometry, f"captación del derecho {r['expediente']} ({r.get('fuente') or 'fuente sin dato'}, {cau}), "
+                                          f"a {r.d:.0f} m del predio; coordenada {r['coord_estado']}",
+               0.7 if r["coord_estado"] == "ok" else 0.4)
+
+    # cauce con nombre más cercano: posible bocatoma sin registro
+    cc = ctx["cauces"]
+    cc = cc[cc.distance(area) <= CAUCE_RADIO]
+    if len(cc):
+        r = cc.assign(d=cc.distance(area)).sort_values("d").iloc[0]
+        agrega("cauce", nearest_points(r.geometry, area)[0], f"{r['tipo']} '{r['nombre']}' a {r.d:.0f} m del predio: revisar si hay bocatoma o bombeo",
+               0.3)
+
     poi = pd.DataFrame(filas)
     if poi.empty:
         print("sin POI: el predio no muestra señal; la ruta irá solo al acceso")
     else:
-        poi = poi.assign(orden=poi.tipo.map({"captacion": 0, "zona_riego": 1, "posible_tranque": 2, "bocatoma": 3, "canal": 4})
+        poi = poi.assign(orden=poi.tipo.map({"captacion": 0, "pozo_derecho": 1, "zona_riego": 2, "posible_tranque": 3, "bocatoma": 4, "cauce": 5, "canal": 6})
                          ).sort_values(["orden", "confianza"], ascending=[True, False]).head(a.max_poi).drop(columns="orden")
         poi.insert(0, "poi_id", [f"{a.predio_id}-{i+1}" for i in range(len(poi))])
         poi = gpd.GeoDataFrame(poi, geometry=gpd.points_from_xy(poi.lon, poi.lat), crs=4326)
@@ -276,7 +321,7 @@ def main():
         for axx, t in zip(ax, ("NDVI mediano", "NDMI mediano")):
             axx.plot(x, y, "k-", lw=1)
             if pm_pts is not None:
-                for tipo, c in (("captacion", "black"), ("zona_riego", "red"), ("posible_tranque", "blue"), ("bocatoma", "magenta"), ("canal", "orange")):
+                for tipo, c in (("captacion", "black"), ("pozo_derecho", "gray"), ("zona_riego", "red"), ("posible_tranque", "blue"), ("bocatoma", "magenta"), ("cauce", "cyan"), ("canal", "orange")):
                     s = pm_pts[(pm_pts.tipo == tipo) & (pm_pts.predio_id == a.predio_id)]
                     axx.scatter(s.geometry.x, s.geometry.y, c=c, s=40, label=tipo, edgecolor="w")
             axx.set_title(f"{t} {min(fechas)}..{max(fechas)}")
@@ -284,6 +329,25 @@ def main():
         sp = RAIZ / f"data/raw/poi_{a.predio_id}.png"
         fig.savefig(sp, dpi=110, bbox_inches="tight")
         print("mapa de control:", sp)
+
+
+def main():
+    a = argumentos()
+    ctx = contexto()
+    if a.senal_m3:
+        s = ctx["senal"]
+        ids = s[s["senal_riego"]].sort_values("z_verdor_mediana", ascending=False).head(a.senal_m3).index.tolist()
+    else:
+        ids = [int(x) for x in a.predios.split(",")]
+    fallos = []
+    for pid in ids:
+        a.predio_id = int(pid)
+        try:
+            procesa(a, ctx)
+        except Exception as e:
+            print(f"predio {pid}: {e}", file=sys.stderr)
+            fallos.append(pid)
+    print(f"\n{len(ids) - len(fallos)} de {len(ids)} predios procesados" + (f"; fallaron {fallos}" if fallos else ""))
 
 
 if __name__ == "__main__":

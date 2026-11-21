@@ -16,6 +16,25 @@ python3 -m http.server 8000
 
 Hace falta un servidor local (módulos ES y `fetch` no funcionan con `file://`). Sin build: three.js y MapLibre se cargan desde CDN con versiones fijas. Necesita internet para las librerías, las fuentes y el detalle satelital sobre zoom 9.
 
+## Despliegue (Cloud Run)
+
+La carpeta trae su `Dockerfile`: nginx sirviendo los archivos tal cual, sin build. No hace falta
+`package.json` ni scripts `build`/`start`.
+
+```bash
+# desde la raíz del repo (proyecto ph-26-caudal, región southamerica-west1)
+gcloud run deploy caudal-web --source frontend-demo --allow-unauthenticated
+```
+
+Para el despliegue automático desde el repo espejo, el disparador debe usar `frontend-demo/Dockerfile`.
+
+- `nginx.conf.template` — escucha en `PORT` (8080 en Cloud Run), comprime JSON/JS/CSS, `tiles/` y
+  `assets/` con caché de 24 h, y el resto (`sw.js`, código, datos) siempre revalida, para que un
+  despliegue se vea al recargar.
+- `.dockerignore` / `.gcloudignore` — dejan fuera `scripts/`, el README y las páginas `*-test.html`.
+- Probar en local: `docker build -t caudal-web frontend-demo && docker run --rm -p 8080:8080 caudal-web`.
+- Sin probar todavía en la URL real: el service worker y la precarga solo se han probado en `localhost`.
+
 ## Rendimiento
 
 La página carga solo lo que se ve y la vista de zona aguanta miles de predios. Medido con `scripts/perf/measure.cjs` en Chrome, GPU integrada Intel UHD 630, ventana 1280×760, servidor local (antes = commit `f685071`):

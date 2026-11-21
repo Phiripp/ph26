@@ -61,7 +61,7 @@ Los valores del ejemplo son los reales del predio `5301984` en la temporada 2025
 Reglas:
 
 - Nada de índices con nombre técnico en la primera vista (NDVI, z, percentiles). Van en "ver método", que enlaza a `data/README.md` y a [validacion.md](validacion.md).
-- Las frases se generan a partir de los datos, con una sola función que usan la ficha y el expediente (`scripts/models/explicacion.py`, tarea T1). Así el PDF y la pantalla dicen lo mismo.
+- Las frases se generan a partir de los datos, con una sola función que usan la ficha y el expediente (`explicacion()` en `scripts/models/explicacion.py`). Así el PDF y la pantalla dicen lo mismo. Los m³ van a 2 cifras significativas, como en el PDF.
 - El caso sancionado usa el mismo bloque, calculado con los datos previos a la inspección.
 
 Contrato de la explicación (lo que entrega la función por predio y temporada):
@@ -113,7 +113,7 @@ Navegador ──► caudal-web (Cloud Run, nginx, estático)
                  └─ /app/data/*.parquet  (copiados al construir la imagen)
 ```
 
-- Un solo módulo, `api/datos.py`, arma cada recurso del [contrato de datos](#contrato-de-datos) a partir de `data/processed/` y llama a `explicacion.py` para la ficha. La API lo usa en cada solicitud, y `frontend-demo/scripts/build_m5_web.py` lo usa para escribir el respaldo en `frontend-demo/data/respaldo/` (una ruta por endpoint: `/api/zonas/Z2/ranking` → `respaldo/zonas/Z2/ranking.json`). Así la API y el respaldo no se pueden desalinear.
+- Un solo módulo, `api/datos.py`, arma cada recurso del [contrato de datos](#contrato-de-datos) a partir de `data/processed/` y llama a `explicacion.py` para la ficha. La API lo usa en cada solicitud, y `api/respaldo.py` pide cada ruta a la misma aplicación y escribe el respaldo en `frontend-demo/data/respaldo/` (una ruta por endpoint: `/api/zonas/Z2/ranking` → `respaldo/zonas/Z2/ranking.json`). Así la API y el respaldo no se pueden desalinear. Rutas, formas de respuesta y la función `api(ruta)` de ejemplo: [api/README.md](../api/README.md).
 - El frontend pide todo con una sola función, `api(ruta)` en `js/config.js` (la URL del backend va en `API_BASE`). Si la API no responde en 5 segundos o da error, lee el archivo equivalente del respaldo y muestra un aviso discreto: "datos del {fecha}".
 - Para actualizar los datos se vuelve a desplegar `caudal-api`. Cada versión de datos queda en su propia revisión de Cloud Run, y para volver atrás basta con mover el tráfico a la revisión anterior.
 
@@ -222,6 +222,7 @@ Servicio `caudal-api` (FastAPI). Importa las funciones de `scripts/models/expedi
 | --- | --- |
 | `GET /api/health` | Estado del servicio, versión de los datos (commit y fecha) y número de predios |
 | `POST /api/expediente` | Genera el expediente de un predio, o lo devuelve si ya existe con los mismos insumos |
+| `GET /api/expediente/eventos?predio_id=` | Lo mismo, como eventos (`paso`, `listo`, `falla`): son los pasos reales de la generación, para F3 |
 | `GET /api/expediente/{id}/expediente.pdf` | Entrega el PDF |
 
 Entrada de `POST /api/expediente`:
@@ -255,7 +256,9 @@ Reglas:
 - Errores: 404 si el predio no tiene puntaje; 422 si la temporada no tiene datos; 503 con detalle si la generación falla.
 - El PDF usa el mismo texto de `explicacion.py` y mantiene las reglas de lenguaje del flujo B: "indicios", rangos, sin nombres.
 
-Para la demo, el expediente del candidato se genera una vez antes de presentar. En el escenario se dice lo que es: "el expediente se arma en el servidor"; si el jurado pide otro predio, se genera delante de ellos.
+Opcional en la entrada: `"temporada"` (por defecto, la del ranking) y `"regenerar": true` (fuerza uno nuevo).
+
+Para la demo, el expediente del candidato y el del caso (`data/demo.json`) se generan al construir la imagen, con los mismos datos que usa la API. En el escenario se dice lo que es: "el expediente se arma en el servidor"; si el jurado pide otro predio, se genera delante de ellos.
 
 ### Recursos de lectura (P0)
 
@@ -269,13 +272,16 @@ Cada ruta llama a una función de `api/datos.py` y devuelve los campos del contr
 | `GET /api/predios/{id}` (ficha con explicación, POI y contexto de M12) | P0 |
 | `GET /api/predios/{id}/serie?temporada=` | P0 |
 | `GET /api/casos/{expediente}` | P0 |
-| `GET /api/zonas/{zona}/ruta` y `/ruta.gpx` | P0 |
+| `GET /api/zonas/{zona}/ruta`, `/ruta.gpx` y `/ruta.geojson` | P0 |
 | `GET /api/impacto` | P0 |
+| `GET /api/zonas` (portada: total y resumen de cada zona) | P0 |
+| `GET /api/casos` (los 10 casos resueltos) | P0 |
+| `GET /api/demo` (zona, caso y candidato del guion: `data/demo.json`) | P1 |
 | `POST /api/ruta` (otra jornada u otro filtro; solo con matrices de OSRM guardadas) | P2 |
 
 Reglas:
 
-- Una conexión DuckDB de solo lectura por proceso, abierta al arrancar. Los Parquet se registran como vistas, así que las consultas no copian los datos en memoria.
+- Una base DuckDB en memoria por proceso, abierta al arrancar. Los Parquet se registran como vistas, así que las consultas no copian los datos en memoria. Tres tablas chicas se calculan una vez al arrancar, con las funciones de los modelos: las imágenes marcadas por el detector de riego, los predios con fiscalización a 500 m y el centro de cada predio.
 - Responden con `Cache-Control: public, max-age=300` y un `ETag` igual a la versión de los datos.
 - 404 si el predio, la zona o el caso no existen.
 - Nunca devuelven nombres de titulares. El rol solo sale con `?rol=1`, y el frontend no lo pide en modo demo.
@@ -297,7 +303,7 @@ Cosas a saber:
 
 - **Cuota:** Cloud Run tiene 20 vCPU y 40 GiB por región. Los trabajos de Gabi corren en `us-west1`, así que no compiten con estos servicios.
 - **Cloud Build:** falló con `PERMISSION_DENIED` al desplegar el trabajo de POI. Si falla aquí, construir la imagen en local con Docker y subirla a Artifact Registry.
-- **Datos en la imagen:** el script de despliegue de `caudal-api` copia `data/processed/*.parquet` y `*.json` a `/app/data/` y escribe `/app/data/VERSION`. `predio.parquet` no está en git (capa de CIREN): se copia desde el disco local al contexto de construcción, como hace `scripts/cloud/poi/desplegar.sh`.
+- **Datos en la imagen:** `scripts/cloud/api/desplegar.sh` copia los Parquet (menos las series crudas) y los JSON a `/app/data/` y escribe `/app/data/VERSION`. `predio.parquet` no está en git (capa de CIREN): se copia desde el disco local al contexto de construcción, como hace `scripts/cloud/poi/desplegar.sh`. El script construye con Docker en local, sube a Artifact Registry y despliega; `scripts/cloud/api/probar.sh URL` revisa todas las rutas.
 - **Orden de despliegue:** primero `caudal-api`, después `caudal-web`. Si cambia la forma de una respuesta, hay que regenerar el respaldo con `build_m5_web.py` en el mismo commit.
 - **Arranque en frío:** con una instancia mínima no hay. Volver a 0 después de la final.
 - **Service worker:** `sw.js` guarda en caché los `GET /api/*` (primero la red, y el caché si no hay red), para que la segunda visita funcione sin red. No guarda `POST /api/expediente`. Al cambiar los datos hay que subir la versión del caché en `sw.js`.
@@ -324,14 +330,14 @@ Ya corregido: la cifra de validación del pitch (2,6) y las equivalencias (perso
 | ID | Tarea | Prioridad | Responsable sugerido | Depende de | Listo cuando |
 | --- | --- | --- | --- | --- | --- |
 | T0 | ~~Decidir almacenamiento y transporte~~ Decidido: API con DuckDB y respaldo estático ([Almacenamiento y transporte](#almacenamiento-y-transporte)) | P0 | — | — | Hecho |
-| T1 | `explicacion.py`: razones, confianza y límites por predio, con fuentes | P0 | Tomás 🟡 | — | Devuelve el contrato de la explicación para `5301984` y para el caso FO-0504-95 |
-| T2 | `api/datos.py` (funciones de lectura con DuckDB) y `build_m5_web.py`, que escribe `data/respaldo/` con ellas | P0 | Felipe, con apoyo de Tomás (🟡 Tomás: `api/datos.py`) | T1 | La zona Z2 muestra las bandas de M5 leyendo el respaldo |
-| T2b | Rutas `GET` de lectura en `caudal-api`, llamando a `api/datos.py` | P0 | Tomás 🟡 | T2, T6 | `GET /api/predios/5301984` responde en local lo mismo que su archivo del respaldo |
+| T1 | `explicacion.py`: razones, confianza y límites por predio, con fuentes | P0 | Tomás ✅ | — | Devuelve el contrato de la explicación para `5301984` y para el caso FO-0504-95 |
+| T2 | `api/datos.py` (funciones de lectura con DuckDB) y `api/respaldo.py`, que escribe `data/respaldo/` con ellas. Hecho por Tomás ✅; en git está el respaldo del recorrido de la demo (`--predios demo`). Falta: la función `api(ruta)` en la página y decidir si se sube el respaldo completo (26 MB) | P0 | Felipe | T1 | La zona Z2 muestra las bandas de M5 leyendo el respaldo |
+| T2b | Rutas `GET` de lectura en `caudal-api`, llamando a `api/datos.py` | P0 | Tomás ✅ | T2, T6 | `GET /api/predios/5301984` responde en local lo mismo que su archivo del respaldo |
 | T3 | F1 y F2: página con datos de M5 y ficha con "Por qué está en alerta" | P0 | Nico | T1, T2 | El predio `5301984` muestra sus razones con fuente |
 | T4 | F4: línea de tiempo y adelanto en la ficha del caso | P0 | Nico | T2 | FO-0504-95 muestra su primera alerta y los años de adelanto |
 | T5 | F5 y F6: ruta de M8 y panel de impacto leídos del dato | P0 | Felipe | T2 | `#impacto` muestra las 5 cifras sin números en el código |
-| T6 | `caudal-api`: `health` y `expediente` | P0 | Tomás 🟡 | — | `POST /api/expediente` devuelve un PDF en local |
-| T7 | Desplegar `caudal-api` con los Parquet y generar el expediente del candidato | P0 | Gabi | T2b | `/api/predios/5301984` y el expediente responden en producción en menos de 2 s |
+| T6 | `caudal-api`: `health` y `expediente` | P0 | Tomás ✅ (imagen probada en local con Docker) | — | `POST /api/expediente` devuelve un PDF en local |
+| T7 | Desplegar `caudal-api`: `scripts/cloud/api/desplegar.sh` y luego `EXPEDIENTE=1 scripts/cloud/api/probar.sh URL` (el expediente del candidato se genera al construir) | P0 | Gabi | T2b | `/api/predios/5301984` y el expediente responden en producción en menos de 2 s |
 | T8 | F3: botón que llama al backend, visor de PDF y respaldo | P0 | Nico | T6 | El clic abre el PDF en producción; con el backend apagado abre el respaldo |
 | T9 | Desplegar `caudal-web` y llenar `platanus-hack-project.jsonc` | P0 | Nico | T3 a T8 | El recorrido completo funciona en la URL pública, también con `caudal-api` apagado |
 | T10 | Limpieza para el agente del jurado: quitar lo provisional, `data/demo.json`, README raíz con "en vivo y precalculado" | P0 | Tomás | T3 | La tabla de la sección anterior no tiene pendientes |
@@ -340,7 +346,7 @@ Ya corregido: la cifra de validación del pitch (2,6) y las equivalencias (perso
 | T13 | Recortes de los predios en alerta en un bucket privado | P1 | Felipe | T7 | La ficha del candidato muestra recortes con fecha y escena |
 | T14 | Filtros del ranking y ruta del escenario conservador | P2 | Tomás | T2 | — |
 
-Orden sugerido para hoy: Tomás parte con T1 y sigue con T6. Gabi solo hace T7 (desplegar, porque tiene los permisos de GCP). Con T1 parte T2; con T2 parten T3, T4 y T5, que trabajan contra el respaldo estático mientras la API no está desplegada. Con T2 y T6 parte T2b.
+Estado al 21-11 en la noche: T1, T2 (backend), T2b y T6 están listos. Sigue Gabi con T7. Nico y Felipe pueden partir T3, T4, T5 y T8 contra la API en local (un comando, ver [api/README.md](../api/README.md)) o contra el respaldo de la demo.
 
 ## Criterios de aceptación de la demo
 

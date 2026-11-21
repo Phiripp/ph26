@@ -303,7 +303,10 @@ uv run scripts/models/expediente.py --rol CABILDO:390-80 --temporada 2025-26
 - Busca el predio en las salidas de M2 a M4 en este orden: `_elegibles_2025-26`, `_validacion` y la muestra. Sirve para cualquier predio que esté en alguna de ellas.
 - Lenguaje: "indicios" y "eventual infracción"; los m³ van en rango y redondeados a 2 cifras. Si el predio no tiene señal de riego, el borrador no pide fiscalizar. Con confianza baja, la primera página lo advierte. Si hay un canal a 300 m o menos, el texto lo menciona como posible fuente.
 - Índice de sospecha (M5): el resumen muestra banda, puntaje, puesto en la zona (solo con `puntaje.parquet`, los elegibles 2025-26; en otras temporadas usa `puntaje_validacion.parquet` sin puesto) y la confianza de M5 junto a la de M3. Los hechos agregan el agua sin derecho que la respalde (exceso de M5, con pérdidas de riego). La alerta de la primera página sale si M3 o M5 tienen confianza baja.
-- Pendiente: endpoint `POST /expediente/{id}`, versión post-visita (fotos del retorno de campo, M15) y campo "sector" (no está en las fuentes).
+- Por qué está en alerta: el resumen incluye las razones, la confianza y los límites que arma `scripts/models/explicacion.py`. Es el mismo texto de la ficha web (`uv run scripts/models/explicacion.py --predio-id 5301984` lo imprime).
+- La señal por fecha usa los umbrales de M3 (`UMBRAL_VERDOR`, `UMBRAL_HUMEDAD` y `DIAS_MIN` de `detector_riego.py`); antes usaba los iniciales (2 y 2).
+- Desde la API: `POST /api/expediente` llama a `generar()` y devuelve un expediente ya generado si la huella de insumos (`huella_insumos`) no cambió. Ver [api/README.md](../api/README.md).
+- Pendiente: versión post-visita (fotos del retorno de campo, M15), campo "sector" (no está en las fuentes) y una versión sin rol para mostrar en pantalla un predio no sancionado.
 
 ## Lo que hay que saber
 

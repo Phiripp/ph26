@@ -1,32 +1,26 @@
 {
   "name": "Z2 · Aconcagua bajo",
   "bbox": {
-    "west": -71.257,
-    "south": -32.853,
-    "east": -70.988,
-    "north": -32.789
+    "west": -71.44,
+    "south": -32.975,
+    "east": -70.985,
+    "north": -32.575
   },
   "size": {
-    "w": 2048,
-    "h": 580
+    "w": 4096,
+    "h": 4282
   },
   "years": [
-    2018,
-    2019,
-    2020,
-    2021,
-    2022,
-    2023,
     2024
   ],
-  "baselineYear": 2018,
+  "baselineYear": 2024,
   "dem": {
     "file": "dem.png",
     "encoding": "terrarium",
-    "w": 512,
-    "h": 145,
-    "minM": 142.3,
-    "maxM": 1300.0
+    "w": 1024,
+    "h": 1070,
+    "minM": 0.0,
+    "maxM": 2279.2
   },
   "water": {},
   "synthetic": false,

@@ -952,7 +952,10 @@ export async function initValle({
     uniforms.uOverlay.value = ovTex;
 
     // ---------- predio dots ----------
-    if (features.length) {
+    // Off: the zone view shows only the predio polygons (dots cluttered the map at zone scale).
+    // Hover/click still work on the polygons through the overlay texture.
+    const SHOW_DOTS = false;
+    if (SHOW_DOTS && features.length) {
       const n = features.length;
       const pos = new Float32Array(n * 3), col = new Float32Array(n * 3), size = new Float32Array(n), hol = new Float32Array(n), sel = new Float32Array(n);
       const c = new THREE.Color();

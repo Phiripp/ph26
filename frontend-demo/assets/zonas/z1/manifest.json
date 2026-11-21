@@ -1,32 +1,26 @@
 {
   "name": "Z1 · Petorca",
   "bbox": {
-    "west": -71.399,
-    "south": -32.493,
-    "east": -71.0,
-    "north": -32.388
+    "west": -71.51,
+    "south": -32.67,
+    "east": -70.67,
+    "north": -32.075
   },
   "size": {
-    "w": 2048,
-    "h": 639
+    "w": 4096,
+    "h": 3436
   },
   "years": [
-    2018,
-    2019,
-    2020,
-    2021,
-    2022,
-    2023,
     2024
   ],
-  "baselineYear": 2018,
+  "baselineYear": 2024,
   "dem": {
     "file": "dem.png",
     "encoding": "terrarium",
-    "w": 512,
-    "h": 160,
-    "minM": 6.4,
-    "maxM": 1378.5
+    "w": 1024,
+    "h": 859,
+    "minM": 0.0,
+    "maxM": 3344.9
   },
   "water": {},
   "synthetic": false,

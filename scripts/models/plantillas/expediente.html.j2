@@ -1,0 +1,203 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>Antecedentes para denuncia · {{ p.comuna_t }} rol {{ p.rol }}</title>
+<style>
+  @page {
+    size: A4; margin: 22mm 18mm 20mm 18mm;
+    @top-center { content: "BORRADOR · No es una denuncia presentada · La presenta una persona interesada"; font: 7.5pt "DejaVu Sans"; color: #9a3412; }
+    @bottom-left { content: "Caudal · {{ e.id }} · generado {{ e.fecha_txt }}"; font: 7pt "DejaVu Sans"; color: #6b7280; }
+    @bottom-right { content: "Página " counter(page) " de " counter(pages); font: 7pt "DejaVu Sans"; color: #6b7280; }
+  }
+  :root { --tinta: #111827; --suave: #4b5563; --linea: #d1d5db; --fondo: #f3f4f6; --aviso: #9a3412; --aviso-fondo: #fff7ed; --ok: #065f46; }
+  body { font: 9.5pt/1.45 "DejaVu Sans", sans-serif; color: var(--tinta); }
+  h1 { font-size: 16pt; margin: 0 0 2mm; }
+  h2 { font-size: 11.5pt; margin: 7mm 0 2mm; padding-bottom: 1mm; border-bottom: 1.5px solid var(--tinta); }
+  h2 .estado { float: right; font-size: 7.5pt; font-weight: normal; padding: 0.5mm 2mm; border-radius: 2mm; border: 1px solid var(--linea); }
+  h3 { font-size: 10pt; margin: 4mm 0 1.5mm; }
+  .estado.vacio { background: var(--fondo); color: var(--suave); }
+  .estado.prellenado { background: #ecfdf5; color: var(--ok); border-color: #a7f3d0; }
+  .estado.borrador { background: var(--aviso-fondo); color: var(--aviso); border-color: #fed7aa; }
+  .estado.generado { background: #eff6ff; color: #1e40af; border-color: #bfdbfe; }
+  .sub { color: var(--suave); font-size: 8.5pt; }
+  .banner { border: 1.5px solid var(--aviso); background: var(--aviso-fondo); color: var(--aviso); padding: 2.5mm 3.5mm; margin: 3mm 0; }
+  .banner b { color: var(--aviso); }
+  .alerta { border: 2px solid #b91c1c; background: #fef2f2; color: #7f1d1d; padding: 3mm 4mm; margin: 3mm 0; font-weight: bold; }
+  table { width: 100%; border-collapse: collapse; margin: 1.5mm 0; }
+  th, td { text-align: left; vertical-align: top; padding: 1.2mm 1.8mm; border-bottom: 0.5px solid var(--linea); }
+  th { font-size: 8pt; color: var(--suave); font-weight: normal; }
+  td.num, th.num { text-align: right; white-space: nowrap; }
+  table.kv th { width: 34%; }
+  table.compacta { font-size: 8pt; }
+  table.compacta td, table.compacta th { padding: 1mm 1.2mm; }
+  .campo { display: flex; border-bottom: 0.8px solid #9ca3af; padding: 3.5mm 0 0.8mm; }
+  .campo span { color: var(--suave); font-size: 8.5pt; width: 52mm; flex: none; }
+  .recuadro { border: 0.8px solid #9ca3af; min-height: 38mm; padding: 2mm 3mm; color: var(--suave); font-size: 8.5pt; }
+  .fuente { color: var(--suave); font-size: 7.5pt; }
+  .editable { border-left: 3px solid #fdba74; padding: 0.5mm 0 0.5mm 3mm; margin: 1.5mm 0; }
+  figure { margin: 2mm 0; break-inside: avoid; }
+  figure img { width: 100%; }
+  figure img.croquis { width: auto; max-width: 100%; max-height: 150mm; display: block; margin: 0 auto; }
+  figcaption { color: var(--suave); font-size: 7.5pt; margin-top: 1mm; }
+  .dos { display: flex; gap: 4mm; }
+  .dos figure { flex: 1; }
+  .salto { break-before: page; }
+  ul { margin: 1mm 0; padding-left: 5mm; }
+  li { margin: 0.6mm 0; }
+  .resumen td:first-child { width: 34%; color: var(--suave); }
+</style>
+</head>
+<body>
+
+<h1>Antecedentes para una denuncia por eventual infracción al Código de Aguas</h1>
+<div class="sub">Predio rol {{ p.rol }}, {{ p.comuna_t }} ({{ p.provincia }}, Región de Valparaíso) · {{ p.area_ha_txt }} ha · Expediente {{ e.id }} · versión {{ e.version }}</div>
+
+<div class="banner">
+  <b>Este documento es un borrador, no una denuncia presentada.</b> Ordena los antecedentes que pide la
+  <i>Guía para la presentación de denuncias por infracciones al Código de Aguas</i> (DGA, julio de 2025).
+  Los campos del denunciante, la afectación y la firma los completa la persona interesada. Los datos satelitales son
+  <b>indicios</b> de riego en período seco, no prueba de una infracción; los volúmenes son estimaciones en rango.
+</div>
+
+{% if r.confianza == "baja" %}
+<div class="alerta">Confianza BAJA del análisis satelital ({{ r.motivos_txt }}). Revise los antecedentes con especial cuidado antes de usarlos.</div>
+{% endif %}
+
+<h2>Resumen</h2>
+<table class="resumen">
+  <tr><td>Indicio principal</td><td>{{ h.indicio }}</td></tr>
+  <tr><td>Consumo estimado (FAO-56)</td><td>{{ h.consumo_corto }}</td></tr>
+  <tr><td>Derechos inscritos encontrados</td><td>{{ h.derechos_corto }}</td></tr>
+  <tr><td>Fuentes de agua cercanas</td><td>{{ h.fuentes_corto }}</td></tr>
+  <tr><td>Confianza del análisis</td><td><b>{{ r.confianza|upper }}</b>{% if r.motivos_txt %} · {{ r.motivos_txt }}{% endif %}</td></tr>
+  {% if h.antecedentes %}<tr><td>Fiscalizaciones previas (DGA)</td><td>{{ h.antecedentes }}</td></tr>{% endif %}
+</table>
+<p class="fuente">Lo que este documento no afirma: que exista una infracción, que el agua se haya extraído sin derecho ni el volumen exacto.
+La DGA decide si la denuncia es admisible y si corresponde fiscalizar.</p>
+
+<h2>1. Individualización del denunciante <span class="estado vacio">Vacío · lo completa la persona</span></h2>
+<div class="campo"><span>Nombre o razón social</span></div>
+<div class="campo"><span>RUN / RUT</span></div>
+<div class="campo"><span>Dirección (comuna y región)</span></div>
+<div class="campo"><span>Correo electrónico y/o teléfono</span></div>
+<div class="campo"><span>Copia simple del carnet de identidad</span>Adjuntar</div>
+
+<h2>2. Representante legal o apoderado <span class="estado vacio">Vacío · si corresponde</span></h2>
+<div class="campo"><span>Nombre o razón social</span></div>
+<div class="campo"><span>RUN / RUT</span></div>
+<div class="campo"><span>Dirección (comuna y región)</span></div>
+<div class="campo"><span>Correo electrónico y teléfono</span></div>
+
+<h2>3. Ubicación y referencias del lugar <span class="estado prellenado">Pre-llenado · revisar</span></h2>
+<table class="kv">
+  <tr><th>Región, provincia y comuna</th><td>Valparaíso, {{ p.provincia }}, {{ p.comuna_t }}</td></tr>
+  <tr><th>Sector</th><td>{{ p.sector }}</td></tr>
+  <tr><th>Predio</th><td>Rol {{ p.rol }} · {{ p.area_ha_txt }} ha · polígono CIREN {{ p.predio_id }}<div class="fuente">Fuente: CIREN, Propiedades Rurales.</div></td></tr>
+  <tr><th>Coordenadas (centro del predio)</th><td>{{ p.lat_txt }}, {{ p.lon_txt }} (WGS84) · UTM 19S E {{ p.utm_e }} N {{ p.utm_n }}</td></tr>
+  <tr><th>Cauce natural más cercano</th><td>{{ c.cauce_txt }}<div class="fuente">Fuente: DGA, red de drenajes.</div></td></tr>
+  <tr><th>Cauce artificial (canal) más cercano</th><td>{{ c.canal_txt }}<div class="fuente">Fuente: CNR y CIREN, canales de riego 2020.</div></td></tr>
+</table>
+<figure>
+  <img class="croquis" src="{{ figs.croquis }}" alt="Croquis de ubicación">
+  <figcaption>Croquis de ubicación: polígono del predio (amarillo){% if poi %}, puntos de interés numerados (tabla en el anexo A1){% endif %} y cauces de la red DGA en el recuadro (celeste).
+  {% if figs.croquis_fondo %}Fondo: {{ figs.croquis_fondo }}{% else %}Sin imagen de fondo.{% endif %}</figcaption>
+</figure>
+
+<h2>4. Descripción breve de hechos y fecha <span class="estado borrador">Borrador · editar antes de presentar</span></h2>
+<p class="sub">Texto generado a partir de los datos del anexo técnico. Revíselo y modifíquelo con lo que usted sabe del lugar.</p>
+{% for parrafo in h.hechos %}<p class="editable">{{ parrafo }}</p>{% endfor %}
+
+<h2>5. Afectación o perjuicio <span class="estado vacio">Vacío · solo la persona</span></h2>
+<p class="sub">La DGA declara admisible una denuncia cuando la presenta un interesado que expone cómo se configura el perjuicio o daño
+a la fuente, o la afectación a sus derechos o a los de terceros (Guía, sección 3.1). Caudal no redacta esta sección.</p>
+<div class="recuadro">
+  Preguntas guía: ¿Qué derecho, fuente o uso suyo (o de terceros) se ve afectado? ¿Desde cuándo lo nota? ¿Cómo se manifiesta
+  (pozo con menos agua, cauce seco, turnos de canal que no alcanzan)? ¿Tiene respaldos (fotos, registros, testigos)?
+</div>
+
+<h2>6. Documentos adjuntos <span class="estado generado">Generado · usted decide qué adjuntar</span></h2>
+<ul>
+  <li>Anexo técnico de este documento (mapa, series satelitales, estimación de consumo y fuentes).</li>
+  <li>Copia simple del carnet de identidad del denunciante (obligatorio).</li>
+  <li>Poder o documento que acredite la representación, si actúa un representante.</li>
+  <li>Fotografías, croquis propios u otros respaldos que considere útiles.</li>
+</ul>
+
+<h2>7. Declaración y firma <span class="estado vacio">Vacío · lo completa la persona</span></h2>
+<p>Declaro que los antecedentes expuestos son, a mi entender, verídicos, y solicito a la Dirección General de Aguas evaluar
+la eventual infracción descrita.</p>
+<div class="campo"><span>Lugar y fecha</span></div>
+<div class="campo"><span>Firma</span></div>
+
+<h2>Cómo presentar la denuncia</h2>
+<ul>
+  <li><b>En línea:</b> Oficina Virtual DGA, <i>snia.mop.gob.cl/portal-web</i>. Ingrese con Clave Única, elija
+    "Denuncias por infracciones al Código de Aguas", copie los datos de este borrador y adjunte los documentos de la sección 6.</li>
+  <li><b>Presencial:</b> descargue el formulario (Anexo 1, <i>dga.mop.gob.cl/uploads/sites/13/2024/11/Anexo1-Formulario-denuncia-autodenuncia.pdf</i>),
+    fírmelo y entréguelo en la oficina de partes de la Dirección Regional de Aguas de Valparaíso.</li>
+  <li>El trámite no tiene costo. Si falta algún documento legal o no está en forma, la DGA le pedirá completarlo en un plazo de
+    <b>5 días hábiles</b>, bajo apercibimiento de declarar la denuncia inadmisible (Guía, sección 3.1).</li>
+</ul>
+
+<h1 class="salto">Anexo técnico</h1>
+<div class="sub">Generado por Caudal el {{ e.fecha_txt }} · insumos {{ e.hash }} · {{ e.version }}</div>
+
+<h2>A1. Mapa y puntos de interés</h2>
+{% if poi %}
+<table>
+  <tr><th>#</th><th>Tipo</th><th>Descripción</th><th class="num">Lat, lon</th><th class="num">Confianza</th></tr>
+  {% for x in poi %}<tr><td>{{ x.n }}</td><td>{{ x.tipo }}</td><td>{{ x.razon }}</td><td class="num">{{ x.coord }}</td><td class="num">{{ x.confianza }}</td></tr>{% endfor %}
+</table>
+<p class="fuente">Puntos de interés (M10): dónde mirar dentro y junto al predio en una visita; no son hallazgos.</p>
+{% else %}
+<p class="sub">Este predio aún no tiene puntos de interés calculados (M10).</p>
+{% endif %}
+
+<h2>A2. Verdor y humedad frente al secano vecino</h2>
+<figure>
+  <img src="{{ figs.serie }}" alt="Series NDVI y NDMI">
+  <figcaption>NDVI (verdor) y NDMI (humedad) del predio en cada imagen Sentinel-2 válida, frente a la mediana de los polígonos de secano
+  más cercanos (CONAF) en la misma fecha; la franja es mediana ± 2 escalas. Las bandas grises son ventanas secas (M1). Los puntos
+  rellenos cumplen la señal de riego: ambos índices con z ≥ 2 dentro de una ventana seca con al menos 10 días sin lluvia.</figcaption>
+</figure>
+<table>
+  <tr><th>Temporada seca</th><th class="num">Imágenes válidas</th><th class="num">Con señal</th><th class="num">z verdor</th><th class="num">z humedad</th><th class="num">NDVI</th><th>Confianza</th></tr>
+  {% for t in temporadas %}<tr><td>{{ t.temporada }}</td><td class="num">{{ t.n_validas }}</td><td class="num">{{ t.n_senal }} ({{ t.frac }})</td><td class="num">{{ t.zv }}</td><td class="num">{{ t.zh }}</td><td class="num">{{ t.ndvi }}</td><td>{{ t.confianza }}</td></tr>{% endfor %}
+</table>
+
+{% if figs.imagenes %}
+<h2>A3. Imágenes del predio</h2>
+<div class="dos">
+  {% for im in figs.imagenes %}<figure><img src="{{ im.src }}" alt="{{ im.titulo }}"><figcaption>{{ im.titulo }}</figcaption></figure>{% endfor %}
+</div>
+{% endif %}
+
+<h2>A4. Consumo estimado y derechos consultados</h2>
+<table class="compacta">
+  <tr><th>Temporada</th><th class="num">Consumo dic–mar<br>m³</th><th class="num">Consumo anual<br>m³</th><th class="num">Derechos del rol<br>m³/año</th><th class="num">Derechos a 500 m<br>m³/año</th><th>Derechos</th></tr>
+  {% for t in consumo %}<tr><td>{{ t.temporada }}</td><td class="num">{{ t.temp }}</td><td class="num">{{ t.anual }}</td><td class="num">{{ t.der_rol }}</td><td class="num">{{ t.der_entorno }}</td><td>{{ t.estado }}</td></tr>{% endfor %}
+</table>
+<ul class="fuente">
+  <li>Consumo (M4): FAO-56 simplificado, V = Σ max(0, Kc(NDVI) · ET0 − lluvia efectiva) · área, en rango mínimo–máximo (central entre paréntesis). Es agua consumida por el cultivo, no agua extraída: no incluye pérdidas de riego.{% if m.supuestos %} Supuestos: {{ m.supuestos }}.{% endif %}</li>
+  <li>Derechos (D4, D5): registro público de derechos de aprovechamiento de la DGA, cruzado por punto de captación en el predio o su rol, vigentes al inicio de cada temporada. El agua de canal que se usa por acciones de una comunidad de aguas no aparece como derecho del predio.</li>
+</ul>
+
+<h2>A5. Calidad y limitaciones</h2>
+<ul>
+  <li>Confianza: <b>{{ r.confianza }}</b>{% if r.motivos_txt %} ({{ r.motivos_txt }}){% endif %}. Píxeles válidos por imagen (mediana): {{ r.pix }} de 20 m.</li>
+  <li>Referencia de secano: {{ r.ref_txt }}.</li>
+  <li>Nubes: {{ r.nublado }} de las fechas en ventana seca se descartaron por nubosidad.</li>
+  <li>La señal indica riego en período seco, no su origen: puede venir de un derecho no registrado en el polígono, de un canal, de un pozo o de una napa somera.</li>
+  <li>Sentinel-2 a 20 m: en predios chicos o angostos el borde pesa; en predios grandes el promedio puede esconder sectores regados.</li>
+</ul>
+
+<h2>A6. Fuentes y versiones</h2>
+<table class="compacta">
+  <tr><th>Dato</th><th>Fuente</th><th>Archivo</th><th>Versión</th></tr>
+  {% for f in fuentes %}<tr><td>{{ f.dato }}</td><td>{{ f.fuente }}</td><td>{{ f.archivo }}</td><td>{{ f.version }}</td></tr>{% endfor %}
+</table>
+<p class="fuente">Imágenes: Copernicus Sentinel-2 L2A (ESA), vía Earth Search (Element 84). Reflectancia = DN × 10⁻⁴ (D15).</p>
+
+</body>
+</html>

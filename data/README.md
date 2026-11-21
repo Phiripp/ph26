@@ -59,6 +59,7 @@ Datos de entrada de Caudal. Las zonas, las fuentes y las convenciones están en 
 | `processed/restriccion.parquet` | Sí | 57 sectores hidrogeológicos (SHAC) de la DGA que tocan Z1 o Z2, con `tipo_limite` (`prohibicion`, `restriccion`, `abierto`), resolución y fechas. Polígonos en EPSG:4326 | `scripts/extract/restriccion_dga.py` |
 | `processed/predio_restriccion.parquet` | Sí | Por predio elegible, el SHAC donde cae la mayor parte de su superficie: `cod_shac`, `sector`, `tipo_limite`, `resolucion_dga`, `fecha_resolucion`, `frac_en_shac`, `en_prohibicion` (SHAC dominante es de prohibición) y `toca_prohibicion` (intersecta algún SHAC de prohibición). Un predio sin SHAC queda vacío (1 de 7.911). Para el contexto y el expediente (M12, M13); no entra al ranking | `scripts/extract/restriccion_dga.py` |
 | `processed/poi.parquet` | Sí | Puntos de interés dentro y junto al predio (máx. 8 por predio): `zona_riego`, `posible_tranque`, `captacion`, `pozo_derecho`, `bocatoma`, `cauce` y `canal`, cada uno con coordenada, razón, fecha de la imagen, confianza, elevación, pendiente y la señal de M3 (`senal_riego_m3`, `frac_senal_m3`). Hoy cubre 11 predios (la demo y los 10 con más señal de M3); se acumula por predio | `scripts/extract/poi_predio.py` |
+| `processed/expedientes/` | Sí (ejemplo) | Expedientes PDF de M13: una carpeta por expediente (`CAU-<predio_id>-<fecha>/` con `expediente.pdf`, `expediente.html` y figuras) y `registro.csv` (id, predio, temporada, confianza, versión, hash de insumos). En git va el ejemplo del caso base FO-0504-95 (`HIJUELAS:61-6`) | `scripts/models/expediente.py` |
 
 ## Columnas de `predio`
 
@@ -275,6 +276,22 @@ gcloud compute instances delete job-s2-<corrida> --zone us-west1-b --project ph-
 - Memoria: con `--referencia` o `--elegibles`, cada hilo lee ventanas de casi un tile. Una `e2-highcpu-8` (8 GB) con 24 hilos murió por memoria (`DONE` = 137).
 - `--elegibles` y `--validacion` necesitan tu `predio.parquet` local con la columna `elegible`; el deploy lo revisa antes de crear la VM.
 - Verificación: la referencia 2025-26 calculada en GCP coincide exactamente con `serie_referencia.parquet` (NDVI, NDMI y píxeles válidos iguales en las 80.518 filas comunes). Las 15 escenas de más que trajo GCP tenían 42 % a 70 % de nubes y quedaban fuera con `--nubes-max 40`.
+
+## Expediente PDF (M13)
+
+Borrador de antecedentes para una denuncia, con las 7 secciones de la *Guía para la presentación de denuncias por infracciones al Código de Aguas* (DGA, julio de 2025) y un anexo técnico. Sigue el flujo B de [spec-flujos-poligono.md](../docs/spec-flujos-poligono.md).
+
+```
+uv run scripts/models/expediente.py --rol HIJUELAS:61-6                 # caso base FO-0504-95, ~15–25 s con imágenes
+uv run scripts/models/expediente.py --predio-id 5344181 --sin-imagenes   # ~3 s, sin leer Sentinel-2
+uv run scripts/models/expediente.py --rol CABILDO:390-80 --temporada 2025-26
+```
+
+- Secciones: 1 denunciante y 2 representante vacíos; 3 ubicación pre-llenada (provincia, comuna, cauce y canal más cercanos de `predio_cauce`, coordenadas y croquis con POI de M10 sobre la foto de Esri World Imagery Wayback, con su fecha de captura y atribución; `--fondo sentinel2` o `ninguno` para cambiarla); 4 hechos en borrador, redactado con M3, M4, D5, D7 y D6; 5 afectación vacía con preguntas guía (requisito de admisibilidad); 6 adjuntos; 7 declaración y firma vacía; cómo presentarla (Oficina Virtual o presencial, plazo de 5 días hábiles).
+- Anexo técnico: A1 POI, A2 series NDVI y NDMI frente al secano con ventanas secas y señal, A3 imágenes de la primera y la última temporada, A4 consumo en rango y derechos por temporada, A5 calidad y limitaciones, A6 archivos usados con su commit.
+- Busca el predio en las salidas de M2 a M4 en este orden: `_elegibles_2025-26`, `_validacion` y la muestra. Sirve para cualquier predio que esté en alguna de ellas.
+- Lenguaje: "indicios" y "eventual infracción"; los m³ van en rango y redondeados a 2 cifras. Si el predio no tiene señal de riego, el borrador no pide fiscalizar. Con confianza baja, la primera página lo advierte. Si hay un canal a 300 m o menos, el texto lo menciona como posible fuente.
+- Pendiente: endpoint `POST /expediente/{id}`, versión post-visita (fotos del retorno de campo, M15), campo "sector" (no está en las fuentes) y el puntaje de M5 en el resumen.
 
 ## Lo que hay que saber
 

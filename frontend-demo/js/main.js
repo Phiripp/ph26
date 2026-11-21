@@ -1066,11 +1066,13 @@ async function boot() {
   // Load the main zone's scene in the background once the map is up (unless a deep link takes over).
   const first = parseHash(location.hash.slice(1));
   if (first) {
-    // deep link: no intro and no title
+    // deep link: no intro and no title, so "back" lands on the close view of the zones
     $('top').classList.remove('is-intro', 'intro-pending');
+    mapCtl?.setHomeMode?.('zonas', { fly: false });
     go(first, { scroll: true });
   } else {
     const introDone = startIntro(mapCtl);
+    introP.then(i => focusZonasWhenTitleLeaves(mapCtl, i));
     // the 3D scenes warm up only after the flight, so they never compete with it for the GPU
     preloadAll(Promise.race([introDone, sleep(15000)]));
   }
@@ -1089,6 +1091,22 @@ async function boot() {
       tileUrl: mapCtl && typeof mapCtl.satTileUrl === 'function' ? mapCtl.satTileUrl : null,
       scenesAfter,
     })).catch(err => console.warn('[Caudal] precarga:', err?.message || err));
+  }
+
+  /**
+   * Once the landing title is gone the map's default view is the close one over both zones. The
+   * camera only flies there while the landing is on screen (a marker click is already going elsewhere).
+   */
+  function focusZonasWhenTitleLeaves(ctl, introCtl) {
+    if (!ctl || typeof ctl.setHomeMode !== 'function') return;
+    const focus = () => {
+      const landing = $('top').dataset.mode === 'landing';
+      Promise.resolve(ctl.setHomeMode('zonas', { fly: landing, duration: RM ? 0 : 1800 }))
+        .catch(err => console.warn('[Caudal] vista de zonas:', err?.message || err));
+    };
+    Promise.resolve(introCtl?.done)
+      .then(r => { const t = r?.title || introCtl?.title; return t?.hidden ? t.hidden.then(focus) : focus(); })
+      .catch(err => { console.warn('[Caudal] título:', err?.message || err); focus(); });
   }
 
   /* ---- intro satelital (js/intro.js) + título. Only when the page opens without a hash. ---- */

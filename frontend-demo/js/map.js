@@ -87,6 +87,13 @@ const HOME_X_FRAC = 0.66;          // wide screens: Chile sits right of the land
 const HOME_WIDE_PX = 700;          // below this width the title goes on top and Chile stays centred
 const HOME_PAD_TOP = 0.1;          // fractions of the viewport height kept free above / below Chile
 const HOME_PAD_BOTTOM = 0.09;
+// Working view once the landing title is gone: central Chile (Z1, Z2 and Aculeo) close up.
+const FOCUS_POINT = [-71.0, -33.1];  // lands at FOCUS_X_FRAC / FOCUS_Y_FRAC of the viewport
+const FOCUS_X_FRAC = 0.7;
+const FOCUS_Y_FRAC = 0.555;
+const FOCUS_ZOOM = 7.07;             // at FOCUS_REF_H px of viewport height (scaled with the height)
+const FOCUS_REF_H = 1080;
+const FOCUS_MIN_H = 360;
 const FIT_NORTH = [-70.3, -17.6];   // Arica / límite norte
 const FIT_SOUTH = [-73.6, -43.4];   // Chiloé
 const MIN_ZOOM_FLOOR = 3.2;
@@ -850,6 +857,46 @@ export async function initMap({ container, sites, casos: casosIn, onSelect } = {
   }
 
   /**
+   * Working camera once the landing title is gone: FOCUS_POINT (between both zones and Aculeo) at
+   * the same horizontal position as the national view, close enough to tell the zones apart.
+   * Same cloned flat transform as homeCamera(), so the live map does not move while searching.
+   */
+  function focusCamera() {
+    const c = map.getContainer();
+    const w = c.clientWidth || innerWidth, h = c.clientHeight || innerHeight;
+    const xFrac = w >= HOME_WIDE_PX ? FOCUS_X_FRAC : 0.5;
+    const zoom = Math.min(MAX_ZOOM, FOCUS_ZOOM + Math.log2(Math.max(FOCUS_MIN_H, h) / FOCUS_REF_H));
+    const focus = maplibregl.LngLat.convert(FOCUS_POINT);
+    let center = focus;
+    try {
+      const tr = map.transform.clone();
+      if (typeof tr.setTransitionState === 'function') tr.setTransitionState(0, 0);
+      const set = (k, v) => { const f = 'set' + k[0].toUpperCase() + k.slice(1); if (typeof tr[f] === 'function') tr[f](v); else tr[k] = v; };
+      if (typeof tr.setMaxBounds === 'function') tr.setMaxBounds(null);
+      set('minZoom', 0);
+      set('maxZoom', 22);
+      tr.resize(w, h, false);
+      set('pitch', HOME_PITCH);
+      set('bearing', HOME_BEARING);
+      set('zoom', zoom);
+      const toScreen = (ll) => (typeof tr.locationToScreenPoint === 'function' ? tr.locationToScreenPoint(ll) : tr.locationPoint(ll));
+      const toLngLat = (p) => (typeof tr.screenPointToLocation === 'function' ? tr.screenPointToLocation(p) : tr.pointLocation(p));
+      for (let round = 0; round < 4; round++) {
+        set('center', center);
+        const p = toScreen(focus);
+        const dx = p.x - w * xFrac, dy = p.y - h * FOCUS_Y_FRAC;
+        if (![dx, dy].every(Number.isFinite)) break;
+        if (Math.abs(dx) < 1 && Math.abs(dy) < 1) break;
+        center = toLngLat(new maplibregl.Point(w / 2 + dx, h / 2 + dy));
+      }
+    } catch (_) { /* private transform API changed: centre on the focus point */ }
+    return { center: [center.lng, center.lat], zoom, bearing: HOME_BEARING, pitch: HOME_PITCH };
+  }
+  /** 'chile' (national view, under the landing title) or 'zonas' (close view, once it is gone). */
+  let homeMode = 'chile';
+  const landingCamera = () => (homeMode === 'zonas' ? focusCamera() : homeCamera());
+
+  /**
    * Zoom-out floor and pan limits follow the home view: the user can zoom out a little past it
    * and pan only a bit east/west (the rest of the continent is just dark land).
    */
@@ -1349,7 +1396,16 @@ export async function initMap({ container, sites, casos: casosIn, onSelect } = {
     },
     /** Fly back to the national view (upright Chile, gently tilted). */
     flyHome(opts = {}) {
-      return move(homeCamera(), { duration: opts.duration ?? 2400 }).then(() => restoreLimits());
+      return move(landingCamera(), { duration: opts.duration ?? 2400 }).then(() => restoreLimits());
+    },
+    /**
+     * Which view flyHome() returns to: 'chile' (whole country) or 'zonas' (central Chile close up).
+     * opts.fly = false only records it; otherwise the camera flies there (opts.duration, default 1800).
+     */
+    setHomeMode(mode, opts = {}) {
+      homeMode = mode === 'zonas' ? 'zonas' : 'chile';
+      if (opts.fly === false) return Promise.resolve();
+      return move(landingCamera(), { duration: opts.duration ?? 1800 }).then(() => restoreLimits());
     },
     /** The national landing camera { center, zoom, pitch, bearing } for the current viewport. */
     getHomeCamera() {

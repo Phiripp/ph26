@@ -10,15 +10,15 @@ Este documento define qué decimos y qué mostramos en los 3 minutos de la final
 | --- | --- | --- |
 | Duración | 3 minutos | Organización |
 | Demo mínima | 1 minuto 30 segundos | Organización |
-| Corte duro a los 3:00 y 2 minutos de preguntas | Probable | Notas de otros equipos sobre las finales del tour; sin confirmar para Santiago |
-| El reloj parte con la primera palabra | Probable | Mismas notas |
-| El jurado lee el repo y castiga las demos simuladas | Probable | Mismas notas |
+| Corte duro a los 3:00 y 2 minutos de preguntas | Confirmado | Equipo |
+| El reloj parte con la primera palabra | Confirmado | Equipo |
+| El jurado lee el repo y castiga las demos simuladas | Confirmado | Equipo |
 
-No encontramos una rúbrica oficial. Hay que confirmar tiempo y criterios en la charla del sábado a las 20:00 ("cómo dar una buena demo").
+No hay una rúbrica oficial publicada.
 
 Consecuencias para nosotros:
 
-- El guion tiene 430 palabras como máximo (unas 150 por minuto).
+- El guion tiene 430 palabras como máximo (unas 150 por minuto) y termina a los 2:55.
 - Todo lo que se muestra corre en producción con datos reales. Nada de botones simulados.
 - Una persona habla y otra maneja el computador.
 
@@ -34,61 +34,71 @@ Tres ideas que el jurado debe recordar:
 
 ## Guion
 
-La demo ocupa 1:45 de los 3:00. Toda la demo ocurre en una sola zona (Aconcagua bajo, comuna de Hijuelas) para no gastar tiempo en vuelos entre zonas.
+Toda la demo ocurre en una sola zona (Aconcagua bajo, comuna de Hijuelas) para no gastar tiempo en vuelos entre zonas. El producto está en pantalla desde el 0:22 hasta el cierre; el recorrido en vivo va de 0:22 a 2:00.
 
 | Tiempo | Qué se dice | Qué se ve |
 | --- | --- | --- |
-| 0:00–0:20 | Gancho | Portada: mapa de Chile con las dos zonas |
-| 0:20–0:35 | Qué es Caudal | Vuelo a la zona; aparecen los predios por banda |
-| 0:35–1:05 | Demo 1: el caso real | Ficha del caso FO-0504-95: serie y antes/después |
-| 1:05–1:45 | Demo 2: un candidato de hoy y su expediente | Ficha del candidato; se genera el PDF en vivo |
-| 1:45–2:20 | Demo 3: la ruta de mañana | Pestaña Ruta: paradas, horas y botón de navegación |
-| 2:20–2:50 | Validación e impacto | Panel de impacto con 4 cifras |
-| 2:50–3:00 | Cierre | Logo, URL y equipo |
+| 0:00–0:22 | Gancho | Portada: mapa de Chile con las dos zonas |
+| 0:22–0:37 | Qué es Caudal | Vuelo a la zona; aparecen los predios por banda |
+| 0:37–1:02 | Demo 1: el caso real | Ficha del caso FO-0504-95: serie y antes/después |
+| 1:02–1:35 | Demo 2: un candidato de hoy y su expediente | Ficha del candidato; se genera el PDF en vivo |
+| 1:35–2:00 | Demo 3: la ruta de mañana | Pestaña Ruta: paradas, horas y botón de navegación |
+| 2:00–2:45 | Validación e impacto | Panel de impacto |
+| 2:45–2:55 | Cierre | Logo, URL y equipo |
 
 ### Texto
 
+El tono es hablado. No se nombran satélites, índices ni métodos (Sentinel-2, NDVI, FAO-56): van en el material de apoyo y en las respuestas.
+
 **0:00 Gancho.**
-"Entre enero y marzo de este año, la provincia de Petorca gastó 176 millones de pesos en camiones aljibe para darle agua a su gente. En el mismo valle hay huertos verdes en pleno verano que riegan sin derechos de agua. La DGA tiene que encontrarlos entre miles de predios, y hoy acierta en una de cada tres fiscalizaciones."
+"En Petorca hay 40 mil personas que han tenido que vivir con 50 litros de agua al día, y esa agua les llega en camión aljibe. Solo en 2023 y 2024, el Estado contrató más de 5.700 millones de pesos en esos camiones. Mientras tanto, ahí mismo, hay huertos verdes en pleno verano que riegan sin tener derechos de agua. ¿Y cómo se pilla eso hoy? Solo si un vecino denuncia."
 
-**0:20 Qué es.**
-"Caudal le dice a la DGA qué predios inspeccionar primero. Mira cada predio con Sentinel-2 cada cinco días. Si no ha llovido en diez días y el predio sigue más verde y más húmedo que el cerro de al lado, alguien lo está regando. Después compara el agua que consume con los derechos inscritos. Analizamos 7.911 predios en Petorca y Aconcagua."
+**0:22 Qué es.**
+"Caudal mira desde el satélite los casi 8 mil predios de Petorca y Aconcagua, cada cinco días. Si lleva diez días sin llover y un predio sigue más verde que el cerro de al lado, alguien lo está regando. Y si riega más de lo que sus derechos le permiten, lo marcamos."
 
-**0:35 Demo 1, el caso real.**
-"Esto es Hijuelas. En noviembre de 2021 la DGA multó este predio de paltos con 127 millones de pesos por sacar agua sin derechos. Esta es su serie satelital. La línea gris es el cerro seco; la verde es el predio. Caudal lo pone en alerta alta desde el verano de 2019, dos años antes de la inspección. En ese tiempo sacó unos 140 mil metros cúbicos sin derecho."
+**0:37 Demo 1, el caso real.**
+"Esto es Hijuelas. En 2021 la DGA multó a este predio de paltos con 127 millones de pesos por sacar agua sin derechos. Miren su historia: la línea gris es el cerro seco, la verde es el predio. Caudal lo tenía en alerta alta desde 2019. Dos años antes de que llegara un inspector."
 
-**1:05 Demo 2, un candidato de hoy.**
-"Ahora, el verano pasado. Este predio está en la misma comuna: 19 hectáreas de palto, verde en todas las imágenes de la temporada seca. No tiene derechos inscritos a 500 metros, no tiene un canal a un kilómetro y la DGA nunca ha fiscalizado aquí. Consume entre 105 y 280 mil metros cúbicos al año. Caudal no acusa: prioriza. Con un clic genera el expediente, con los campos de la guía oficial de denuncias de la DGA: ubicación, hechos, imágenes y anexo técnico. Se genera ahora, en producción."
+**1:02 Demo 2, un candidato de hoy.**
+"Ahora, el verano pasado, en la misma comuna. Diecinueve hectáreas de paltos, verdes todo el verano. No tiene derechos de agua inscritos, no tiene un canal cerca y nunca lo han fiscalizado. Ojo: Caudal no acusa, prioriza. Y con un clic arma el expediente, con el formato oficial de denuncias de la DGA. Esto se está generando ahora, en producción."
 
-**1:45 Demo 3, la ruta.**
-"Y esta es la decisión que importa: a dónde va el inspector mañana. Caudal arma la ruta del día: doce predios, ocho horas, 91 kilómetros, saliendo de la plaza de Quillota. Se abre en Google Maps o se baja al GPS. Dentro de cada predio marca dónde mirar: el parche regado, el tranque, el pozo."
+**1:35 Demo 3, la ruta.**
+"Y esto es lo que importa: a dónde va el inspector mañana. Doce predios, ocho horas, 91 kilómetros. Se abre en Google Maps. Y dentro de cada predio le decimos dónde mirar: el parche regado, el tranque, el pozo."
 
-**2:20 Validación e impacto.**
-"Lo validamos contra las fiscalizaciones reales de la DGA. Entre los predios que Caudal pone en alerta alta hay 2,6 veces más infractores que eligiendo al azar. Hoy hay 501 predios en alerta alta que nunca han sido fiscalizados. Con el acierto actual de la DGA, son entre 39 y 153 casos y hasta 9 millones de metros cúbicos al año: el agua de 250 mil personas. Al ritmo actual, la DGA tardaría 14 años en revisarlos. Con Caudal, parte mañana por los primeros doce."
+**2:00 Validación e impacto.**
+"Esto lo probamos contra las fiscalizaciones reales de la DGA: donde Caudal marca alerta alta, hay 2,6 veces más infractores que si uno eligiera al azar. Y para que se hagan una idea: un solo predio como el que acaban de ver se toma al año el agua de casi 3.000 personas. O, si prefieren, 220 millones de latas de Monster. Como ese hay 501 predios que nadie ha ido a mirar. Juntos son entre 5 y 20 Torres Costanera llenas de agua, todos los años. Revisarlos uno por uno tomaría 14 años. Caudal te dice por cuáles doce partir mañana."
 
-**2:50 Cierre.**
-"Caudal usa solo datos públicos y sirve para cualquier valle de Chile. Somos Nicolás, Felipe, Gabriela y Tomás. Gracias."
+**2:45 Cierre.**
+"Todo esto con datos públicos, y sirve para cualquier valle de Chile. Somos Nicolás, Felipe, Gabriela y Tomás. Gracias."
 
-El texto tiene unas 420 palabras.
+El texto tiene unas 410 palabras.
 
 ## Cifras del guion y su respaldo
 
-| Cifra | Valor | Fuente | Advertencia |
+| Frase | Valor y cálculo | Fuente | Advertencia |
 | --- | --- | --- | --- |
-| Gasto en camiones aljibe | $176,4 millones por 41.201 m³, ene–mar 2026 | Mercado Público, Delegación de Petorca ([spec-v2.md](spec-v2.md#métricas-de-impacto)) | Es Petorca; la demo es en Aconcagua. El gancho habla del problema, no de la zona de la demo |
-| Acierto de la DGA | 33 % (107 fiscalizaciones por extracción, 2022–2025) | `impacto.md` | Solo Z1 y Z2 |
-| Predios analizados | 7.911 | `puntaje.parquet` | Predios con rol válido y 1 ha o más |
-| Multa del caso base | 1.983,9 UTM, unos $127 millones | Planilla de la DGA y nota de prensa de la DGA | — |
-| Adelanto en el caso base | Al menos 2 años | `impacto.md` | La serie parte en 2019-20: es una cota inferior |
-| Agua del caso base antes de la inspección | Unos 140.000 m³ (valor central) | `impacto.md` | Estimación FAO-56; decir "unos" |
-| Candidato de hoy | 18,8 ha, 89 % palto, 105.000–280.000 m³/año, sin derechos a 500 m, canal a 1,2 km | `puntaje.parquet`, predio `5301984` | No mostrar rol ni dueño |
-| Ruta | 12 predios, 8 horas, 91 km | `ruta_z2.json` | Cambia si se regenera la ruta (ver spec, tarea T4) |
-| Lift en alerta alta | 2,6 veces (IC 95 %: 1,3–4,4) | `validacion.md` | Usar 2,6 y no 3,7: el 3,7 se midió con los mismos casos que calibraron los umbrales |
-| Candidatos sin fiscalizar | 501 | `impacto.md` | Sin fiscalización a 500 m desde 2018 |
-| Casos esperados | 39 a 153 | `impacto.md` | Conservador a central; central usa el 33 % de la DGA |
-| Agua en juego | 2,1 a 9,3 millones de m³/año | `impacto.md` | Sin predios de más de 100 ha |
-| Personas | 34.000 a 256.000 | `impacto.md` | Dotación de 36,5 a 62 m³ por persona al año |
-| Años al ritmo de la DGA | 14 | `impacto.md` | 467 candidatos entre 33 fiscalizaciones por año |
+| 40 mil personas con 50 litros al día | 40.000 personas en la provincia de Petorca | [Radio JGM, U. de Chile, 04-05-2020](https://radiojgm.uchile.cl/de-50-a-100-litros-de-agua-el-suministro-que-el-minsal-no-pudo-cumplir/) | Es un dato de 2020: decir "han tenido que vivir". En 2021 la Corte Suprema subió la dotación a 100 litros |
+| 5.700 millones en camiones aljibe | $5.710 millones en contratos de la Delegación Presidencial Provincial de Petorca, 2023 y 2024 sumados | [Consejo para la Transparencia, 05-10-2026](https://www.consejotransparencia.cl/fiscalizacion-cplt-municipios-y-delegaciones-contrataron-mas-de-30-mil-millones-en-camiones-aljibe-en-2023-y-2024-pero-a-cuantas-familias-llego-el-agua-potable/) | Son montos contratados e informados por la delegación, no pagos: decir "contrató", no "gastó". Leímos el comunicado; el informe completo no abrió |
+| Casi 8 mil predios | 7.911 | `puntaje.parquet` | Predios con rol válido y 1 ha o más |
+| Multa de 127 millones | 1.983,9 UTM | Planilla de la DGA y nota de prensa de la DGA | — |
+| Alerta alta desde 2019, dos años antes | Temporada 2019-20; inspección el 23-11-2021 | `impacto.md` | La serie parte en 2019-20: es una cota inferior |
+| Diecinueve hectáreas, sin derechos, sin canal cerca, nunca fiscalizado | 18,8 ha, 89 % palto, sin derechos a 500 m, canal a 1,2 km, sin fiscalización a 500 m desde 2018 | `puntaje.parquet`, predio `5301984` | No mostrar rol ni dueño |
+| Doce predios, ocho horas, 91 km | Ruta de Z2 | `ruta_z2.json` | Cambia si se regenera la ruta |
+| 2,6 veces más infractores | IC 95 %: 1,3–4,4 | `validacion.md` | Usar 2,6 y no 3,7: el 3,7 se midió con los mismos casos que calibraron los umbrales |
+| El agua de casi 3.000 personas | 105.000 m³ al año ÷ 36,5 m³ por persona = 2.877 | `puntaje.parquet`; dotación de 100 litros al día ([Corte Suprema, 2021](https://www.24horas.cl/regiones/valparaiso/corte-suprema-determina-100-litros-de-agua-por-habitantes-de-petorca-4708851)) | 105.000 m³ es el mínimo del rango del candidato |
+| 220 millones de latas de Monster | 105.000 m³ ÷ 473 ml = 222 millones | Lata de 473 ml | — |
+| 501 predios que nadie ha ido a mirar | Banda alta sin fiscalización a 500 m desde 2018 | `impacto.md` | — |
+| Entre 5 y 20 Torres Costanera al año | 2,1 a 9,3 millones de m³ ÷ 450.000 m³ = 4,7 a 20,7 | `impacto.md`; torre de 107.125 m² construidos y 300 m de alto | El volumen de la torre es una estimación nuestra (superficie por unos 4,2 m por piso); ninguna fuente lo publica. Si preguntan, decir "unas" |
+| 14 años | 467 candidatos ÷ 33 fiscalizaciones por extracción al año | `impacto.md` | Es capacidad, no calidad: no decir que Caudal acierta más que la DGA |
+
+Datos de reserva para las preguntas:
+
+- Acierto de la DGA: 33 % (107 fiscalizaciones por extracción, 2022–2025). Caudal en alerta alta: 7 de 15.
+- Casos esperados entre los 501 candidatos: 39 a 153.
+- Caso de Hijuelas: unos 140.000 m³ sin derecho en los dos años previos a la inspección, el agua de unas 1.900 personas durante esos dos años.
+- Camiones aljibe en Petorca, enero a marzo de 2026: $176,4 millones por 41.201 m³ (Mercado Público).
+- En todo el país, 2023 y 2024: 370 contratos por más de $30.192 millones; la Región de Valparaíso concentra el 47 % del monto (mismo comunicado del Consejo para la Transparencia).
+- Escuela de Petorca con jornada reducida a la mitad por cortes de agua ([BBC Mundo, 16-12-2021](https://www.elmostrador.cl/dia/2021/12/16/petorca-en-la-bbc-mundo-el-pueblo-de-chile-que-esta-cerrando-escuelas-por-culpa-de-la-sequia/)).
 
 ## Decisiones
 
@@ -97,6 +107,8 @@ El texto tiene unas 420 palabras.
 | Zona de la demo | Z2, Hijuelas | Z1, Cabildo: caso FD-0501-181 y candidato `5344181` (31 ha de palto) | El caso FO-0504-95 es el más sólido (la DGA dijo que lo detectó con satélite y el verdor baja después de la multa). El candidato está en la misma comuna, así que la demo no cambia de zona |
 | Candidato en vivo (D19) | Predio `5301984` | `5344181` (Cabildo), `5345478` (Cabildo, 7 ha de nogal) | Señal en el 100 % de las fechas, sin derechos a 500 m, sin canal a 1 km, sin fiscalización a 500 m, 89 % de la superficie con frutales |
 | Cifra de validación | 2,6 veces | 3,7 veces | Es la cifra sin sesgo de calibración; aguanta una pregunta del jurado |
+| Comparación con la DGA | Una sola mención, como capacidad: "14 años". El 33 % queda para las preguntas | Abrir con "la DGA acierta 1 de cada 3" | No tenemos datos para decir que acertamos más (7 de 15, intervalo ancho) y la DGA es el cliente. La capacidad muestra que falta una herramienta; no nos presenta como una mejora de algo que ya existe |
+| Equivalencias de volumen | Personas, latas de Monster y Torres Costanera | Metros cúbicos y pesos | Nadie imagina un millón de m³. Se presenta en la oficina de Buk, cerca del Costanera Center |
 | Cómo se muestra el candidato | Por ID interno, sin rol ni dueño, con la palabra "candidato" | No mostrar ningún predio no multado | El expediente y la ruta necesitan un predio concreto. El equipo debe confirmar esta decisión (ver abajo) |
 
 **Por confirmar con el equipo:** la convención era mostrar a los candidatos solo agregados. La demo en vivo necesita un predio concreto que no ha sido multado, y la ruta ya muestra ubicaciones. La propuesta es mostrarlo sin rol ni dueño y decir en voz alta que Caudal prioriza y no acusa. Si el equipo no está de acuerdo, el expediente en vivo se genera para el caso FO-0504-95 y el paso "candidato de hoy" muestra solo el ranking agregado.
@@ -126,7 +138,6 @@ El texto tiene unas 420 palabras.
 
 ## Antes de presentar
 
-- [ ] Confirmar tiempo, rúbrica y si hay preguntas (charla del sábado a las 20:00).
 - [ ] Llenar `platanus-hack-project.jsonc` con el nombre, la descripción y la URL de producción.
 - [ ] Correr el recorrido completo en producción, en el computador de la demo.
 - [ ] Grabar el video de respaldo.

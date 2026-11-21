@@ -133,16 +133,17 @@ Bloques, de arriba hacia abajo:
 
 ### F6. Panel de impacto (P0)
 
-Pantalla nueva, con enlace directo `#impacto`. Cuatro cifras grandes, leídas de `resumen.json`:
+Pantalla nueva, con enlace directo `#impacto`. Queda en pantalla durante 45 segundos del pitch, así que tiene pocas cifras, grandes, y en el mismo orden en que se dicen:
 
-| Cifra | Campo de `impacto.json` |
-| --- | --- |
-| 501 predios en alerta alta sin fiscalizar | `candidatos` |
-| 2,6× más infractores que al azar | Fijo en 2,6 con nota "IC 95 %: 1,3–4,4" (ver [validacion.md](validacion.md)); no usar `lift_alta` (3,7, optimista) |
-| 39 a 153 casos · 2,1 a 9,3 millones de m³ al año | `escenarios.conservador` y `escenarios.central` |
-| El agua de 34.000 a 256.000 personas | `escenarios.*.personas` |
+| Orden | Cifra en pantalla | Origen |
+| --- | --- | --- |
+| 1 | 2,6× más infractores que al azar | Fijo en 2,6 con nota "IC 95 %: 1,3–4,4" ([validacion.md](validacion.md)); no usar `lift_alta` de `impacto.json` (3,7, optimista) |
+| 2 | 1 predio = el agua de 3.000 personas al año = 220 millones de latas de Monster | Exceso mínimo del candidato `5301984` ÷ 36,5 m³ por persona y ÷ 473 ml |
+| 3 | 501 predios en alerta alta sin fiscalizar | `impacto.json`, `candidatos` |
+| 4 | Entre 5 y 20 Torres Costanera de agua al año | `escenarios.conservador.m3_ano` y `escenarios.central.m3_ano` ÷ 450.000 m³ |
+| 5 | 14 años para revisarlos uno por uno | Candidatos de hasta 100 ha ÷ 33 fiscalizaciones al año |
 
-Pie: "Acierto actual de la DGA: 33 %. Al ritmo actual, 14 años para revisarlos".
+Las cifras 2 y 4 llevan un dibujo simple (personas, latas, torres) en vez de números con unidades. Pie chico con los valores exactos: "2,1 a 9,3 millones de m³ al año · torre estimada en 450.000 m³".
 
 ### F7. Modo demo (P1)
 

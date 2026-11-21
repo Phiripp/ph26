@@ -59,7 +59,7 @@ Cada tarea entrega código en el repo y un archivo de resultados en `data/proces
 
 | ID | Tarea | Zonas | Responsable | Depende de | Entrega | Estado |
 | --- | --- | --- | --- | --- | --- | --- |
-| M1 | Ventanas secas: periodos con N o más días sin lluvia efectiva (N inicial = 10) | Z1, Z2 | Por asignar | D2 | `ventana_seca.parquet` | ⬜ |
+| M1 | Ventanas secas: periodos con N o más días sin lluvia efectiva (N inicial = 10) | Z1, Z2 | Gabriela | D2 | `scripts/models/ventana_seca.py` → `ventana_seca.parquet` y `dias_sin_lluvia.parquet` | ✅ |
 | M2 | Anomalías `z_verdor` y `z_humedad` por predio frente a la referencia de secano o a la historia del predio | Z1, Z2 | Por asignar | D1, D11 | columnas en `serie_predio.parquet` | ⬜ |
 | M3 | Detector de riego: ambas anomalías sobre su umbral dentro de una ventana seca | Z1, Z2 | Por asignar | M1, M2 | `senal_riego.parquet` | ⬜ |
 | M4 | Consumo estimado con FAO-56: Kc(NDVI), con ajuste por especie si existe; resultado en rango de m³. El Kc sale del NDVI; la especie (`predio_cultivo.parquet`) solo ajusta: el 44 % de los positivos no tiene frutales en el catastro | Z1, Z2 | Por asignar | D1, D2, D7 | `consumo.parquet` | ⬜ |

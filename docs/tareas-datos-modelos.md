@@ -25,7 +25,7 @@ Vista rápida de qué datos están listos en cada zona. Se actualiza al cerrar u
 | Predios | D3 | ✅ | ✅ |
 | Derechos normalizados | D4 | ✅ | ✅ |
 | Cruce derechos–predios | D5 | ✅ | ✅ |
-| Fiscalizaciones (validación) | D6 | ⬜ | ⬜ |
+| Fiscalizaciones (validación) | D6 | ✅ | ✅ |
 | Especie por predio | D7 | ⬜ | ⬜ |
 | Cauces y canales | D8 | ⬜ | ⬜ |
 | Red vial | D9 | ⬜ | ⬜ |
@@ -43,7 +43,7 @@ Cada tarea entrega un script en `scripts/extract/` y un archivo en `data/process
 | D3 | Descargar los predios de las comunas de cada zona y calcular el área en EPSG:32719. Entregar primero una muestra de 50 predios por zona para desbloquear D1 | CIREN Propiedades Rurales | Z1, Z2 | Tomás | — | `scripts/extract/predios_ciren.py` → `predio.parquet` (local) y `predio_muestra.geojson` (en git) | ✅ |
 | D4 | Descargar el Excel de derechos de Valparaíso; convertir datums; normalizar a m³ por mes; marcar los eventuales y las "Acciones" | DGA derechos registrados | Z1, Z2 | Tomás | — | `scripts/extract/derechos_dga.py` → `derecho.parquet` (en git, sin nombres); Excel y titulares en `data/raw/dga/` (local) | ✅ |
 | D5 | Cruzar derechos con predios: punto de captación en el predio o a menos de 500 m; si falla, por titular en la comuna. Guardar `metodo_cruce` y `confianza_cruce`. No asignar por coordenada los `gran_derecho` (100 l/s o más: canales y comunidades de aguas) | D3 + D4 | Z1, Z2 | Tomás | D3, D4 | `scripts/extract/cruce_derechos_predios.py` → `derecho_predio.parquet` y `predio_derecho.parquet` (en git; columnas en `data/README.md`) | ✅ |
-| D6 | Filtrar la planilla de fiscalizaciones por extracción no autorizada en cada zona. Positivo: multa o "Constata infracción" / "Acoge". Negativo débil: "No acoge" / "Cierra expediente" | DGA planilla de fiscalización | Z1, Z2 | Tomás | — | `fiscalizacion.parquet` | ⬜ |
+| D6 | Filtrar la planilla de fiscalizaciones por extracción no autorizada en cada zona. Positivo: multa o "Constata infracción" / "Acoge". Negativo débil: "No acoge" / "Cierra expediente" | DGA planilla de fiscalización | Z1, Z2 | Tomás | — | `scripts/extract/fiscalizaciones_dga.py` → `fiscalizacion.parquet` (en git; 835 expedientes de Z1 y Z2, 497 de extracción de aguas) | ✅ |
 | D7 | Especie plantada por predio | CIREN Catastro Frutícola 2025 | Z1, Z2 | Tomás | D3 | columna `especie` en `predio.parquet` | ⬜ |
 | D8 | Cauces y canales de riego | DGA red de drenajes (SMA) y CIREN infraestructura de riego | Z1, Z2 | Por asignar | — | `cauce.parquet` | ⬜ |
 | D9 | Red vial guardada para uso offline, con 25 km/h en `track` | OSM con osmnx | Z1, Z2 | Por asignar | — | `red_vial_z1.graphml`, `red_vial_z2.graphml` | ⬜ |
@@ -63,11 +63,11 @@ Cada tarea entrega código en el repo y un archivo de resultados en `data/proces
 | M2 | Anomalías `z_verdor` y `z_humedad` por predio frente a la referencia de secano o a la historia del predio | Z1, Z2 | Por asignar | D1, D11 | columnas en `serie_predio.parquet` | ⬜ |
 | M3 | Detector de riego: ambas anomalías sobre su umbral dentro de una ventana seca | Z1, Z2 | Por asignar | M1, M2 | `senal_riego.parquet` | ⬜ |
 | M4 | Consumo estimado con FAO-56: Kc(NDVI), con ajuste por especie si existe; resultado en rango de m³ | Z1, Z2 | Por asignar | D1, D2, D7 | `consumo.parquet` | ⬜ |
-| M5 | Índice de sospecha, confianza y bandas (alta, media, baja). Mide el exceso del consumo sobre los derechos propios y del entorno (`predio_derecho.parquet`), no "tiene o no tiene derechos": el 78 % de los multados tiene derechos | Z1, Z2 | Por asignar | M3, M4, D5 | `puntaje.parquet` | ⬜ |
+| M5 | Índice de sospecha, confianza y bandas (alta, media, baja). Mide el exceso del consumo sobre los derechos propios y del entorno (`predio_derecho.parquet`), no "tiene o no tiene derechos": el 73 % de los positivos tiene derechos | Z1, Z2 | Por asignar | M3, M4, D5 | `puntaje.parquet` | ⬜ |
 | M6 | Validación: posición en el ranking de los positivos de D6; métrica precisión en los k primeros. Casos clave: FO-0501-462 (demo, La Ligua 2025) y FO-0504-95 (antecedente satelital, Hijuelas 2021) | Z1 y Z2 | Por asignar | M5, D6 | `validacion.md` con la métrica y el mapa | ⬜ |
 | M7 | Calibrar N, los umbrales de anomalía y los pesos de la confianza con el resultado de M6 | Z2 | Por asignar | M6 | valores fijados en el spec | ⬜ |
 | M8 | Ruta de inspección con OR-Tools: un vehículo, cada predio como parada opcional con premio según su puntaje, jornada de 8 h; exportar GPX | Z1, Z2 | Por asignar | M5, D9 | `ruta.py` y GPX de ejemplo | ⬜ |
-| M9 | Métricas de impacto: adelanto de detección en casos conocidos, acierto frente al 27 % de la DGA, candidatos no fiscalizados, m³ en juego y pesos (multas y costo de camión aljibe), todo en rango | Z1, Z2 | Por asignar | M5, M6, D5, D6, D14 | `impacto.md` con las cifras y supuestos | ⬜ |
+| M9 | Métricas de impacto: adelanto de detección en casos conocidos, acierto frente al 33 % de la DGA, candidatos no fiscalizados, m³ en juego y pesos (multas y costo de camión aljibe), todo en rango | Z1, Z2 | Por asignar | M5, M6, D5, D6, D14 | `impacto.md` con las cifras y supuestos | ⬜ |
 | M10 | Puntos de interés por predio: zonas con anomalía de humedad y verdor en ventana seca, posibles tranques por NDWI y punto del cauce más cercano; máximo 8 por predio, cada uno con tipo, razón, fecha de la imagen y confianza (ver [spec-flujos-poligono.md](spec-flujos-poligono.md), A1) | Z1, Z2 | Gabriela | D1, D8, M2, M3 | `poi.parquet` | ⬜ |
 | M11 | Recorrido dentro del predio: acceso por red vial, orden de visita de los POI con OR-Tools, ficha de verificación por parada y GPX. Es el detalle de una parada de M8 (A2) | Z1, Z2 | Gabriela | M10, D9, M8 | `recorrido.py` y GPX de ejemplo | ⬜ |
 | M12 | Contexto del predio al elegirlo: provincia, comuna y sector, cauce cercano y distancia, derechos y puntaje; expuesto en `GET /predios/{id}/contexto` (paso 0) | Z1, Z2 | Gabriela | D4, D5, D8, M5 | `contexto.py` y endpoint | ⬜ |
@@ -92,7 +92,7 @@ Orden de trabajo al 21-11-2026. Se actualiza cuando cambia lo que bloquea.
 | 1 | D1, D2, D11 | Gabriela | Es el inicio del camino crítico | Zonas, muestra de predios y casos en `data/` |
 | ✅ | D4 Derechos normalizados | Tomás | Es la tarea de datos más difícil (datums, unidades) y M5 no puede partir sin ella | Excel de Valparaíso descargado y columnas revisadas |
 | ✅ | D5 Cruce derechos–predios | Tomás | Sin el cruce no hay "consumo sobre derechos", que es el núcleo del índice | Predios listos (D3) |
-| 4 | D6 Fiscalizaciones | Tomás | Desbloquea la validación (M6) y la métrica de impacto (M9); reemplaza `data/casos_validacion.geojson` | Planilla descargada y filtros probados |
+| ✅ | D6 Fiscalizaciones | Tomás | Desbloquea la validación (M6) y la métrica de impacto (M9) | Planilla descargada y filtros probados |
 | 5 | D7 Especie por predio | Tomás | Mejora el Kc de M4; es rápida porque la llave es el rol | Capa de CIREN probada |
 | — | D8, D9, D10, D12, D14 | Por asignar | No bloquean el camino crítico; sirven para el expediente, la ruta y el pitch | Fuentes verificadas en el spec |
 
@@ -110,7 +110,8 @@ Orden de trabajo al 21-11-2026. Se actualiza cuando cambia lo que bloquea.
 | 21-11-2026 | Gabriela extrae satélite (D1), clima (D2) y referencia de secano (D11) en ambas zonas | Equipo |
 | 21-11-2026 | Los nombres de titulares y los datos descargados no se suben a git | Equipo |
 | 21-11-2026 | `predio_id` = `mslink` de CIREN, no el rol (el rol se repite y a veces no es un rol) | Tomás |
-| 21-11-2026 | Universo elegible: rol válido y 1 ha o más (7.911 predios); cubre el 91 % de los multados por extracción | Tomás |
+| 21-11-2026 | Fiscalizaciones: solo "extracción no autorizada de aguas" (sin áridos). Corrige la línea base: acierto de la DGA 33 % y multa mediana 575,7 UTM | Tomás |
+| 21-11-2026 | Universo elegible: rol válido y 1 ha o más (7.911 predios); cubre el 93 % de los positivos por extracción de aguas | Tomás |
 | 21-11-2026 | D5 entrega `predio_derecho.parquet` con `m3_anual_derecho_entorno_500m`: M5 baja la confianza (no sube la sospecha) si el predio tiene poco derecho propio y mucho en el entorno (lotes de pozo) | Tomás |
 | 21-11-2026 | Métrica de impacto: candidatos no fiscalizados × acierto medido, en rango de m³ y pesos; un candidato no es un caso | Tomás |
 | 21-11-2026 | Datos lo más recientes posible. Caso de la demo: FO-0501-462 (La Ligua, 2025). El ranking usa la temporada seca 2025-26 y la ficha muestra la escena más reciente (octubre de 2026 fue lluvioso) | Tomás |

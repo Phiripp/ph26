@@ -31,22 +31,22 @@ Riesgo abierto: no está confirmado que el jurado considere las imágenes sateli
 
 Las zonas se definen en esta sección y en ningún otro lugar. Toda extracción de datos usa estas zonas. Para cambiar una zona, se edita esta tabla y se avisa al equipo.
 
-| Zona | Comunas | Bounding box WGS84 (lon mín, lat mín, lon máx, lat máx) | Uso | Predios CIREN | Derechos DGA | Fiscalizaciones por extracción (con multa) |
+| Zona | Comunas | Bounding box WGS84 (lon mín, lat mín, lon máx, lat máx) | Uso | Predios CIREN | Derechos DGA | Fiscalizaciones por extracción de aguas (positivas) |
 | --- | --- | --- | --- | --- | --- | --- |
-| Z1 Petorca | Petorca, Cabildo, La Ligua, Papudo, Zapallar | -71.5421, -32.7328, -70.4104, -32.0200 | Demo principal: sequía y camiones aljibe | 9.331 | 6.104 | 487 (74) |
-| Z2 Aconcagua bajo | Hijuelas, La Cruz, Quillota, Nogales, La Calera | -71.5008, -32.9905, -70.9708, -32.5897 | Validación con casos sancionados y segunda demo | 10.719 | 3.034 | 302 (103) |
+| Z1 Petorca | Petorca, Cabildo, La Ligua, Papudo, Zapallar | -71.5421, -32.7328, -70.4104, -32.0200 | Demo principal: sequía y camiones aljibe | 9.331 | 6.104 | 345 (46) |
+| Z2 Aconcagua bajo | Hijuelas, La Cruz, Quillota, Nogales, La Calera | -71.5008, -32.9905, -70.9708, -32.5897 | Validación con casos sancionados y segunda demo | 10.719 | 3.034 | 152 (33) |
 
-- Universo elegible: predios con rol válido y 1 ha o más (columna `elegible` en `predio.parquet`). Son 7.911 predios (4.272 en Z1 y 3.639 en Z2). Todo el análisis satelital, el ranking y la ruta usan solo predios elegibles. Motivo: de las 538 fiscalizaciones por extracción ubicadas en predios de Z1 y Z2, los multados miden 9,6 ha en mediana (el predio típico de la capa, 0,7 ha), y los predios de 1 ha o más cubren el 91 % de los multados. Los de menos de 1 ha son el 57 % de la capa: parcelas residenciales y lotes de pozo, con 100 píxeles o menos.
+- Universo elegible: predios con rol válido y 1 ha o más (columna `elegible` en `predio.parquet`). Son 7.911 predios (4.272 en Z1 y 3.639 en Z2). Todo el análisis satelital, el ranking y la ruta usan solo predios elegibles. Motivo: de las 428 fiscalizaciones por extracción no autorizada de aguas ubicadas a 50 m o menos de un predio de Z1 y Z2 (`data/processed/fiscalizacion.parquet`), las 67 positivas caen en predios de 9,6 ha en mediana (el predio típico de la capa mide 0,7 ha), y los predios de 1 ha o más cubren el 93 % de los positivos. Los de menos de 1 ha son el 57 % de la capa: parcelas residenciales y lotes de pozo, con 100 píxeles o menos.
 
-  | Tamaño | Todos los predios | Multados |
+  | Tamaño | Todos los predios | Positivos |
   | --- | --- | --- |
-  | Menos de 1 ha | 57 % | 9 % |
-  | 1 a 5 ha | 25 % | 22 % |
-  | 5 a 20 ha | 12 % | 29 % |
-  | 20 a 100 ha | 4 % | 26 % |
+  | Menos de 1 ha | 57 % | 7 % |
+  | 1 a 5 ha | 25 % | 25 % |
+  | 5 a 20 ha | 12 % | 31 % |
+  | 20 a 100 ha | 4 % | 22 % |
   | Más de 100 ha | 2 % | 13 % |
 
-- El 78 % de los predios multados tiene derechos inscritos: la infracción típica es extraer más de lo autorizado o usar un pozo no inscrito, no regar sin ningún derecho. Por eso el índice (M5) mide el exceso del consumo estimado sobre los derechos propios y del entorno, y no usa "tiene o no tiene derechos" como señal. Entre los fiscalizados, la tasa de infracción es parecida con derechos (18 % de 419) y con derechos cerca de otro predio (19 % de 98): el estado de derechos solo no distingue al infractor.
+- El 73 % de los predios con infracción tiene derechos inscritos: la infracción típica es extraer más de lo autorizado o usar un pozo no inscrito, no regar sin ningún derecho. Por eso el índice (M5) mide el exceso del consumo estimado sobre los derechos propios y del entorno, y no usa "tiene o no tiene derechos" como señal. Entre los fiscalizados, la tasa de infracción es parecida con derechos (15 % de 325) y con derechos cerca de otro predio (17 % de 89); sin derechos cerca hay solo 6 fiscalizaciones (3 positivas): el estado de derechos solo no distingue al infractor.
 - La pertenencia a una zona se decide por comuna, no por bounding box. Los bounding boxes se solapan entre las latitudes -32.73 y -32.59. El bounding box es la extensión de los predios CIREN de esas comunas y sirve solo para filtrar descargas.
 - Los bounding boxes incluyen cordillera y cerros. Para Sentinel-2, se recorta con las geometrías de los predios, no con el bounding box.
 - Periodo de análisis: desde enero de 2020 hasta la última escena limpia antes de la demo. Mientras más reciente el dato, más fuerte la demo. Periodos prioritarios:
@@ -58,7 +58,7 @@ Las zonas se definen en esta sección y en ningún otro lugar. Toda extracción 
 - Antecedente satelital: expediente FO-0504-95, Hijuelas (Z2), lat -32.82257, lon -71.01774; inspección el 23-11-2021; multa de 1.983,9 UTM (unos $127 millones); la DGA dice que lo detectó con imágenes satelitales ([nota de la DGA](https://dga.mop.gob.cl/dga-valparaiso-multa-a-empresario-agricola-por-extraccion-no-autorizada-de-aguas-en-la-comuna-de-hijuelas/)).
 - Otros casos de validación: FO-0504-157 (Hijuelas, 2025), FD-0501-191 y FD-0501-189 (Cabildo, 2025), FO-0501-376 y FO-0501-386 (Pullally, 2022) y FO-0501-380 (Cabildo, 2022). Todos están en [data/casos_validacion.geojson](../data/casos_validacion.geojson).
 - Solo se usan casos resueltos. Los expedientes "En trámite" no se muestran como infractores en la demo.
-- Los conteos vienen de las fuentes del 21-11-2026. Las fiscalizaciones se cuentan por coordenada dentro del bounding box, así que incluyen puntos de comunas vecinas (Llay Llay, Puchuncaví) y pueden repetir casos de la franja que se solapa.
+- Los conteos vienen de las fuentes del 21-11-2026. Las fiscalizaciones son las de `data/processed/fiscalizacion.parquet` (D6): solo extracción no autorizada de aguas; la zona sale del predio a 50 m o menos del punto o, si no hay, de la comuna declarada.
 
 ## Flujo de datos
 
@@ -180,7 +180,7 @@ Modelo de datos:
 | derecho | derecho\_id, expediente DGA, zona, naturaleza (superficial o subterránea), ejercicio, caudal\_ls, m3\_anual, m3\_mes, sumable, gran\_derecho, coord\_estado, punto de captación |
 | derecho\_predio | derecho\_id, predio\_id, metodo\_cruce, confianza\_cruce, dist\_predio\_m |
 | predio\_derecho | predio\_id, m3\_anual\_derecho, m3\_mes\_derecho, m3\_anual\_derecho\_entorno\_500m, estado\_derechos, confianza\_cruce (detalle en [data/README.md](../data/README.md)) |
-| fiscalizacion | código de expediente, zona, geometría (punto), fecha de inspección, tipo de infracción, decisión, multa en UTM, etiqueta (positivo o negativo) |
+| fiscalizacion | expediente, zona, zona\_origen, predio\_id, predio\_elegible, geometría (punto), fechas de inspección y resolución, tipo de infracción, extraccion, decisión, multa en UTM, etiqueta (positivo, negativo, en\_tramite u otro) |
 | puntaje | predio\_id, fecha\_corte, m3\_estimado (rango), m3\_derecho, índice, banda, confianza |
 | expediente | id, predio\_id, url\_pdf, fecha\_creación |
 
@@ -214,21 +214,21 @@ Se trabaja por bloques en este orden; hay que ajustarlos a las horas reales que 
 
 La métrica responde dos preguntas: cuántos casos encuentra Caudal que la fiscalización no encontró, y cuánta agua y cuánto dinero representan. Un predio con señal alta que nunca fue fiscalizado es un candidato, no un caso. Por eso las cifras de candidatos se multiplican por una precisión medida y se muestran como rango.
 
-Línea base (planilla de fiscalización de la DGA, extracción no autorizada, comunas de Z1 y Z2 declaradas en la planilla, 2018–2026):
+Línea base (`data/processed/fiscalizacion.parquet`: planilla de fiscalización de la DGA, solo extracción no autorizada de aguas, sin áridos; zona por predio a 50 m o por comuna declarada; 2018 a abril de 2026):
 
 | Dato | Valor |
 | --- | --- |
-| Fiscalizaciones por año | Entre 20 y 90 por zona; hay unos 18.200 predios con rol válido en las dos zonas, así que cada año se revisa menos del 0,5 % |
-| Tasa de acierto de la DGA (2022–2025) | 27 %: una de cada cuatro fiscalizaciones constata infracción |
-| Multas por extracción | 112 multas, 44.031 UTM en total (unos $3.190 millones) |
-| Multa mediana | 146,8 UTM (unos $10,6 millones); Z1: 166 UTM y Z2: 143 UTM |
+| Fiscalizaciones por año | Desde 2019, entre 2 y 40 por zona (en 2018, 194 en Z1); hay 7.911 predios elegibles, así que cada año se revisa menos del 1 % |
+| Tasa de acierto de la DGA (2022–2025) | 33 % (de 107 resueltas): una de cada tres fiscalizaciones constata infracción |
+| Multas por extracción | 76 multas, 42.609,5 UTM en total (unos $3.087 millones) |
+| Multa mediana | 575,7 UTM (unos $41,7 millones); Z1: 575,7 UTM y Z2: 535 UTM |
 | Valor UTM usado | $72.440 (noviembre de 2026, mindicador.cl) |
 
 Métricas:
 
 1. **Adelanto de detección** (se puede probar con casos conocidos). Para cada caso positivo, se mide cuántos meses antes de la inspección de la DGA el predio entra en la banda alta. Agua evitable = suma del exceso mensual (m³ estimados menos m³ con derecho) entre la primera señal y la inspección. Ejemplo para el pitch: "Caudal marcaba el predio del caso FO-0501-462 X meses antes de que llegara la DGA; en ese tiempo se extrajeron entre A y B m³".
-2. **Acierto frente a la DGA** (se puede probar, con muestra chica). De los predios fiscalizados que caen en la banda alta de Caudal, qué fracción tuvo infracción. Se compara con el 27 % de la DGA. Advertencia: los predios fiscalizados no son una muestra al azar, y en las zonas hay pocos casos.
-3. **Candidatos no fiscalizados** (estimación). Predios en banda alta sin ninguna fiscalización registrada desde 2018 en un radio de 500 m. Casos esperados = candidatos × acierto de la métrica 2. Si la métrica 2 no tiene suficientes casos, se usa el 27 % de la DGA como piso conservador.
+2. **Acierto frente a la DGA** (se puede probar, con muestra chica). De los predios fiscalizados que caen en la banda alta de Caudal, qué fracción tuvo infracción. Se compara con el 33 % de la DGA. Advertencia: los predios fiscalizados no son una muestra al azar, y en las zonas hay pocos casos.
+3. **Candidatos no fiscalizados** (estimación). Predios en banda alta sin ninguna fiscalización registrada desde 2018 en un radio de 500 m. Casos esperados = candidatos × acierto de la métrica 2. Si la métrica 2 no tiene suficientes casos, se usa el 33 % de la DGA como piso conservador.
 4. **Agua en juego** (estimación). Suma del exceso anual de los candidatos × acierto, en rango de m³. Se traduce a personas abastecidas en un año con la dotación por persona de los camiones aljibe (valor por verificar, tarea D14).
 5. **Dinero** (estimación, dos cifras que no se suman):
    - Multas que no se cursaron = casos esperados × multa mediana de la zona × valor UTM.

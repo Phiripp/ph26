@@ -31,8 +31,8 @@ CRS_METROS = "EPSG:32719"
 # SR (sin rol), BC (bien común), ríos, caminos, vialidad (VP-*, RV-*), reservas.
 PATRON_ROL = r"\d+-\d+"
 MUESTRA_POR_ZONA = 50
-# Universo elegible: rol válido y 1 ha o más (100 píxeles de 10 m). Cubre el 91 % de los predios
-# multados por extracción en Z1 y Z2 y deja fuera el 57 % de los predios (parcelas y lotes de pozo).
+# Universo elegible: rol válido y 1 ha o más (100 píxeles de 10 m). Cubre el 93 % de los predios
+# con infracción por extracción de aguas en Z1 y Z2 y deja fuera el 57 % de los predios (parcelas y lotes de pozo).
 ELEGIBLE_MIN_HA = 1.0
 
 

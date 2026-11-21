@@ -225,11 +225,16 @@ def procesa(a, ctx):
         raise SinEscenas("sin escenas limpias en el periodo")
     if not a.silencio:
         print(f"{len(its)} escenas: {[i.datetime.date().isoformat() for i in its]}", flush=True)
-    tile = s2.Tile(its[0], amplio)
+    # Cerca del borde de un tile llegan escenas vecinas que no cubren el predio (Tile.vacio, sin `bounds`): se descartan,
+    # y el tile de referencia es el de la primera escena que sí lo cubre. Un predio en dos tiles usa solo el primero.
+    cubren = [(it, t) for it, t in ((it, s2.Tile(it, amplio)) for it in its) if not t.vacio]
+    if not cubren:
+        raise SinEscenas("ninguna escena cubre el predio")
+    tile = cubren[0][1]
     pila = {"ndvi": [], "ndwi": [], "ndmi": []}
     validas, fechas = [], []
-    for it in its:
-        if s2.Tile(it, amplio).bounds != tile.bounds:  # otro tile: se salta (el predio cae en uno solo)
+    for it, t in cubren:
+        if t.bounds != tile.bounds:  # otro tile: se salta
             continue
         ix, ok = indices(it, tile)
         for k in pila:

@@ -48,6 +48,8 @@ Datos de entrada de Caudal. Las zonas, las fuentes y las convenciones están en 
 | `processed/cauce.parquet` | Sí | 2.855 tramos de cauces de la DGA en Z1 y Z2 (río, estero, quebrada, etc.), con nombre, tipo y subsubcuenca | `scripts/extract/cauces_dga.py` |
 | `processed/consumo_predio.parquet`, `processed/consumo_predio_temporada.parquet` | Sí | Consumo de riego FAO-56 en rango de m³ por predio y mes, y por temporada (M4) | `scripts/models/consumo_fao56.py` |
 | `processed/predio_cauce.parquet` | Sí | Cauce, río o estero y canal más cercanos a cada predio elegible, con distancias. Para el campo "cauce cercano" del expediente (M12, M13) | `scripts/extract/cauces_dga.py` |
+| `processed/restriccion.parquet` | Sí | 57 sectores hidrogeológicos (SHAC) de la DGA que tocan Z1 o Z2, con `tipo_limite` (`prohibicion`, `restriccion`, `abierto`), resolución y fechas. Polígonos en EPSG:4326 | `scripts/extract/restriccion_dga.py` |
+| `processed/predio_restriccion.parquet` | Sí | Por predio elegible, el SHAC donde cae la mayor parte de su superficie: `cod_shac`, `sector`, `tipo_limite`, `resolucion_dga`, `fecha_resolucion`, `frac_en_shac` y `en_prohibicion`. Un predio sin SHAC queda vacío (1 de 7.911). Para el contexto y el expediente (M12, M13); no entra al ranking | `scripts/extract/restriccion_dga.py` |
 
 ## Columnas de `predio`
 

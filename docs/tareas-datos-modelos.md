@@ -29,7 +29,7 @@ Vista rápida de qué datos están listos en cada zona. Se actualiza al cerrar u
 | Especie por predio | D7 | ✅ | ✅ |
 | Cauces y canales | D8 | ✅ | ✅ |
 | Red vial | D9 | ✅ | ✅ |
-| Zonas de prohibición | D10 | ⬜ | ⬜ |
+| Zonas de prohibición | D10 | ✅ | ✅ |
 | Referencia de secano | D11 | ✅ | ✅ |
 
 ## Tareas de datos
@@ -47,7 +47,7 @@ Cada tarea entrega un script en `scripts/extract/` y un archivo en `data/process
 | D7 | Especie plantada y superficie frutal por predio elegible, cruzando cuarteles por superficie (no por rol) | CIREN Catastro Frutícola 2025 | Z1, Z2 | Tomás | D3 | `scripts/extract/cultivos_ciren.py` → `predio_cultivo.parquet` (en git) | ✅ |
 | D8 | Cauces y canales de riego | DGA red de drenajes (SMA) y CIREN infraestructura de riego | Z1, Z2 | Tomás | — | `canales_ciren.py` → `raw/ciren_riego/canales.parquet`; `cauces_dga.py` → `cauce.parquet` y `predio_cauce.parquet` (cauce, río y canal más cercanos por predio elegible; lo usa M12) | ✅ |
 | D9 | Rutas con OSRM para los N predios top (no la red completa): matriz `/table` y trazado `/route`, verificados con los 10 positivos limpios. La red completa con osmnx queda descartada (Overpass corta la conexión; Z1 es muy grande) | OSRM público (OpenStreetMap) | Z1, Z2 | Tomás | — | decisión y prueba en el spec (Fuentes de datos verificadas); las llamadas las hace M8 | ✅ |
-| D10 | Zonas de prohibición y restricción de los acuíferos | DGA (rest-sit.mop.gob.cl) | Z1, Z2 | Por asignar | — | `restriccion.parquet` | ⬜ |
+| D10 | Zonas de prohibición y restricción de los acuíferos | DGA (rest-sit.mop.gob.cl) | Z1, Z2 | Gabriela | — | `scripts/extract/restriccion_dga.py` → `restriccion.parquet` y `predio_restriccion.parquet` (en git; 98,9 % de los elegibles cae en zona de prohibición) | ✅ |
 | D11 | Polígonos de referencia de secano (matorral y pradera) | CONAF uso de la tierra 2001–2019 | Z1, Z2 | Gabriela | — | `scripts/extract/referencia_secano_conaf.py` → `referencia_secano.parquet` (en git; solo polígonos estables 2001–2019, sin estepa andina) | ✅ |
 | D12 | Opcional: ubicación de APR y cifras de camiones aljibe para el pitch | DOH (SMA), prensa y estudios | Z1 | Por asignar | — | `apr.parquet` y notas para el pitch | ⬜ |
 | D13 | Recalcular con la escena limpia más reciente la noche antes de la demo: índices de la ficha e imagen del predio de la demo en vivo (por elegir, D19). Debe correr con un solo comando | Sentinel-2 L2A (STAC) | Z1 | Gabriela | D1 | comando en `scripts/extract/` y escena en `data/processed/` | ⬜ |
@@ -101,8 +101,8 @@ Orden de trabajo al 21-11-2026, con la serie Sentinel-2 corregida (D15). Se actu
 | 2 | M2 a M4: anomalías, detector de riego, consumo FAO-56 | Tomás | ⬜ | Camino crítico; el código puede partir con la serie de la muestra |
 | 3 | D18 `detectable`, D19 caso de la demo, primera versión de M6 | Tomás | ⬜ | Cuando termine 1a |
 | 4 | M5 ranking, M8 ruta, M9 impacto | Tomás | ⬜ | Cuando estén 1b, 1c y 2 |
-| ✅ | D3 a D9, D15, D16, D17 | Tomás, Gabriela | ✅ | Datos base, cruce versión 2, cauces, rutas OSRM y fix de Sentinel-2 |
-| — | D10, D12, D14, D20 | Por asignar | ⬜ | No bloquean el camino crítico |
+| ✅ | D3 a D10, D15, D16, D17 | Tomás, Gabriela | ✅ | Datos base, cruce versión 2, cauces, rutas OSRM y fix de Sentinel-2 |
+| — | D12, D14, D20 | Por asignar | ⬜ | No bloquean el camino crítico |
 
 ## Assessment de datos (21-11-2026)
 

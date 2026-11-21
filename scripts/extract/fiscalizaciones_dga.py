@@ -45,6 +45,10 @@ PAGINA = "https://dga.mop.gob.cl/tramites/denunciar/fiscalizacion/"
 UA = {"User-Agent": "Mozilla/5.0 (caudal-hackathon/0.1)"}
 CRS_METROS = "EPSG:32719"
 RADIO_PREDIO_M = 50
+# Set de validación (D18)
+RADIO_VECINDARIO_M = 30
+AREA_GRANDE_HA = 100
+INICIO_VENTANA = pd.Timestamp("2020-07-01")  # hay al menos una temporada seca previa en el periodo de análisis
 REGION = (-72.0, -34.0, -69.9, -32.0)
 
 COLUMNAS = {
@@ -93,6 +97,45 @@ def etiquetar(decision: pd.Series, estado: pd.Series) -> pd.Series:
     etiqueta[d.str.contains("acumula")] = "otro"  # se fusiona con otro expediente
     etiqueta[estado.fillna("").str.strip().str.lower().eq("en trámite")] = "en_tramite"
     return etiqueta
+
+
+def marcar_validacion(gdf: gpd.GeoDataFrame, predios: gpd.GeoDataFrame) -> gpd.GeoDataFrame:
+    """Columnas del set de validación (D18).
+
+    - vecindario: predios con rol válido a RADIO_VECINDARIO_M o menos del punto. El punto es el pozo,
+      que puede estar en el borde y regar al vecino: M6 evalúa el vecindario, no solo predio_id.
+    - ambiguo: el vecindario tiene 2 o más predios.
+    - predio_grande: el predio mide más de AREA_GRANDE_HA (cerros o fundos enteros; la señal se diluye).
+    - etiquetas_mixtas: el predio tiene expedientes positivos y negativos de extracción.
+    - con_recurso: el infractor presentó recurso de reconsideración.
+    - set_validacion: "limpio" (extracción, positivo o negativo, predio elegible, inspección desde
+      INICIO_VENTANA, no ambiguo, no grande; un negativo además sin etiquetas mixtas), "vecindario" (igual
+      pero ambiguo, grande o negativo con etiquetas mixtas: evaluar por vecindario) o "fuera".
+    """
+    pts = gdf.loc[gdf.geometry.notna(), ["expediente", "geometry"]].to_crs(CRS_METROS)
+    pts["geometry"] = pts.buffer(RADIO_VECINDARIO_M)
+    j = gpd.sjoin(pts, predios[["predio_id", "geometry"]], how="inner", predicate="intersects")
+    vecinos = j.groupby(level=0)["predio_id"].agg(lambda s: sorted(set(int(x) for x in s)))
+    gdf["vecindario"] = vecinos.reindex(gdf.index)
+    gdf["vecindario"] = gdf["vecindario"].map(lambda v: v if isinstance(v, list) else [])
+    gdf["n_predios_30m"] = gdf["vecindario"].map(len)
+    gdf["ambiguo"] = gdf["n_predios_30m"] >= 2
+
+    area = predios.set_index("predio_id")["area_ha"]
+    gdf["predio_grande"] = gdf["predio_id"].map(area).gt(AREA_GRANDE_HA).fillna(False).astype(bool)
+    etiquetado = gdf[gdf["extraccion"] & gdf["etiqueta"].isin(["positivo", "negativo"]) & gdf["predio_id"].notna()]
+    mixtos = etiquetado.groupby("predio_id")["etiqueta"].nunique()
+    gdf["etiquetas_mixtas"] = gdf["predio_id"].isin(mixtos[mixtos == 2].index)
+    gdf["con_recurso"] = gdf["recurso"].fillna("").str.contains("present", case=False)
+
+    base = (gdf["extraccion"] & gdf["etiqueta"].isin(["positivo", "negativo"])
+            & gdf["predio_elegible"].fillna(False).astype(bool) & (gdf["fecha_inspeccion"] >= INICIO_VENTANA))
+    # Etiquetas mixtas: el negativo es el dudoso (la DGA volvió y encontró infracción); el positivo se mantiene.
+    dudoso = gdf["ambiguo"] | gdf["predio_grande"] | (gdf["etiquetas_mixtas"] & (gdf["etiqueta"] == "negativo"))
+    gdf["set_validacion"] = "fuera"
+    gdf.loc[base & dudoso, "set_validacion"] = "vecindario"
+    gdf.loc[base & ~dudoso, "set_validacion"] = "limpio"
+    return gdf
 
 
 def main() -> None:
@@ -146,7 +189,7 @@ def main() -> None:
     zonas = json.loads((DATA / "zonas.json").read_text(encoding="utf-8"))["zonas"]
     comuna_zona = {c: z for z, d in zonas.items() for c in d["comunas"]}
     predios = gpd.read_parquet(DATA / "processed" / "predio.parquet")
-    predios = predios[predios["rol_valido"]].to_crs(CRS_METROS)[["predio_id", "zona", "elegible", "geometry"]]
+    predios = predios[predios["rol_valido"]].to_crs(CRS_METROS)[["predio_id", "zona", "elegible", "area_ha", "geometry"]]
     con_punto = gdf.geometry.notna()
     cerca = gpd.sjoin_nearest(gdf.loc[con_punto, ["geometry"]].to_crs(CRS_METROS), predios, how="inner",
                               max_distance=RADIO_PREDIO_M, distance_col="dist_predio_m")
@@ -161,12 +204,15 @@ def main() -> None:
     gdf.loc[por_comuna, "zona"] = gdf.loc[por_comuna, "comuna_declarada"].map(comuna_zona)
     gdf.loc[por_comuna, "zona_origen"] = "comuna"
     gdf = gdf[gdf["zona"].notna()].drop(columns=["region"])
+    gdf = marcar_validacion(gdf, predios)
 
     if gdf["expediente"].duplicated().any():
         print(f"Aviso: {gdf['expediente'].duplicated().sum()} expedientes repetidos en la planilla")
     salida = DATA / "processed" / "fiscalizacion.parquet"
     gdf.to_parquet(salida, index=False)
 
+    print("\nSet de validación (D18), por etiqueta:")
+    print(pd.crosstab(gdf["set_validacion"], gdf["etiqueta"]).loc[["limpio", "vecindario"]].to_string())
     ext = gdf[gdf["extraccion"]]
     print(f"Fiscalizaciones en Z1 y Z2: {len(gdf)} (extracción no autorizada: {len(ext)})")
     print("\nExtracción no autorizada por etiqueta y zona:")

@@ -139,8 +139,23 @@ Para regenerar: `uv run scripts/extract/fiscalizaciones_dga.py` (baja la planill
 | `fecha_inspeccion`, `fecha_resolucion`, `resolucion`, `decision`, `multa_utm`, `estado_tramitacion`, `recurso` | De la planilla |
 | `etiqueta` | `positivo` (constata, acoge o aplica multa), `negativo` (no acoge, cierra, rechaza, archiva), `en_tramite` (no resuelto) u `otro` (acumula, apercibe) |
 | `geometry` | Punto del acta en EPSG:4326, suponiendo datum WGS84 |
+| `vecindario`, `n_predios_30m`, `ambiguo` | Predios con rol válido a 30 m o menos del punto (lista de `predio_id`); `ambiguo` si son 2 o más. El punto es el pozo y puede regar al vecino |
+| `predio_grande` | El predio mide más de 100 ha (la señal se diluye) |
+| `etiquetas_mixtas` | El predio tiene expedientes de extracción positivos y negativos |
+| `con_recurso` | El infractor presentó recurso de reconsideración |
+| `set_validacion` | `limpio`, `vecindario` o `fuera` (ver abajo) |
 
 Extracción de aguas por etiqueta: Z1 46 positivos, 290 negativos, 6 en trámite; Z2 33 positivos, 110 negativos, 9 en trámite. Con predio elegible a 50 m o menos: 62 positivos y 318 negativos. Los negativos son débiles: la DGA no encontró infracción el día de la visita. Los `en_tramite` no se muestran como infractores.
+
+Set de validación (D18). Base: extracción de aguas, positivo o negativo, predio elegible e inspección desde julio de 2020 (hay al menos una temporada seca previa en el periodo de análisis).
+
+| `set_validacion` | Regla | Positivos | Negativos |
+| --- | --- | --- | --- |
+| `limpio` | Base, no ambiguo, predio de 100 ha o menos; un negativo además sin etiquetas mixtas | 10 (Z1: 4, Z2: 6) | 24 |
+| `vecindario` | Base, pero ambiguo, predio grande o negativo con etiquetas mixtas: evaluar con el mejor puntaje del vecindario | 24 | 51 |
+| `fuera` | El resto | — | — |
+
+Para M6: con 10 positivos limpios, el recall tiene un intervalo de confianza muy ancho (con 7 de 10 detectados, el intervalo de Wilson al 95 % va de 40 % a 89 %). Hay que reportarlo así. Falta la columna `detectable` (positivos que ningún índice de verdor puede detectar, como suelo desnudo): se agrega cuando esté la serie Sentinel-2 corregida (D15). FD-0501-181 y FO-0501-462 quedan en `vecindario` (otro predio a 30 m o menos).
 
 ## Especie por predio (D7)
 

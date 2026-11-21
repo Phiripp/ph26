@@ -1,0 +1,7 @@
+# Lo que no va dentro de la imagen (no lo usa la página)
+scripts/
+README.md
+*-test.html
+.dockerignore
+.gcloudignore
+**/.DS_Store

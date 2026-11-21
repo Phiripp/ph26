@@ -1,0 +1,8 @@
+# Lo que `gcloud run deploy --source` no necesita subir a Cloud Build
+scripts/
+README.md
+*-test.html
+.gcloudignore
+.git
+.gitignore
+**/.DS_Store

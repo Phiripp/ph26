@@ -1,0 +1,43 @@
+# Caudal · nginx para Cloud Run. ${PORT} lo reemplaza la imagen al arrancar (las variables $uri etc. quedan intactas).
+server {
+  listen ${PORT};
+  server_name _;
+  root /usr/share/nginx/html;
+  index index.html;
+
+  # Texto comprimido: los JSON y el JS bajan a cerca de un tercio (las imágenes ya vienen comprimidas).
+  gzip on;
+  gzip_comp_level 5;
+  gzip_min_length 1024;
+  gzip_vary on;
+  gzip_types application/json application/geo+json application/javascript text/css text/plain image/svg+xml;
+
+  # Lo que no es parte del sitio
+  location ~ /\.            { return 404; }
+  location = /Dockerfile    { return 404; }
+  location ~ \.template$    { return 404; }
+
+  # El service worker siempre se revalida: es lo que decide qué versión del resto se usa.
+  location = /sw.js {
+    add_header Cache-Control "no-cache";
+  }
+
+  # Tiles e imágenes: pesados y cambian poco. sw.js los sirve de su caché y los revalida en segundo plano.
+  location ~ ^/(tiles|assets)/ {
+    add_header Cache-Control "public, max-age=86400";
+    try_files $uri =404;
+  }
+
+  location ~ \.geojson$ {
+    types { }
+    default_type application/geo+json;
+    add_header Cache-Control "no-cache";
+    try_files $uri =404;
+  }
+
+  # Código y datos: siempre revalidar (con 304 si no cambió), para que un despliegue se vea al tiro.
+  location / {
+    add_header Cache-Control "no-cache";
+    try_files $uri $uri/ =404;
+  }
+}

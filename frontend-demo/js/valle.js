@@ -1,33 +1,51 @@
-// Caudal v2 · vista 3D del valle (Petorca): terreno DEM + imagen satelital + predios drapeados por banda de sospecha
-// + ruta de inspección (línea cian drapeada sobre el terreno, paradas numeradas).
-// Principio: "prioriza, no acusa" -> solo IDs de predio y rangos de m³, nunca dueños ni cifras únicas.
+// Caudal v2 · vista 3D de una zona de estudio (Z1 Petorca, Z2 Aconcagua bajo): terreno DEM + imagen satelital EOX
+// + predios drapeados por banda de sospecha (provisional) + casos sancionados por la DGA + ruta de inspección.
+// Principio: "prioriza, no acusa" -> solo IDs/rol de predio y rangos de m³, nunca dueños ni cifras únicas.
 // Cámara fija (norte arriba, ~50° desde la vertical). enter()/exit() animan el descenso desde / el regreso hacia el mapa.
-// Nada se anima solo: la ruta se dibuja con setRouteProgress() o playRoute() (solo cuando el usuario lo pide).
+// Nada se anima solo: la ruta se dibuja con setRouteProgress() o playRoute(); el acercamiento a un predio/caso
+// (focus) solo ocurre por una acción del usuario (clic en un caso, selectCaso(..., {focus:true})).
 // Overlay dentro de #stage: canvas transparente (<canvas id="valle-canvas">); badges/etiquetas van en canvas.parentElement
 // y quedan ocultos (visibility:hidden, sin eventos) cuando la vista no está activa.
-// API: initValle({canvas, base, dataBase, onSelectPredio(props|null), onRouteStop(orden, parada), onRouteProgress(t)})
-//   -> {enter, exit, setActive, selectPredio, setRouteProgress, playRoute, showRoute, setYear, setInsets,
-//       years, predios, ruta, bbox, sceneBbox, getRouteProgress}
+//
+// API: initValle({canvas, zona, base, dataBase, onSelectPredio(props|null), onSelectCaso(expediente),
+//                 onRouteStop(orden, parada), onRouteProgress(t)})
+//   zona = objeto de loadZona(id) (js/zona-data.js): {id, zona:{base, bbox_escena, ...}, predios: Feature[], casos, ruta}
+//   (sin `zona`, modo legado: lee dataBase/predios.geojson + dataBase/ruta.json)
+//   -> {setZona(zonaData) -> Promise, enter, exit, setActive, selectPredio(id, {focus}), selectCaso(exp, {focus}),
+//       focusPredio(id), resetView(), setRouteProgress, playRoute, showRoute, setYear, setInsets, getRouteProgress,
+//       years, predios, ruta, casos, zonaId, bbox, sceneBbox, outsideImagery}
+//   setZona() reutiliza el mismo renderer: reconstruye terreno/predios/ruta, deja la cámara en la pose de inicio
+//   (entered=false) y el llamador hace enter() después (típicamente tras map.flyToBounds(controller.bbox)).
 import * as THREE from 'three';
 
 const BG = 0x05080b;
-const EXAG = 2.2;
-const ROUTE_W = 0.16; // km, ancho total de la cinta de la ruta (incluye halo)
-const ROUTE_LIFT = 0.025; // km sobre el terreno
 const OVERLAY_MAX = 4096; // px, lado mayor de la textura de predios
 
+// stroke widths in km (scaled to texture px per zone so a 30 km zone and a 10 km valley look alike)
 const BANDS = {
-  alta: { fill: [255, 91, 61], fa: 0.5, stroke: '#ff5b3d', sw: 6, label: 'ALTA' },
-  media: { fill: [255, 169, 64], fa: 0.42, stroke: '#ffa940', sw: 5, label: 'MEDIA' },
-  baja: { fill: [214, 200, 110], fa: 0.24, stroke: 'rgba(222,208,120,.85)', sw: 3.5, label: 'BAJA' },
-  sin_alerta: { fill: null, fa: 0, stroke: 'rgba(196,206,212,.6)', sw: 2.5, label: 'SIN ALERTA' },
+  alta: { fill: [255, 91, 61], fa: 0.55, stroke: '#ff5b3d', sw: 0.030, label: 'ALTA', size: 12 },
+  media: { fill: [255, 169, 64], fa: 0.46, stroke: '#ffa940', sw: 0.026, label: 'MEDIA', size: 11 },
+  baja: { fill: [214, 200, 110], fa: 0.28, stroke: 'rgba(222,208,120,.9)', sw: 0.018, label: 'BAJA', size: 9 },
+  sin_alerta: { fill: null, fa: 0, stroke: 'rgba(196,206,212,.7)', sw: 0.013, label: 'SIN INDICIO', size: 8, hollow: true },
+  sin_dato: { fill: null, fa: 0, stroke: 'rgba(150,162,168,.55)', sw: 0.008, label: 'SIN DATO', size: 6, hollow: true },
 };
-const bandOf = (b) => BANDS[b] || BANDS.sin_alerta;
+const BAND_ORDER = ['sin_dato', 'sin_alerta', 'baja', 'media', 'alta'];
+const BAND_HEX = { alta: '#ff5b3d', media: '#ffa940', baja: '#d6c86e', sin_alerta: '#c4ced4', sin_dato: '#8d9aa0' };
+const bandOf = (b) => BANDS[b] || BANDS.sin_dato;
+const CASE_COL = '#ffffff';
+const CYAN = '#45d6ee';
 
 const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
 const easeInOutCubic = (t) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2);
 const easeInOutSine = (t) => -(Math.cos(Math.PI * t) - 1) / 2;
-const fmt = (n) => Math.round(n).toLocaleString('es-CL');
+const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const expShort = (e) => String(e || '').replace(/^(\w+)-\d+-(\d+)$/, '$1-$2');
+const titleCase = (s) => String(s || '').toLowerCase().replace(/(^|\s)\p{L}/gu, (c) => c.toUpperCase());
+const nf1 = new Intl.NumberFormat('es-CL', { maximumFractionDigits: 1 });
+function fmtMil(v) {
+  const k = v / 1000;
+  return Math.abs(k) < 100 && Math.round(k) !== k ? nf1.format(k) : Math.round(k).toLocaleString('es-CL');
+}
 
 function loadImage(url) {
   return new Promise((resolve, reject) => {
@@ -67,6 +85,13 @@ function texFromImage(img, srgb) {
   t.minFilter = THREE.LinearMipmapLinearFilter;
   t.magFilter = THREE.LinearFilter;
   t.wrapS = t.wrapT = THREE.ClampToEdgeWrapping;
+  t.needsUpdate = true;
+  return t;
+}
+// 1x1 dark ground used when a zone has no imagery yet (assets still being produced)
+function blankTex() {
+  const t = new THREE.DataTexture(new Uint8Array([10, 16, 20, 255]), 1, 1);
+  t.colorSpace = THREE.SRGBColorSpace;
   t.needsUpdate = true;
   return t;
 }
@@ -113,6 +138,7 @@ const TERRAIN_FS = /* glsl */`
   uniform float uOverlayAmt;
   uniform float uFogNear;
   uniform float uFogFar;
+  uniform float uGrid;        // km between survey grid lines in the no-imagery zone
   uniform vec3 uLightDir;
   varying vec2 vUv;
   varying vec3 vNormalW;
@@ -122,33 +148,27 @@ const TERRAIN_FS = /* glsl */`
     vec2 iuv = (vUv - uImgRect.xy) / (uImgRect.zw - uImgRect.xy);
     vec2 cuv = clamp(iuv, 0.0, 1.0);
     vec3 sat = mix(texture2D(uTexA, cuv).rgb, texture2D(uTexB, cuv).rgb, uMix);
-    // outside the satellite footprint: dark neutral ground (no imagery there)
-    // (soft 1-texel blend at the footprint edge so the terrain cut is not aliased)
     vec2 o = max(-iuv, iuv - 1.0);
     float out1 = max(o.x, o.y);
     float imgK = 1.0 - smoothstep(0.0, 0.004, out1);
     vec3 col = mix(vec3(0.010, 0.016, 0.020), sat, imgK);
 
-    // hillshade
     vec3 n = normalize(vNormalW);
     float diff = clamp(dot(n, normalize(uLightDir)), 0.0, 1.0);
     float shade = 0.55 + 0.65 * diff;
     col *= shade;
 
-    // predios: slightly mute the imagery so band colours read, then composite the overlay
     vec4 ov = texture2D(uOverlay, vUv);
     float lum = dot(col, vec3(0.299, 0.587, 0.114));
     col = mix(col, vec3(lum) * 0.92, 0.22 * uOverlayAmt);
     col = mix(col, ov.rgb * (0.8 + 0.25 * shade), ov.a * uOverlayAmt);
-    // no-imagery zone: faint survey grid (every ~500 m) so it reads as a data plinth, not as missing texture
     if (imgK < 0.999) {
-      vec2 g = abs(fract(vPosW.xz / 0.5) - 0.5);
+      vec2 g = abs(fract(vPosW.xz / uGrid) - 0.5);
       float gl = 1.0 - smoothstep(0.0, 0.035, min(g.x, g.y));
       col += vec3(0.27, 0.84, 0.93) * gl * 0.045 * (1.0 - imgK) * (1.0 - ov.a);
     }
 
-    // edge dissolve + distance fog -> fade to transparent so the map behind shows through
-    vec2 e = smoothstep(vec2(0.0), vec2(0.07), vUv) * smoothstep(vec2(0.0), vec2(0.07), 1.0 - vUv);
+    vec2 e = smoothstep(vec2(0.0), vec2(0.05), vUv) * smoothstep(vec2(0.0), vec2(0.05), 1.0 - vUv);
     float edgeF = e.x * e.y;
     float dist = length(vPosW - cameraPosition);
     float fog = smoothstep(uFogNear, uFogFar, dist);
@@ -179,6 +199,7 @@ const ROUTE_VS = /* glsl */`
 const ROUTE_FS = /* glsl */`
   uniform float uDrawn;   // km drawn so far
   uniform float uAmt;     // route visibility 0..1
+  uniform float uDash;    // km dash period of the not-yet-travelled preview
   uniform vec3 uColor;
   uniform float uFogNear;
   uniform float uFogFar;
@@ -190,332 +211,124 @@ const ROUTE_FS = /* glsl */`
     float core = 1.0 - smoothstep(0.10, 0.24, s);
     float halo = exp(-s * s * 7.0);
     float drawn = step(vDist, uDrawn);
-    // not yet travelled: faint dashed preview of the path
-    float dash = step(0.45, fract(vDist / 0.22));
+    float dash = step(0.45, fract(vDist / uDash));
     float ahead = (1.0 - drawn) * core * dash * 0.22;
-    // bright head right behind the drawing front
     float head = drawn * exp(-max(uDrawn - vDist, 0.0) * 5.0) * step(0.001, uDrawn);
     float a = drawn * (core * 0.95 + halo * 0.38) + ahead + head * halo * 0.6;
     float fog = smoothstep(uFogNear, uFogFar, length(vPosW - cameraPosition));
     a *= uAmt * (1.0 - fog);
     if (a < 0.003) discard;
     vec3 c = mix(uColor, vec3(1.0), core * 0.35 * drawn + head * 0.5);
-    // premultiplied; a little extra rgb gives an additive glow
     gl_FragColor = vec4(c * a * 1.15, a);
   }
 `;
 
+// predio markers: screen-space dots at the centroid so tiny predios stay visible at zone scale
+const DOT_VS = /* glsl */`
+  attribute vec3 aColor;
+  attribute float aSize;
+  attribute float aHollow;
+  attribute float aSel;
+  uniform float uDpr;
+  uniform float uScale;
+  varying vec3 vColor;
+  varying float vHollow;
+  varying float vSel;
+  varying vec3 vPosW;
+  void main() {
+    vColor = aColor; vHollow = aHollow; vSel = aSel;
+    vec4 wp = modelMatrix * vec4(position, 1.0);
+    vPosW = wp.xyz;
+    gl_Position = projectionMatrix * viewMatrix * wp;
+    gl_PointSize = aSize * uScale * uDpr * (1.0 + aSel * 0.7);
+  }
+`;
+const DOT_FS = /* glsl */`
+  uniform float uAmt;
+  uniform float uFogNear;
+  uniform float uFogFar;
+  varying vec3 vColor;
+  varying float vHollow;
+  varying float vSel;
+  varying vec3 vPosW;
+  void main() {
+    float d = length(gl_PointCoord - 0.5) * 2.0;
+    if (d > 1.0) discard;
+    float aa = 0.12;
+    vec3 c; float a;
+    if (vSel > 0.5) {
+      // selected: white ring around the band colour
+      float ring = smoothstep(0.62, 0.62 + aa, d);
+      c = mix(vColor, vec3(1.0), ring);
+      a = 1.0 - smoothstep(1.0 - aa, 1.0, d);
+    } else if (vHollow > 0.5) {
+      float ring = smoothstep(0.42, 0.42 + aa, d) * (1.0 - smoothstep(0.78, 0.78 + aa, d));
+      float out1 = smoothstep(0.78, 0.78 + aa, d) * (1.0 - smoothstep(1.0 - aa, 1.0, d));
+      c = mix(vec3(0.02, 0.03, 0.04), vColor, ring / max(ring + out1 * 0.7, 1e-3));
+      a = ring * 0.9 + out1 * 0.55;
+    } else {
+      float core = 1.0 - smoothstep(0.66, 0.66 + aa, d);
+      c = mix(vec3(0.02, 0.03, 0.04), vColor, core);
+      a = core + (1.0 - core) * (1.0 - smoothstep(1.0 - aa, 1.0, d)) * 0.8;
+    }
+    float fog = smoothstep(uFogNear, uFogFar, length(vPosW - cameraPosition));
+    a *= uAmt * (1.0 - fog);
+    if (a < 0.003) discard;
+    gl_FragColor = vec4(c * a, a);
+  }
+`;
+
 export async function initValle({
-  canvas, base = 'assets/petorca/', dataBase = 'data/petorca/', onSelectPredio, onRouteStop, onRouteProgress,
+  canvas, zona = null, base = null, dataBase = 'data/petorca/',
+  onSelectPredio, onSelectCaso, onRouteStop, onRouteProgress,
 } = {}) {
   if (!canvas) throw new Error('initValle: falta el canvas');
-  const abs = (b) => new URL(b.endsWith('/') ? b : b + '/', location.href).href;
-  const assetUrl = (f) => new URL(f, abs(base)).href;
-  const dataUrl = (f) => new URL(f, abs(dataBase)).href;
+  const absDir = (b) => new URL(b.endsWith('/') ? b : b + '/', location.href).href;
 
-  let manifest, predios, ruta;
-  try {
-    [manifest, predios, ruta] = await Promise.all([
-      loadJson(assetUrl('manifest.json')),
-      loadJson(dataUrl('predios.geojson')),
-      loadJson(dataUrl('ruta.json')).catch(() => null),
-    ]);
-  } catch (err) {
-    throw new Error('initValle: no se pudieron cargar los datos del valle: ' + err.message);
-  }
-
-  const years = [...(manifest.years || [])].sort((a, b) => a - b);
-  if (!years.length) throw new Error('initValle: el manifest no tiene años');
-  const lastYear = years[years.length - 1];
-  const IB = manifest.bbox; // satellite + DEM footprint
-
-  const features = (predios.features || []).filter((f) => ringsOf(f.geometry).length);
-  features.forEach((f) => {
-    const p = f.properties || (f.properties = {});
-    if (!p.id) p.id = f.id;
-    let w = Infinity, s = Infinity, e = -Infinity, n = -Infinity;
-    for (const r of ringsOf(f.geometry)) for (const [x, y] of r) { w = Math.min(w, x); e = Math.max(e, x); s = Math.min(s, y); n = Math.max(n, y); }
-    f._bb = { w, s, e, n };
-    if (!p.centroid) p.centroid = [(w + e) / 2, (s + n) / 2];
-  });
-  const byId = new Map(features.map((f) => [String(f.properties.id), f]));
-  const routeCoords = ruta && ruta.geometry && ruta.geometry.type === 'LineString' ? ruta.geometry.coordinates : [];
-  const paradas = (ruta && ruta.paradas) || [];
-
-  // ---------- scene extent: imagery footprint ∪ data (some predios / stops can fall outside the imagery) ----------
-  const DB = { w: Infinity, s: Infinity, e: -Infinity, n: -Infinity }; // data extent
-  const growDB = (x, y) => { DB.w = Math.min(DB.w, x); DB.e = Math.max(DB.e, x); DB.s = Math.min(DB.s, y); DB.n = Math.max(DB.n, y); };
-  features.forEach((f) => { growDB(f._bb.w, f._bb.s); growDB(f._bb.e, f._bb.n); });
-  routeCoords.forEach(([x, y]) => growDB(x, y));
-  if (!isFinite(DB.w)) Object.assign(DB, { w: IB.west, s: IB.south, e: IB.east, n: IB.north });
-  // focus extent (what the camera frames and what the map should fly to): route + alta/media predios
-  const FB = { w: Infinity, s: Infinity, e: -Infinity, n: -Infinity };
-  const growFB = (x, y) => { FB.w = Math.min(FB.w, x); FB.e = Math.max(FB.e, x); FB.s = Math.min(FB.s, y); FB.n = Math.max(FB.n, y); };
-  features.filter((f) => f.properties.banda === 'alta' || f.properties.banda === 'media')
-    .forEach((f) => { growFB(f._bb.w, f._bb.s); growFB(f._bb.e, f._bb.n); });
-  routeCoords.forEach(([x, y]) => growFB(x, y));
-  paradas.forEach((s) => growFB(s.lon, s.lat));
-  if (!isFinite(FB.w)) Object.assign(FB, DB);
-  { const fp = 0.003; FB.w -= fp; FB.e += fp; FB.s -= fp; FB.n += fp; }
-  const pad = 0.006;
-  const SB = {
-    w: Math.min(IB.west, DB.w - pad), e: Math.max(IB.east, DB.e + pad),
-    s: Math.min(IB.south, DB.s - pad), n: Math.max(IB.north, DB.n + pad),
-  };
-  const dLon = SB.e - SB.w, dLat = SB.n - SB.s;
-  const latMid = ((SB.n + SB.s) / 2) * Math.PI / 180;
-  const W = dLon * 111.32 * Math.cos(latMid);
-  const H = dLat * 110.54;
-  const toUV = (lon, lat) => [(lon - SB.w) / dLon, (lat - SB.s) / dLat];
-  const fromUV = (u, v) => [SB.w + u * dLon, SB.s + v * dLat];
-  const imgRect = new THREE.Vector4(
-    (IB.west - SB.w) / dLon, (IB.south - SB.s) / dLat, (IB.east - SB.w) / dLon, (IB.north - SB.s) / dLat,
-  );
-  const outsideImagery = features.filter((f) => {
-    const [x, y] = f.properties.centroid;
-    return x < IB.west || x > IB.east || y < IB.south || y > IB.north;
-  }).map((f) => f.properties.id);
-  if (outsideImagery.length) {
-    console.warn(`[valle] ${outsideImagery.length} predio(s) fuera de la imagen satelital/DEM (${outsideImagery.join(', ')}); se dibujan sobre terreno sin imagen.`);
-  }
-
-  // ---------- assets: DEM + latest year first (other years load on demand) ----------
-  const [demImg, lastImg] = await Promise.all([
-    manifest.dem ? loadImage(assetUrl(manifest.dem.file || 'dem.png')).catch(() => null) : Promise.resolve(null),
-    loadImage(assetUrl(`sat-${lastYear}.jpg`)),
-  ]);
-  const satTex = { [lastYear]: texFromImage(lastImg, true) };
-  const satLoading = {};
-  function ensureYear(y) {
-    if (satTex[y]) return Promise.resolve(satTex[y]);
-    if (!satLoading[y]) {
-      satLoading[y] = loadImage(assetUrl(`sat-${y}.jpg`)).then((img) => {
-        satTex[y] = texFromImage(img, true);
-        dirty = true;
-        return satTex[y];
-      }).catch((e) => { console.warn('[valle]', e.message); delete satLoading[y]; return null; });
-    }
-    return satLoading[y];
-  }
-
-  // heights: DEM covers the imagery footprint only; outside it the edge is clamped
-  let heightAt = () => 0;
-  if (demImg) {
-    const dem = imageData(demImg, 512);
-    const hs = new Float32Array(dem.w * dem.h);
-    let mn = Infinity;
-    for (let i = 0; i < hs.length; i++) {
-      const v = dem.data[i * 4] * 256 + dem.data[i * 4 + 1] + dem.data[i * 4 + 2] / 256 - 32768;
-      hs[i] = v;
-      if (v < mn && v > -500) mn = v;
-    }
-    if (!isFinite(mn)) mn = 0;
-    const sample = (iu, iv) => {
-      const x = clamp(iu, 0, 1) * (dem.w - 1);
-      const y = (1 - clamp(iv, 0, 1)) * (dem.h - 1);
-      const x0 = Math.floor(x), y0 = Math.floor(y);
-      const x1 = Math.min(x0 + 1, dem.w - 1), y1 = Math.min(y0 + 1, dem.h - 1);
-      const fx = x - x0, fy = y - y0;
-      const s = (xx, yy) => Math.max(hs[yy * dem.w + xx], mn);
-      return (s(x0, y0) * (1 - fx) + s(x1, y0) * fx) * (1 - fy) + (s(x0, y1) * (1 - fx) + s(x1, y1) * fx) * fy;
-    };
-    // u, v in scene UV (0..1 west->east, south->north)
-    // outside the DEM: ease down to the valley-floor base over ~1.2 km instead of stretching the edge pixels
-    const IW = (imgRect.z - imgRect.x) * W, IH = (imgRect.w - imgRect.y) * H;
-    heightAt = (u, v) => {
-      const iu = (u - imgRect.x) / (imgRect.z - imgRect.x);
-      const iv = (v - imgRect.y) / (imgRect.w - imgRect.y);
-      const h = ((sample(iu, iv) - mn) / 1000) * EXAG;
-      const ox = Math.max(0, -iu, iu - 1) * IW, oy = Math.max(0, -iv, iv - 1) * IH;
-      const od = Math.hypot(ox, oy);
-      if (od <= 0) return h;
-      const k = clamp(od / 1.2, 0, 1);
-      return h * (1 - k * k * (3 - 2 * k));
-    };
-  }
-
-  const SEG_X = 320, SEG_Y = Math.max(64, Math.round(320 * H / W));
-  const geo = new THREE.PlaneGeometry(W, H, SEG_X, SEG_Y);
-  geo.rotateX(-Math.PI / 2);
-  {
-    const pos = geo.attributes.position, uv = geo.attributes.uv;
-    for (let i = 0; i < pos.count; i++) pos.setY(i, heightAt(uv.getX(i), uv.getY(i)));
-    pos.needsUpdate = true;
-    geo.computeVertexNormals();
-  }
-  const uvToWorld = (u, v, lift = 0) => new THREE.Vector3((u - 0.5) * W, heightAt(u, v) + lift, (0.5 - v) * H);
-  const llToWorld = (lon, lat, lift = 0) => { const [u, v] = toUV(lon, lat); return uvToWorld(u, v, lift); };
-
-  // ---------- predio overlay (canvas texture in scene UV space) ----------
-  const OW = W >= H ? OVERLAY_MAX : Math.round(OVERLAY_MAX * W / H);
-  const OH = W >= H ? Math.round(OVERLAY_MAX * H / W) : OVERLAY_MAX;
-  const ovCanvas = document.createElement('canvas');
-  ovCanvas.width = OW; ovCanvas.height = OH;
-  const ovCtx = ovCanvas.getContext('2d');
-  const ovTex = new THREE.CanvasTexture(ovCanvas);
-  ovTex.anisotropy = 8;
-  ovTex.minFilter = THREE.LinearMipmapLinearFilter;
-  ovTex.magFilter = THREE.LinearFilter;
-  ovTex.wrapS = ovTex.wrapT = THREE.ClampToEdgeWrapping;
-  ovTex.colorSpace = THREE.SRGBColorSpace; // canvas colours are sRGB, like the satellite imagery
-
-  const pxOf = (lon, lat) => { const [u, v] = toUV(lon, lat); return [u * OW, (1 - v) * OH]; };
-  function tracePath(f) {
-    ovCtx.beginPath();
-    for (const r of ringsOf(f.geometry)) {
-      r.forEach(([x, y], i) => { const [px, py] = pxOf(x, y); if (i) ovCtx.lineTo(px, py); else ovCtx.moveTo(px, py); });
-      ovCtx.closePath();
-    }
-  }
-  const rgba = (c, a) => `rgba(${c[0]},${c[1]},${c[2]},${a})`;
-  let selectedId = null;
-  function drawOverlay() {
-    ovCtx.clearRect(0, 0, OW, OH);
-    ovCtx.lineJoin = 'round';
-    ovCtx.lineCap = 'round';
-    // low bands first so alta sits on top
-    const order = ['sin_alerta', 'baja', 'media', 'alta'];
-    const sorted = features.slice().sort((a, b) => order.indexOf(a.properties.banda) - order.indexOf(b.properties.banda));
-    for (const f of sorted) {
-      const id = String(f.properties.id);
-      if (id === selectedId) continue;
-      const B = bandOf(f.properties.banda);
-      tracePath(f);
-      if (B.fill) { ovCtx.fillStyle = rgba(B.fill, selectedId ? B.fa * 0.75 : B.fa); ovCtx.fill('evenodd'); }
-      ovCtx.strokeStyle = B.stroke;
-      ovCtx.lineWidth = B.sw;
-      ovCtx.stroke();
-    }
-    const sf = selectedId && byId.get(selectedId);
-    if (sf) {
-      const B = bandOf(sf.properties.banda);
-      tracePath(sf);
-      ovCtx.save();
-      ovCtx.fillStyle = rgba(B.fill || [196, 206, 212], 0.6);
-      ovCtx.fill('evenodd');
-      ovCtx.shadowColor = B.fill ? rgba(B.fill, 0.95) : 'rgba(255,255,255,.8)';
-      ovCtx.shadowBlur = 22;
-      ovCtx.strokeStyle = '#ffffff';
-      ovCtx.lineWidth = 9;
-      ovCtx.stroke();
-      ovCtx.restore();
-    }
-    ovTex.needsUpdate = true;
-    dirty = true;
-  }
-
-  // ---------- renderer / scene ----------
+  // ---------- renderer / scene (created once, reused across zones) ----------
   const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true, premultipliedAlpha: true, powerPreference: 'high-performance' });
   renderer.setClearColor(BG, 0);
   renderer.outputColorSpace = THREE.SRGBColorSpace;
   const scene = new THREE.Scene();
-  const camera = new THREE.PerspectiveCamera(38, 1, 0.05, 500);
+  const camera = new THREE.PerspectiveCamera(38, 1, 0.05, 800);
+  const dpr = () => Math.min(2, window.devicePixelRatio || 1);
 
-  const span = Math.max(W, H);
   const uniforms = {
-    uTexA: { value: satTex[lastYear] },
-    uTexB: { value: satTex[lastYear] },
+    uTexA: { value: null },
+    uTexB: { value: null },
     uMix: { value: 0 },
-    uImgRect: { value: imgRect },
-    uOverlay: { value: ovTex },
+    uImgRect: { value: new THREE.Vector4(0, 0, 1, 1) },
+    uOverlay: { value: null },
     uOverlayAmt: { value: 0 },
-    uFogNear: { value: span },
-    uFogFar: { value: span * 2 },
+    uFogNear: { value: 100 },
+    uFogFar: { value: 200 },
+    uGrid: { value: 0.5 },
     uLightDir: { value: new THREE.Vector3(-0.6, 0.9, 0.35) },
   };
-  const terrain = new THREE.Mesh(geo, new THREE.ShaderMaterial({ uniforms, vertexShader: TERRAIN_VS, fragmentShader: TERRAIN_FS }));
-  scene.add(terrain);
-
-  // ---------- route ribbon draped on the terrain ----------
-  let routeLen = 0;
-  let routeMesh = null;
-  let routeSamples = []; // { p: Vector3 (on route), d: km }
+  const terrainMat = new THREE.ShaderMaterial({ uniforms, vertexShader: TERRAIN_VS, fragmentShader: TERRAIN_FS });
   const routeUniforms = {
     uDrawn: { value: 0 },
     uAmt: { value: 0 },
+    uDash: { value: 0.22 },
     uColor: { value: new THREE.Color(0x45d6ee) },
     uFogNear: uniforms.uFogNear,
     uFogFar: uniforms.uFogFar,
   };
-  if (routeCoords.length > 1) {
-    // densify in km space so the ribbon follows the relief between OSRM vertices
-    const pts = [];
-    const xz = routeCoords.map(([lon, lat]) => { const [u, v] = toUV(lon, lat); return [u, v]; });
-    for (let i = 0; i < xz.length; i++) {
-      const [u, v] = xz[i];
-      if (i) {
-        const [pu, pv] = xz[i - 1];
-        const dk = Math.hypot((u - pu) * W, (v - pv) * H);
-        const n = Math.floor(dk / 0.04);
-        for (let k = 1; k <= n; k++) { const t = k / (n + 1); pts.push([pu + (u - pu) * t, pv + (v - pv) * t]); }
-      }
-      pts.push([u, v]);
-    }
-    const N = pts.length;
-    const pos = new Float32Array(N * 2 * 3);
-    const aDist = new Float32Array(N * 2);
-    const aSide = new Float32Array(N * 2);
-    const idx = [];
-    let d = 0;
-    const kx = (u) => (u - 0.5) * W, kz = (v) => (0.5 - v) * H;
-    for (let i = 0; i < N; i++) {
-      const [u, v] = pts[i];
-      if (i) d += Math.hypot((u - pts[i - 1][0]) * W, (v - pts[i - 1][1]) * H);
-      const a = pts[Math.max(0, i - 1)], b = pts[Math.min(N - 1, i + 1)];
-      let tx = kx(b[0]) - kx(a[0]), tz = kz(b[1]) - kz(a[1]);
-      const tl = Math.hypot(tx, tz) || 1; tx /= tl; tz /= tl;
-      const nx = -tz, nz = tx; // horizontal normal
-      const half = ROUTE_W / 2;
-      for (let sgn = -1, k = 0; k < 2; sgn += 2, k++) {
-        const x = kx(u) + nx * half * sgn, z = kz(v) + nz * half * sgn;
-        const su = x / W + 0.5, sv = 0.5 - z / H;
-        const j = i * 2 + k;
-        pos[j * 3] = x; pos[j * 3 + 1] = heightAt(su, sv) + ROUTE_LIFT; pos[j * 3 + 2] = z;
-        aDist[j] = d; aSide[j] = sgn;
-      }
-      routeSamples.push({ p: uvToWorld(u, v, ROUTE_LIFT), d });
-      if (i < N - 1) { const o = i * 2; idx.push(o, o + 1, o + 2, o + 1, o + 3, o + 2); }
-    }
-    routeLen = d;
-    const rg = new THREE.BufferGeometry();
-    rg.setAttribute('position', new THREE.BufferAttribute(pos, 3));
-    rg.setAttribute('aDist', new THREE.BufferAttribute(aDist, 1));
-    rg.setAttribute('aSide', new THREE.BufferAttribute(aSide, 1));
-    rg.setIndex(idx);
-    routeMesh = new THREE.Mesh(rg, new THREE.ShaderMaterial({
-      uniforms: routeUniforms, vertexShader: ROUTE_VS, fragmentShader: ROUTE_FS,
-      transparent: true, depthWrite: false, premultipliedAlpha: true, side: THREE.DoubleSide,
-      polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2,
-    }));
-    routeMesh.renderOrder = 2;
-    routeMesh.frustumCulled = false;
-    scene.add(routeMesh);
-  }
-  // position along the route (km) of each stop: first close approach searching forward from the previous stop
-  function alongRoute(lon, lat, fromIdx) {
-    if (!routeSamples.length) return { d: 0, i: 0 };
-    const p = llToWorld(lon, lat);
-    const dist = (i) => Math.hypot(routeSamples[i].p.x - p.x, routeSamples[i].p.z - p.z);
-    let best = -1;
-    for (let i = fromIdx; i < routeSamples.length; i++) {
-      if (dist(i) < 0.25) { best = i; while (best + 1 < routeSamples.length && dist(best + 1) <= dist(best)) best++; break; }
-    }
-    if (best < 0) {
-      let bd = Infinity;
-      for (let i = fromIdx; i < routeSamples.length; i++) { const dd = dist(i); if (dd < bd) { bd = dd; best = i; } }
-    }
-    return { d: routeSamples[best].d, i: best };
-  }
-  function pointAt(dk) {
-    if (!routeSamples.length) return null;
-    let lo = 0, hi = routeSamples.length - 1;
-    while (hi - lo > 1) { const m = (lo + hi) >> 1; if (routeSamples[m].d < dk) lo = m; else hi = m; }
-    const a = routeSamples[lo], b = routeSamples[hi];
-    const t = clamp((dk - a.d) / ((b.d - a.d) || 1), 0, 1);
-    return a.p.clone().lerp(b.p, t);
-  }
+  const routeMat = new THREE.ShaderMaterial({
+    uniforms: routeUniforms, vertexShader: ROUTE_VS, fragmentShader: ROUTE_FS,
+    transparent: true, depthWrite: false, premultipliedAlpha: true, side: THREE.DoubleSide,
+    polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2,
+  });
+  const dotUniforms = {
+    uDpr: { value: dpr() }, uScale: { value: 1 }, uAmt: { value: 0 },
+    uFogNear: uniforms.uFogNear, uFogFar: uniforms.uFogFar,
+  };
+  const dotMat = new THREE.ShaderMaterial({
+    uniforms: dotUniforms, vertexShader: DOT_VS, fragmentShader: DOT_FS,
+    transparent: true, depthWrite: false, depthTest: false, premultipliedAlpha: true,
+  });
 
-  // ---------- HTML layer: stop badges, start pin, labels, tooltip ----------
+  // ---------- HTML layer ----------
   const host = canvas.parentElement || document.body;
   if (getComputedStyle(host).position === 'static') host.style.position = 'relative';
   const layer = document.createElement('div');
@@ -530,10 +343,8 @@ export async function initValle({
     position: 'absolute', inset: '0', zIndex: '1', pointerEvents: 'none', opacity: '0', visibility: 'hidden', transition: 'opacity .7s ease',
     background: 'radial-gradient(ellipse 80% 75% at 50% 48%, rgba(5,8,11,0) 60%, rgba(5,8,11,0.35) 100%)',
   });
-  // insert right after the canvas so page UI (HUD, panels) declared later keeps stacking above
   canvas.after(vignette, layer);
   canvas.style.pointerEvents = 'none';
-  // fade, then visibility:hidden so nothing stays clickable / visible when the valley is not shown
   function fadeEl(el, on, ms) {
     clearTimeout(el._hideT);
     el.style.opacity = on ? '1' : '0';
@@ -542,171 +353,191 @@ export async function initValle({
   }
   const showLayer = (on) => fadeEl(layer, on, 480);
   const showVignette = (on) => fadeEl(vignette, on, 720);
+  const OFF = 'translate(-9999px,-9999px)';
 
-  const BAND_HEX = { alta: '#ff5b3d', media: '#ffa940', baja: '#d6c86e', sin_alerta: '#c4ced4' };
-  const stops = [];
-  let lastIdx = 0;
-  for (const s of paradas) {
-    const { d, i } = alongRoute(s.lon, s.lat, lastIdx);
-    lastIdx = i;
-    const el = document.createElement('button');
-    el.type = 'button';
-    const col = BAND_HEX[s.banda] || '#45d6ee';
-    el.setAttribute('aria-label', `Parada ${s.orden}: predio ${s.predio_id}, banda ${s.banda}`);
-    el.innerHTML = `<span data-stem style="position:absolute;left:50%;top:100%;width:1px;height:16px;background:${col};opacity:.75"></span>`
-      + `<span data-n style="display:grid;place-items:center;width:22px;height:22px;border-radius:50%;border:1.5px solid ${col};background:rgba(5,8,11,.86);color:${col};font:600 11px/1 'IBM Plex Mono',ui-monospace,monospace;transition:background .25s,color .25s,box-shadow .25s">${s.orden}</span>`;
-    Object.assign(el.style, {
-      position: 'absolute', left: '0', top: '0', padding: '0', margin: '0', border: '0', background: 'none',
-      cursor: 'pointer', pointerEvents: 'auto', transform: 'translate(-9999px,-9999px)', willChange: 'transform',
-    });
-    el.addEventListener('click', (ev) => { ev.stopPropagation(); pick(s.predio_id, true); });
-    layer.appendChild(el);
-    stops.push({ s, d, el, num: el.querySelector('[data-n]'), col, world: llToWorld(s.lon, s.lat), reached: null });
-  }
-  let startPin = null;
-  if (ruta && ruta.inicio) {
-    const el = document.createElement('div');
-    el.innerHTML = `<span style="display:block;width:10px;height:10px;margin:0 auto;border-radius:2px;background:#45d6ee;box-shadow:0 0 0 3px rgba(69,214,238,.25),0 0 12px rgba(69,214,238,.8);transform:rotate(45deg)"></span>`
-      + `<span style="display:block;margin-top:7px;white-space:nowrap;padding:3px 6px;background:rgba(5,8,11,.78);border:1px solid rgba(69,214,238,.5);color:#45d6ee;letter-spacing:.06em">INICIO · ${String(ruta.inicio.nombre || '').toUpperCase()}${ruta.inicio.hora ? ' · ' + ruta.inicio.hora : ''}</span>`;
-    Object.assign(el.style, { position: 'absolute', left: '0', top: '0', transform: 'translate(-9999px,-9999px)', textAlign: 'center' });
-    layer.appendChild(el);
-    startPin = { el, world: llToWorld(ruta.inicio.lon, ruta.inicio.lat, 0.01) };
-  }
   const headDot = document.createElement('div');
   Object.assign(headDot.style, {
     position: 'absolute', left: '-5px', top: '-5px', width: '10px', height: '10px', borderRadius: '50%',
     background: '#eaffff', boxShadow: '0 0 0 3px rgba(69,214,238,.35), 0 0 16px 4px rgba(69,214,238,.85)',
-    transform: 'translate(-9999px,-9999px)', opacity: '0', transition: 'opacity .3s',
+    transform: OFF, opacity: '0', transition: 'opacity .3s', zIndex: '2',
   });
   layer.appendChild(headDot);
-
-  // selected predio label (anchored to its centroid)
   const selLabel = document.createElement('div');
   Object.assign(selLabel.style, {
-    position: 'absolute', left: '0', top: '0', transform: 'translate(-9999px,-9999px)', whiteSpace: 'nowrap',
-    padding: '6px 8px', background: 'rgba(5,8,11,.86)', border: '1px solid #fff', color: '#e8eef0',
+    position: 'absolute', left: '0', top: '0', transform: OFF, whiteSpace: 'nowrap', zIndex: '4',
+    padding: '6px 8px', background: 'rgba(5,8,11,.88)', border: '1px solid #fff', color: '#e8eef0',
     letterSpacing: '.04em', lineHeight: '1.45', boxShadow: '0 6px 24px rgba(0,0,0,.45)',
   });
   layer.appendChild(selLabel);
-  // hover tooltip (follows the cursor)
   const tip = document.createElement('div');
   Object.assign(tip.style, {
-    position: 'absolute', left: '0', top: '0', transform: 'translate(-9999px,-9999px)', whiteSpace: 'nowrap',
-    padding: '4px 7px', background: 'rgba(5,8,11,.86)', border: '1px solid rgba(232,238,240,.35)', color: '#e8eef0',
+    position: 'absolute', left: '0', top: '0', transform: OFF, whiteSpace: 'nowrap', zIndex: '5',
+    padding: '4px 7px', background: 'rgba(5,8,11,.88)', border: '1px solid rgba(232,238,240,.35)', color: '#e8eef0',
     letterSpacing: '.05em',
   });
   layer.appendChild(tip);
 
-  const rangeTxt = (p) => (isFinite(p.m3_estimado_min) && isFinite(p.m3_estimado_max)
-    ? `${Math.round(p.m3_estimado_min / 1000)}–${Math.round(p.m3_estimado_max / 1000)} mil m³/año` : 's/d');
-  function renderSelLabel() {
-    const f = selectedId && byId.get(selectedId);
-    if (!f) { selLabel.style.transform = 'translate(-9999px,-9999px)'; return; }
-    const p = f.properties, B = bandOf(p.banda), col = BAND_HEX[p.banda] || '#c4ced4';
-    const stop = paradas.find((s) => String(s.predio_id) === selectedId);
-    selLabel.style.borderColor = col;
-    selLabel.innerHTML = `<div style="display:flex;gap:8px;align-items:center"><b style="font-weight:600;color:#fff">${p.id}</b>`
-      + `<span style="color:${col}">● ${B.label}</span>${stop ? `<span style="color:#45d6ee">PARADA ${stop.orden}</span>` : ''}</div>`
-      + `<div style="color:#9fb0b6">consumo est. ${p.m3_estimado_anio || ''}: <span style="color:#e8eef0">${rangeTxt(p)}</span></div>`
-      + `<div style="color:#9fb0b6">${isFinite(p.area_ha) ? p.area_ha.toLocaleString('es-CL') + ' ha · ' : ''}confianza ${p.confianza || 's/d'}</div>`;
-  }
+  // ---------- per-zone state (rebuilt by build()) ----------
+  let zonaId = null;
+  let manifest = null, years = [], lastYear = 0, IB = null;
+  let features = [], byId = new Map(), paradas = [], routeCoords = [], ruta = null;
+  let casos = []; // [{exp, predioId|null, lon, lat, el, world}]
+  let casoByPredio = new Map();
+  let SB = null, FB = null, W = 1, H = 1, dLon = 1, dLat = 1, span = 1, EXAG = 2.2;
+  let toUV = () => [0, 0], fromUV = () => [0, 0], heightAt = () => 0;
+  let terrain = null, routeMesh = null, dots = null;
+  let routeLen = 0, routeSamples = [];
+  let ovCanvas = null, ovCtx = null, ovTex = null, OW = 1, OH = 1, pxPerKm = 1;
+  let satTex = {}, satLoading = {};
+  let stops = [], startPin = null, zoneEls = [];
+  let outsideImagery = [];
+  let focusPts = null;
 
-  // ---------- state ----------
+  const uvToWorld = (u, v, lift = 0) => new THREE.Vector3((u - 0.5) * W, heightAt(u, v) + lift, (0.5 - v) * H);
+  const llToWorld = (lon, lat, lift = 0) => { const [u, v] = toUV(lon, lat); return uvToWorld(u, v, lift); };
+
+  // ---------- view state ----------
   const reduced = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-  const state = { year: lastYear, routeT: 0, routeOn: true };
+  const state = { year: 0, routeT: 0, routeOn: true };
   let dirty = true;
-  let overlayAmt = 0;
-  let routeAmt = 0;
-  let routePlay = null; // { from, to, t0, dur, resolve }
+  let overlayAmt = 0, routeAmt = 0;
+  let routePlay = null;
   let hoverId = null;
+  let selectedId = null;
+  let active = false, entered = false, rafId = 0, prev = performance.now();
+  let pendingFocus = null; // predio id to focus once the descent finishes
 
-  // ---------- camera (fixed, north-up) ----------
-  const target = new THREE.Vector3();
-  {
-    const [cu, cv] = toUV((FB.w + FB.e) / 2, (FB.s + FB.n) / 2);
-    target.copy(uvToWorld(cu, cv));
-    target.y = heightAt(cu, cv) * 0.6;
+  // camera: current target + polar angle + radius; "home" frames the whole zone, "focus" one predio/case
+  const camT = new THREE.Vector3();
+  const cam = { pol: THREE.MathUtils.degToRad(25), r: 10 };
+  const FINAL_POL = THREE.MathUtils.degToRad(50);
+  const START_POL = THREE.MathUtils.degToRad(25);
+  const FOCUS_POL = THREE.MathUtils.degToRad(48);
+  const home = { target: new THREE.Vector3(), r: 10 };
+  let focus = null; // { id, target: Vector3, r }
+  const insets = { right: 0, bottom: 0 };
+  const startPose = () => ({ pol: START_POL, r: home.r * 2.6, target: home.target.clone() });
+  const homePose = () => ({ pol: FINAL_POL, r: home.r, target: home.target.clone() });
+
+  function placeCameraWith(t, pol, r) {
+    camera.position.set(t.x, t.y + r * Math.cos(pol), t.z + r * Math.sin(pol));
+    camera.lookAt(t);
   }
-  const insets = { right: 0, bottom: 0 }; // px covered by page UI (side panel / bottom sheet)
-  const FINAL = { pol: THREE.MathUtils.degToRad(50), r: span * 0.7 };
-  const START = { pol: THREE.MathUtils.degToRad(25), r: span * 1.8 };
-  const cam = { pol: START.pol, r: START.r };
+  function placeCamera() {
+    placeCameraWith(camT, cam.pol, cam.r);
+    uniforms.uFogNear.value = cam.r + span * 0.45;
+    uniforms.uFogFar.value = cam.r + span * 1.2;
+    // dots slightly larger when zoomed in on a predio
+    dotUniforms.uScale.value = clamp(Math.sqrt(home.r / Math.max(cam.r, 0.1)) * 0.9, 1, 1.6);
+  }
   const tmpV = new THREE.Vector3();
   function project(v) {
     tmpV.copy(v).project(camera);
     return { x: (tmpV.x * 0.5 + 0.5) * host.clientWidth, y: (-tmpV.y * 0.5 + 0.5) * host.clientHeight, ok: tmpV.z < 1 };
   }
-  // numeric fit: project the focus points (stops, route, alta/media predios) with the final pose and search the
-  // radius + target that makes them fill the visible area (canvas minus side panel / bottom sheet, minus HUD margins)
-  let focusPts = null;
+  function viewport() {
+    const fw = Math.max(1, host.clientWidth), fh = Math.max(1, host.clientHeight);
+    const small = fw < 700;
+    const m = { l: small ? 20 : 48, r: small ? 20 : (insets.right ? 150 : 60), t: small ? 90 : 120, b: small ? 24 : 60 };
+    const vx0 = m.l, vx1 = Math.max(vx0 + 50, fw - Math.min(insets.right, fw * 0.6) - m.r);
+    const vy0 = m.t, vy1 = Math.max(vy0 + 50, fh - Math.min(insets.bottom, fh * 0.6) - m.b);
+    return { fw, fh, vx0, vx1, vy0, vy1 };
+  }
   function buildFocusPts() {
     const pts = [];
     stops.forEach((st) => pts.push(st.world));
     if (startPin) pts.push(startPin.world);
-    for (let i = 0; i < routeSamples.length; i += 6) pts.push(routeSamples[i].p);
-    features.forEach((f) => {
-      const bd = f.properties.banda;
-      if (bd !== 'alta' && bd !== 'media') return;
-      const b = f._bb;
-      [[b.w, b.s], [b.e, b.s], [b.w, b.n], [b.e, b.n]].forEach(([x, y]) => pts.push(llToWorld(x, y)));
-    });
-    if (!pts.length) [[FB.w, FB.s], [FB.e, FB.s], [FB.w, FB.n], [FB.e, FB.n]].forEach(([x, y]) => pts.push(llToWorld(x, y)));
+    for (let i = 0; i < routeSamples.length; i += 8) pts.push(routeSamples[i].p);
+    features.forEach((f) => { pts.push(llToWorld(f.properties.centroid[0], f.properties.centroid[1])); });
+    casos.forEach((c) => pts.push(c.world));
+    if (!pts.length && FB) [[FB.w, FB.s], [FB.e, FB.s], [FB.w, FB.n], [FB.e, FB.n]].forEach(([x, y]) => pts.push(llToWorld(x, y)));
     return pts;
   }
-  function fitRadius() {
+  // numeric fit: project focus points with the final pose and search radius + target that fill the visible area
+  function fitHome() {
+    if (!SB) return;
     if (!focusPts) focusPts = buildFocusPts();
-    const fw = Math.max(1, host.clientWidth), fh = Math.max(1, host.clientHeight);
-    const small = fw < 700;
-    // HUD + badge headroom; extra right margin when the side panel is open so the east-most stops
-    // and their badges/labels don't sit against the panel edge
-    const m = { l: small ? 20 : 48, r: small ? 20 : (insets.right ? 150 : 48), t: small ? 90 : 120, b: small ? 24 : 60 };
-    const vx0 = m.l, vx1 = Math.max(vx0 + 50, fw - Math.min(insets.right, fw * 0.6) - m.r);
-    const vy0 = m.t, vy1 = Math.max(vy0 + 50, fh - Math.min(insets.bottom, fh * 0.6) - m.b);
+    const { fh, vx0, vx1, vy0, vy1 } = viewport();
     const vw = vx1 - vx0, vh = vy1 - vy0;
-    const save = { pol: cam.pol, r: cam.r };
-    cam.pol = FINAL.pol;
+    const [cu, cv] = toUV((FB.w + FB.e) / 2, (FB.s + FB.n) / 2);
+    const t = uvToWorld(cu, cv); t.y = heightAt(cu, cv) * 0.6;
+    // terrain perimeter: only constrains the horizontal fit, so an elongated zone (Z1 ~3.2:1) never
+    // spills past the left edge / under the side panel; its top/bottom may run off-screen as backdrop
+    const edgePts = [];
+    // (desktop only: on a phone the zone is tiny already, so the terrain may run past the edges)
+    if (host.clientWidth >= 700) for (let i = 0; i <= 8; i++) { const k = i / 8; edgePts.push(uvToWorld(k, 0), uvToWorld(k, 1), uvToWorld(0, k), uvToWorld(1, k)); }
+    // case tags hang up-left of their ring (≈ tag width + stem); keep them ≥ 24 px inside the visible area
+    // (x: tag left ≥ 24 px from the screen edge; y: tag top stays below the header margin vy0)
+    const tagPad = (c) => ({ l: Math.max(60, (c.tag && c.tag.offsetWidth) || 78) + 14 + 24 - vx0, t: ((c.tag && c.tag.offsetHeight) || 16) + 22 });
     const box = (r) => {
-      cam.r = r; placeCamera(); camera.updateMatrixWorld();
+      placeCameraWith(t, FINAL_POL, r); camera.updateMatrixWorld();
       let x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity;
       for (const v of focusPts) {
         const q = project(v);
         x0 = Math.min(x0, q.x); x1 = Math.max(x1, q.x); y0 = Math.min(y0, q.y); y1 = Math.max(y1, q.y);
       }
+      for (const c of casos) {
+        const q = project(c.world), p = tagPad(c);
+        if (!q.ok) continue;
+        x0 = Math.min(x0, q.x - Math.max(0, p.l)); y0 = Math.min(y0, q.y - p.t);
+      }
+      for (const v of edgePts) {
+        const q = project(v);
+        if (!q.ok) continue;
+        x0 = Math.min(x0, q.x); x1 = Math.max(x1, q.x);
+      }
       return { x0, x1, y0, y1 };
     };
     let r = span * 0.7;
     for (let iter = 0; iter < 4; iter++) {
-      let lo = 0.5, hi = span * 4;
+      let lo = 0.3, hi = span * 4;
       for (let k = 0; k < 22; k++) {
         const mid = (lo + hi) / 2, bb = box(mid);
         if (bb.x1 - bb.x0 <= vw && bb.y1 - bb.y0 <= vh) hi = mid; else lo = mid;
       }
       r = hi;
-      // re-centre the target on the projected box (pixel offset -> world offset at the target depth)
       const bb = box(r);
       const dxp = (bb.x0 + bb.x1) / 2 - (vx0 + vx1) / 2, dyp = (bb.y0 + bb.y1) / 2 - (vy0 + vy1) / 2;
-      const wpp = (2 * r * Math.tan(THREE.MathUtils.degToRad(camera.fov) / 2)) / fh; // world km per px
-      target.x += dxp * wpp;
-      target.z += (dyp * wpp) / Math.cos(FINAL.pol);
+      const wpp = (2 * r * Math.tan(THREE.MathUtils.degToRad(camera.fov) / 2)) / fh;
+      t.x += dxp * wpp;
+      t.z += (dyp * wpp) / Math.cos(FINAL_POL);
       if (Math.abs(dxp) < 2 && Math.abs(dyp) < 2) break;
     }
-    cam.pol = save.pol; cam.r = save.r; placeCamera();
-    return Math.max(r, 1);
+    home.target.copy(t);
+    home.r = Math.max(r, 0.8);
+    placeCamera();
   }
-  function placeCamera() {
-    camera.position.set(target.x, target.y + cam.r * Math.cos(cam.pol), target.z + cam.r * Math.sin(cam.pol));
-    camera.lookAt(target);
-    // fog band relative to the current distance so the whole valley stays visible while descending
-    uniforms.uFogNear.value = cam.r + span * 0.35;
-    uniforms.uFogFar.value = cam.r + span * 1.1;
+  // focus pose for one predio / case point: ~2.5 km wide view, centred in the visible area (minus side panel)
+  function focusPoseFor(lon, lat, f) {
+    let ext = 0.6;
+    if (f) { const b = f._bb; ext = Math.max(ext, (b.e - b.w) * 111.32 * Math.cos(lat * Math.PI / 180) * 3, (b.n - b.s) * 110.54 * 3); }
+    const r = clamp(ext * 2.4, 1.6, Math.max(1.6, home.r * 0.6));
+    const [u, v] = toUV(lon, lat);
+    const t = uvToWorld(u, v);
+    const { fw, fh, vx0, vx1, vy0, vy1 } = viewport();
+    const wpp = (2 * r * Math.tan(THREE.MathUtils.degToRad(camera.fov) / 2)) / fh;
+    const dxp = fw / 2 - (vx0 + vx1) / 2, dyp = fh / 2 - (vy0 + vy1) / 2;
+    t.x += dxp * wpp;
+    t.z += (dyp * wpp) / Math.cos(FOCUS_POL);
+    return { pol: FOCUS_POL, r, target: t };
   }
 
   let anim = null;
+  function cancelAnim() {
+    if (!anim) return;
+    const { resolve, kind } = anim;
+    anim = null;
+    if (kind === 'enter') finishAnim('enter'); // a focus interrupting the descent still counts as entered
+    resolve();
+  }
   function startAnim(to, dur, kind) {
-    if (anim) { const r = anim.resolve; anim = null; r(); }
+    cancelAnim();
     return new Promise((resolve) => {
-      if (reduced || dur <= 0) { cam.pol = to.pol; cam.r = to.r; placeCamera(); dirty = true; resolve(); finishAnim(kind); return; }
-      anim = { from: { pol: cam.pol, r: cam.r }, to, t0: performance.now(), dur, kind, resolve };
+      if (reduced || dur <= 0) {
+        cam.pol = to.pol; cam.r = to.r; if (to.target) camT.copy(to.target);
+        placeCamera(); dirty = true; resolve(); finishAnim(kind); return;
+      }
+      anim = { from: { pol: cam.pol, r: cam.r, target: camT.clone() }, to, t0: performance.now(), dur, kind, resolve };
     });
   }
   function stepAnim(now) {
@@ -715,6 +546,7 @@ export async function initValle({
     const e = easeInOutCubic(k);
     cam.pol = anim.from.pol + (anim.to.pol - anim.from.pol) * e;
     cam.r = anim.from.r + (anim.to.r - anim.from.r) * e;
+    if (anim.to.target) camT.lerpVectors(anim.from.target, anim.to.target, e);
     dirty = true;
     if (k >= 1) {
       const { resolve, kind } = anim;
@@ -723,36 +555,515 @@ export async function initValle({
       finishAnim(kind);
     }
   }
-  let entered = false;
   function finishAnim(kind) {
-    if (kind === 'enter') { entered = true; showLayer(true); canvas.style.pointerEvents = 'auto'; }
-    else if (kind === 'exit') { setActive(false); renderer.clear(); }
+    if (kind === 'enter') {
+      entered = true; showLayer(true); canvas.style.pointerEvents = 'auto';
+      if (pendingFocus != null) { const id = pendingFocus; pendingFocus = null; doFocus(id); }
+    } else if (kind === 'exit') { setActive(false); renderer.clear(); }
   }
 
   // ---------- resize ----------
   function resize() {
     const w = Math.max(1, host.clientWidth), h = Math.max(1, host.clientHeight);
-    const dpr = Math.min(2, window.devicePixelRatio || 1);
-    renderer.setPixelRatio(dpr);
+    renderer.setPixelRatio(dpr());
+    dotUniforms.uDpr.value = dpr();
     renderer.setSize(w, h, false);
     canvas.style.width = '100%';
     canvas.style.height = '100%';
     camera.aspect = w / h;
     camera.fov = w / h < 0.9 ? 52 : 38;
     camera.updateProjectionMatrix();
-    FINAL.r = fitRadius();
-    START.r = FINAL.r * 2.6;
-    if (!anim) { cam.r = entered ? FINAL.r : START.r; placeCamera(); }
+    fitHome();
+    if (focus) {
+      const p = focusPoseFor(focus.lon, focus.lat, focus.f);
+      focus.pose = p;
+    }
+    if (!anim && SB) {
+      const p = entered ? (focus ? focus.pose : homePose()) : startPose();
+      cam.pol = p.pol; cam.r = p.r; camT.copy(p.target);
+      placeCamera();
+    }
     dirty = true;
   }
-  resize();
-  new ResizeObserver(resize).observe(host);
+
+  // ---------- predio overlay (canvas texture in scene UV space) ----------
+  const pxOf = (lon, lat) => { const [u, v] = toUV(lon, lat); return [u * OW, (1 - v) * OH]; };
+  function tracePath(f) {
+    ovCtx.beginPath();
+    for (const r of ringsOf(f.geometry)) {
+      r.forEach(([x, y], i) => { const [px, py] = pxOf(x, y); if (i) ovCtx.lineTo(px, py); else ovCtx.moveTo(px, py); });
+      ovCtx.closePath();
+    }
+  }
+  const rgba = (c, a) => `rgba(${c[0]},${c[1]},${c[2]},${a})`;
+  const kmPx = (km, min = 1) => Math.max(min, km * pxPerKm);
+  function drawOverlay() {
+    if (!ovCtx) return;
+    ovCtx.clearRect(0, 0, OW, OH);
+    ovCtx.lineJoin = 'round';
+    ovCtx.lineCap = 'round';
+    const sorted = features.slice().sort((a, b) => BAND_ORDER.indexOf(a.properties.banda) - BAND_ORDER.indexOf(b.properties.banda));
+    for (const f of sorted) {
+      const id = String(f.properties.id);
+      if (id === selectedId) continue;
+      const B = bandOf(f.properties.banda);
+      tracePath(f);
+      if (B.fill) { ovCtx.fillStyle = rgba(B.fill, selectedId ? B.fa * 0.8 : B.fa); ovCtx.fill('evenodd'); }
+      ovCtx.strokeStyle = B.stroke;
+      ovCtx.lineWidth = kmPx(B.sw, 1.2);
+      ovCtx.stroke();
+    }
+    // case predios: white outline on top so they read as "caso" even when their band is low / sin dato
+    for (const f of features) {
+      if (!casoByPredio.has(String(f.properties.id)) || String(f.properties.id) === selectedId) continue;
+      tracePath(f);
+      ovCtx.save();
+      ovCtx.setLineDash([kmPx(0.05, 3), kmPx(0.03, 2)]);
+      ovCtx.strokeStyle = 'rgba(255,255,255,.95)';
+      ovCtx.lineWidth = kmPx(0.022, 1.5);
+      ovCtx.stroke();
+      ovCtx.restore();
+    }
+    const sf = selectedId && byId.get(selectedId);
+    if (sf) {
+      const B = bandOf(sf.properties.banda);
+      tracePath(sf);
+      ovCtx.save();
+      ovCtx.fillStyle = rgba(B.fill || [196, 206, 212], 0.6);
+      ovCtx.fill('evenodd');
+      ovCtx.shadowColor = B.fill ? rgba(B.fill, 0.95) : 'rgba(255,255,255,.8)';
+      ovCtx.shadowBlur = kmPx(0.08, 6);
+      ovCtx.strokeStyle = '#ffffff';
+      ovCtx.lineWidth = kmPx(0.04, 2.5);
+      ovCtx.stroke();
+      ovCtx.restore();
+    }
+    ovTex.needsUpdate = true;
+    dirty = true;
+  }
+  function updateDotSel() {
+    if (!dots) return;
+    const a = dots.geometry.getAttribute('aSel');
+    features.forEach((f, i) => { a.setX(i, String(f.properties.id) === selectedId ? 1 : 0); });
+    a.needsUpdate = true;
+  }
+
+  // ---------- zone build ----------
+  function disposeZone() {
+    if (routePlay) { const r = routePlay.resolve; routePlay = null; r(); }
+    if (terrain) { scene.remove(terrain); terrain.geometry.dispose(); terrain = null; }
+    if (routeMesh) { scene.remove(routeMesh); routeMesh.geometry.dispose(); routeMesh = null; }
+    if (dots) { scene.remove(dots); dots.geometry.dispose(); dots = null; }
+    Object.values(satTex).forEach((t) => t && t.dispose());
+    satTex = {}; satLoading = {};
+    if (ovTex) { ovTex.dispose(); ovTex = null; }
+    zoneEls.forEach((el) => el.remove());
+    zoneEls = []; stops = []; startPin = null; casos = [];
+    selectedId = null; hoverId = null; focus = null; pendingFocus = null; focusPts = null;
+    state.routeT = 0; lastT = 0; lastReached = 0;
+    selLabel.style.transform = OFF; tip.style.transform = OFF; headDot.style.opacity = '0';
+  }
+
+  // normalise input: zone object from loadZona(), or legacy {base, dataBase}
+  async function resolveInput(z) {
+    if (z && Array.isArray(z.predios)) {
+      const zi = z.zona || {};
+      const id = String(z.id || zi.id || '').toLowerCase();
+      const b = (z === zona && base) || zi.base || (id ? `assets/zonas/${id}/` : 'assets/petorca/');
+      return {
+        id, zi, assetBase: absDir(b), predios: z.predios, ruta: z.ruta || null,
+        casos: Array.isArray(z.casos) ? z.casos : [],
+        bboxEscena: Array.isArray(zi.bbox_escena) && zi.bbox_escena.length === 4 ? zi.bbox_escena : null,
+      };
+    }
+    const db = absDir(dataBase);
+    const [geo, rt] = await Promise.all([
+      loadJson(new URL('predios.geojson', db).href),
+      loadJson(new URL('ruta.json', db).href).catch(() => null),
+    ]);
+    return { id: 'petorca', zi: {}, assetBase: absDir(base || 'assets/petorca/'), predios: geo.features || [], ruta: rt, casos: [], bboxEscena: null };
+  }
+
+  let buildToken = 0;
+  async function build(z) {
+    const token = ++buildToken;
+    const inp = await resolveInput(z);
+    const assetUrl = (f) => new URL(f, inp.assetBase).href;
+    const man = await loadJson(assetUrl('manifest.json')).catch((e) => { console.warn('[valle] sin manifest de imagen:', e.message); return null; });
+    const yrs = man ? [...(man.years || [])].sort((a, b) => a - b) : [];
+    const lastY = yrs.length ? yrs[yrs.length - 1] : 0;
+    const [demImg, lastImg] = await Promise.all([
+      man && man.dem ? loadImage(assetUrl(man.dem.file || 'dem.png')).catch(() => null) : Promise.resolve(null),
+      lastY ? loadImage(assetUrl(`sat-${lastY}.jpg`)).catch((e) => { console.warn('[valle]', e.message); return null; }) : Promise.resolve(null),
+    ]);
+    if (token !== buildToken) return false; // a newer setZona() won
+
+    disposeZone();
+    zonaId = inp.id;
+    manifest = man;
+    years = yrs;
+    lastYear = lastY;
+    state.year = lastY;
+
+    // features (zone-data features are shared objects: only add a private _bb + centroid if missing)
+    features = (inp.predios || []).filter((f) => ringsOf(f.geometry).length);
+    features.forEach((f) => {
+      const p = f.properties || (f.properties = {});
+      if (p.id == null) p.id = f.id != null ? f.id : p.predio_id;
+      p.id = String(p.id);
+      let w = Infinity, s = Infinity, e = -Infinity, n = -Infinity;
+      for (const r of ringsOf(f.geometry)) for (const [x, y] of r) { w = Math.min(w, x); e = Math.max(e, x); s = Math.min(s, y); n = Math.max(n, y); }
+      Object.defineProperty(f, '_bb', { value: { w, s, e, n }, configurable: true, writable: true, enumerable: false });
+      if (!Array.isArray(p.centroid)) p.centroid = [(w + e) / 2, (s + n) / 2];
+      if (!BANDS[p.banda]) p.banda = 'sin_dato';
+    });
+    byId = new Map(features.map((f) => [String(f.properties.id), f]));
+    ruta = inp.ruta;
+    routeCoords = ruta && ruta.geometry && ruta.geometry.type === 'LineString' ? ruta.geometry.coordinates : [];
+    paradas = (ruta && ruta.paradas) || [];
+
+    // cases: from the zone's case list, plus any predio flagged with `caso`
+    const caseList = [];
+    const seen = new Set();
+    for (const c of inp.casos) {
+      const exp = c.expediente;
+      if (!exp || seen.has(exp)) continue;
+      seen.add(exp);
+      let pid = c.predio_id != null ? String(c.predio_id) : null;
+      if (pid && !byId.has(pid)) pid = null;
+      if (!pid) { const f = features.find((ff) => ff.properties.caso === exp); if (f) pid = String(f.properties.id); }
+      const lon = pid ? byId.get(pid).properties.centroid[0] : +c.lon, lat = pid ? byId.get(pid).properties.centroid[1] : +c.lat;
+      if (!isFinite(lon) || !isFinite(lat)) continue;
+      caseList.push({ exp, predioId: pid, lon, lat, comuna: c.comuna, data: c });
+    }
+    for (const f of features) {
+      const exp = f.properties.caso;
+      if (exp && !seen.has(exp)) {
+        seen.add(exp);
+        caseList.push({ exp, predioId: String(f.properties.id), lon: f.properties.centroid[0], lat: f.properties.centroid[1], comuna: f.properties.comuna, data: null });
+      }
+    }
+    casoByPredio = new Map(caseList.filter((c) => c.predioId).map((c) => [c.predioId, c.exp]));
+
+    // ---------- extents ----------
+    const grow = (B, x, y) => { B.w = Math.min(B.w, x); B.e = Math.max(B.e, x); B.s = Math.min(B.s, y); B.n = Math.max(B.n, y); };
+    const DB = { w: Infinity, s: Infinity, e: -Infinity, n: -Infinity };
+    features.forEach((f) => { grow(DB, f._bb.w, f._bb.s); grow(DB, f._bb.e, f._bb.n); });
+    routeCoords.forEach(([x, y]) => grow(DB, x, y));
+    caseList.forEach((c) => grow(DB, c.lon, c.lat));
+    if (ruta && ruta.inicio) grow(DB, ruta.inicio.lon, ruta.inicio.lat);
+    const be = inp.bboxEscena;
+    if (man && man.bbox) IB = man.bbox;
+    else if (be) IB = { west: be[0], south: be[1], east: be[2], north: be[3] };
+    else if (isFinite(DB.w)) IB = { west: DB.w - 0.01, south: DB.s - 0.01, east: DB.e + 0.01, north: DB.n + 0.01 };
+    else throw new Error('initValle: la zona no tiene predios ni imagen');
+    if (!isFinite(DB.w)) Object.assign(DB, { w: IB.west, s: IB.south, e: IB.east, n: IB.north });
+    FB = { ...DB };
+    { const fp = 0.003; FB.w -= fp; FB.e += fp; FB.s -= fp; FB.n += fp; }
+    const pad = 0.006;
+    SB = {
+      w: Math.min(IB.west, DB.w - pad), e: Math.max(IB.east, DB.e + pad),
+      s: Math.min(IB.south, DB.s - pad), n: Math.max(IB.north, DB.n + pad),
+    };
+    dLon = SB.e - SB.w; dLat = SB.n - SB.s;
+    const latMid = ((SB.n + SB.s) / 2) * Math.PI / 180;
+    W = dLon * 111.32 * Math.cos(latMid);
+    H = dLat * 110.54;
+    span = Math.max(W, H);
+    EXAG = span > 20 ? 1.7 : 2.2;
+    toUV = (lon, lat) => [(lon - SB.w) / dLon, (lat - SB.s) / dLat];
+    fromUV = (u, v) => [SB.w + u * dLon, SB.s + v * dLat];
+    const imgRect = uniforms.uImgRect.value.set(
+      (IB.west - SB.w) / dLon, (IB.south - SB.s) / dLat, (IB.east - SB.w) / dLon, (IB.north - SB.s) / dLat,
+    );
+    uniforms.uGrid.value = span > 15 ? 2 : 0.5;
+    outsideImagery = features.filter((f) => {
+      const [x, y] = f.properties.centroid;
+      return x < IB.west || x > IB.east || y < IB.south || y > IB.north;
+    }).map((f) => f.properties.id);
+    if (outsideImagery.length) console.warn(`[valle] ${outsideImagery.length} predio(s) fuera de la imagen satelital/DEM; se dibujan sobre terreno sin imagen.`);
+
+    // ---------- imagery ----------
+    if (lastImg) satTex[lastY] = texFromImage(lastImg, true);
+    const blank = blankTex();
+    uniforms.uTexA.value = uniforms.uTexB.value = satTex[lastY] || blank;
+    uniforms.uMix.value = 0;
+    ensureYear = (y) => {
+      if (satTex[y]) return Promise.resolve(satTex[y]);
+      if (!satLoading[y]) {
+        const tk = buildToken;
+        satLoading[y] = loadImage(assetUrl(`sat-${y}.jpg`)).then((img) => {
+          if (tk !== buildToken) return null;
+          satTex[y] = texFromImage(img, true);
+          dirty = true;
+          return satTex[y];
+        }).catch((e) => { console.warn('[valle]', e.message); delete satLoading[y]; return null; });
+      }
+      return satLoading[y];
+    };
+
+    // ---------- heights ----------
+    heightAt = () => 0;
+    if (demImg) {
+      const dem = imageData(demImg, 512);
+      const hs = new Float32Array(dem.w * dem.h);
+      let mn = Infinity;
+      for (let i = 0; i < hs.length; i++) {
+        const v = dem.data[i * 4] * 256 + dem.data[i * 4 + 1] + dem.data[i * 4 + 2] / 256 - 32768;
+        hs[i] = v;
+        if (v < mn && v > -500) mn = v;
+      }
+      if (!isFinite(mn)) mn = 0;
+      const sample = (iu, iv) => {
+        const x = clamp(iu, 0, 1) * (dem.w - 1);
+        const y = (1 - clamp(iv, 0, 1)) * (dem.h - 1);
+        const x0 = Math.floor(x), y0 = Math.floor(y);
+        const x1 = Math.min(x0 + 1, dem.w - 1), y1 = Math.min(y0 + 1, dem.h - 1);
+        const fx = x - x0, fy = y - y0;
+        const s = (xx, yy) => Math.max(hs[yy * dem.w + xx], mn);
+        return (s(x0, y0) * (1 - fx) + s(x1, y0) * fx) * (1 - fy) + (s(x0, y1) * (1 - fx) + s(x1, y1) * fx) * fy;
+      };
+      const IW = (imgRect.z - imgRect.x) * W, IH = (imgRect.w - imgRect.y) * H;
+      const ex = EXAG;
+      heightAt = (u, v) => {
+        const iu = (u - imgRect.x) / (imgRect.z - imgRect.x);
+        const iv = (v - imgRect.y) / (imgRect.w - imgRect.y);
+        const h = ((sample(iu, iv) - mn) / 1000) * ex;
+        const ox = Math.max(0, -iu, iu - 1) * IW, oy = Math.max(0, -iv, iv - 1) * IH;
+        const od = Math.hypot(ox, oy);
+        if (od <= 0) return h;
+        const k = clamp(od / 1.2, 0, 1);
+        return h * (1 - k * k * (3 - 2 * k));
+      };
+    }
+    const SEG_X = clamp(Math.round(W / 0.08), 320, 512), SEG_Y = clamp(Math.round(SEG_X * H / W), 64, 512);
+    const geo = new THREE.PlaneGeometry(W, H, SEG_X, SEG_Y);
+    geo.rotateX(-Math.PI / 2);
+    {
+      const pos = geo.attributes.position, uv = geo.attributes.uv;
+      for (let i = 0; i < pos.count; i++) pos.setY(i, heightAt(uv.getX(i), uv.getY(i)));
+      pos.needsUpdate = true;
+      geo.computeVertexNormals();
+    }
+    terrain = new THREE.Mesh(geo, terrainMat);
+    scene.add(terrain);
+
+    // ---------- overlay ----------
+    OW = W >= H ? OVERLAY_MAX : Math.round(OVERLAY_MAX * W / H);
+    OH = W >= H ? Math.round(OVERLAY_MAX * H / W) : OVERLAY_MAX;
+    pxPerKm = OW / W;
+    if (!ovCanvas) { ovCanvas = document.createElement('canvas'); ovCtx = ovCanvas.getContext('2d'); }
+    ovCanvas.width = OW; ovCanvas.height = OH;
+    ovTex = new THREE.CanvasTexture(ovCanvas);
+    ovTex.anisotropy = 8;
+    ovTex.minFilter = THREE.LinearMipmapLinearFilter;
+    ovTex.magFilter = THREE.LinearFilter;
+    ovTex.wrapS = ovTex.wrapT = THREE.ClampToEdgeWrapping;
+    ovTex.colorSpace = THREE.SRGBColorSpace;
+    uniforms.uOverlay.value = ovTex;
+
+    // ---------- predio dots ----------
+    if (features.length) {
+      const n = features.length;
+      const pos = new Float32Array(n * 3), col = new Float32Array(n * 3), size = new Float32Array(n), hol = new Float32Array(n), sel = new Float32Array(n);
+      const c = new THREE.Color();
+      features.forEach((f, i) => {
+        const [lon, lat] = f.properties.centroid;
+        const p = llToWorld(lon, lat, 0.03);
+        pos.set([p.x, p.y, p.z], i * 3);
+        const B = bandOf(f.properties.banda);
+        // the dot shader writes straight to the sRGB framebuffer (no colorspace chunk): pass sRGB values
+        const srgb = {};
+        c.set(BAND_HEX[f.properties.banda] || BAND_HEX.sin_dato).getRGB(srgb, THREE.SRGBColorSpace);
+        col.set([srgb.r, srgb.g, srgb.b], i * 3);
+        size[i] = B.size;
+        hol[i] = B.hollow ? 1 : 0;
+      });
+      const g = new THREE.BufferGeometry();
+      g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+      g.setAttribute('aColor', new THREE.BufferAttribute(col, 3));
+      g.setAttribute('aSize', new THREE.BufferAttribute(size, 1));
+      g.setAttribute('aHollow', new THREE.BufferAttribute(hol, 1));
+      g.setAttribute('aSel', new THREE.BufferAttribute(sel, 1));
+      dots = new THREE.Points(g, dotMat);
+      dots.renderOrder = 3;
+      dots.frustumCulled = false;
+      scene.add(dots);
+    }
+
+    // ---------- route ribbon ----------
+    routeLen = 0; routeSamples = [];
+    const ROUTE_W = clamp(span * 0.006, 0.12, 0.28), ROUTE_LIFT = 0.025;
+    routeUniforms.uDash.value = ROUTE_W * 1.4;
+    if (routeCoords.length > 1) {
+      const pts = [];
+      const xz = routeCoords.map(([lon, lat]) => toUV(lon, lat));
+      for (let i = 0; i < xz.length; i++) {
+        const [u, v] = xz[i];
+        if (i) {
+          const [pu, pv] = xz[i - 1];
+          const dk = Math.hypot((u - pu) * W, (v - pv) * H);
+          const nn = Math.floor(dk / 0.05);
+          for (let k = 1; k <= nn; k++) { const t = k / (nn + 1); pts.push([pu + (u - pu) * t, pv + (v - pv) * t]); }
+        }
+        pts.push([u, v]);
+      }
+      const N = pts.length;
+      const pos = new Float32Array(N * 2 * 3);
+      const aDist = new Float32Array(N * 2);
+      const aSide = new Float32Array(N * 2);
+      const idx = [];
+      let d = 0;
+      const kx = (u) => (u - 0.5) * W, kz = (v) => (0.5 - v) * H;
+      for (let i = 0; i < N; i++) {
+        const [u, v] = pts[i];
+        if (i) d += Math.hypot((u - pts[i - 1][0]) * W, (v - pts[i - 1][1]) * H);
+        const a = pts[Math.max(0, i - 1)], b = pts[Math.min(N - 1, i + 1)];
+        let tx = kx(b[0]) - kx(a[0]), tz = kz(b[1]) - kz(a[1]);
+        const tl = Math.hypot(tx, tz) || 1; tx /= tl; tz /= tl;
+        const nx = -tz, nz = tx;
+        const half = ROUTE_W / 2;
+        for (let sgn = -1, k = 0; k < 2; sgn += 2, k++) {
+          const x = kx(u) + nx * half * sgn, z = kz(v) + nz * half * sgn;
+          const su = x / W + 0.5, sv = 0.5 - z / H;
+          const j = i * 2 + k;
+          pos[j * 3] = x; pos[j * 3 + 1] = heightAt(su, sv) + ROUTE_LIFT; pos[j * 3 + 2] = z;
+          aDist[j] = d; aSide[j] = sgn;
+        }
+        routeSamples.push({ p: uvToWorld(u, v, ROUTE_LIFT), d });
+        if (i < N - 1) { const o = i * 2; idx.push(o, o + 1, o + 2, o + 1, o + 3, o + 2); }
+      }
+      routeLen = d;
+      const rg = new THREE.BufferGeometry();
+      rg.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+      rg.setAttribute('aDist', new THREE.BufferAttribute(aDist, 1));
+      rg.setAttribute('aSide', new THREE.BufferAttribute(aSide, 1));
+      rg.setIndex(idx);
+      routeMesh = new THREE.Mesh(rg, routeMat);
+      routeMesh.renderOrder = 2;
+      routeMesh.frustumCulled = false;
+      scene.add(routeMesh);
+    }
+
+    // ---------- HTML: stops, start pin, case badges ----------
+    let lastIdx = 0;
+    for (const s of paradas) {
+      const { d, i } = alongRoute(s.lon, s.lat, lastIdx);
+      lastIdx = i;
+      const el = document.createElement('button');
+      el.type = 'button';
+      const colr = BAND_HEX[s.banda] || CYAN;
+      el.setAttribute('aria-label', `Parada ${s.orden}: predio ${s.predio_id}, banda ${s.banda}`);
+      el.innerHTML = `<span data-stem style="position:absolute;left:11px;top:22px;width:1px;height:16px;background:${colr};opacity:.75;transform-origin:0 0"></span>`
+        + `<span data-n style="display:grid;place-items:center;width:22px;height:22px;border-radius:50%;border:1.5px solid ${colr};background:rgba(5,8,11,.86);color:${colr};font:600 11px/1 'IBM Plex Mono',ui-monospace,monospace;transition:background .25s,color .25s,box-shadow .25s">${esc(s.orden)}</span>`;
+      Object.assign(el.style, {
+        position: 'absolute', left: '0', top: '0', padding: '0', margin: '0', border: '0', background: 'none', zIndex: '3',
+        cursor: 'pointer', pointerEvents: 'auto', transform: OFF, willChange: 'transform',
+      });
+      el.addEventListener('click', (ev) => { ev.stopPropagation(); pick(s.predio_id, true); });
+      layer.appendChild(el); zoneEls.push(el);
+      stops.push({ s, d, el, num: el.querySelector('[data-n]'), stem: el.querySelector('[data-stem]'), col: colr, world: llToWorld(s.lon, s.lat), reached: null });
+    }
+    if (ruta && ruta.inicio && isFinite(ruta.inicio.lon)) {
+      const el = document.createElement('div');
+      el.innerHTML = `<span style="display:block;width:10px;height:10px;margin:0 auto;border-radius:2px;background:${CYAN};box-shadow:0 0 0 3px rgba(69,214,238,.25),0 0 12px rgba(69,214,238,.8);transform:rotate(45deg)"></span>`
+        + `<span style="display:block;margin-top:7px;white-space:nowrap;padding:3px 6px;background:rgba(5,8,11,.78);border:1px solid rgba(69,214,238,.5);color:${CYAN};letter-spacing:.06em">INICIO · ${esc(String(ruta.inicio.nombre || '').toUpperCase())}${ruta.inicio.hora ? ' · ' + esc(ruta.inicio.hora) : ''}</span>`;
+      Object.assign(el.style, { position: 'absolute', left: '0', top: '0', transform: OFF, textAlign: 'center', zIndex: '1' });
+      layer.appendChild(el); zoneEls.push(el);
+      startPin = { el, world: llToWorld(ruta.inicio.lon, ruta.inicio.lat, 0.01) };
+    }
+    for (const c of caseList) {
+      const el = document.createElement('button');
+      el.type = 'button';
+      el.setAttribute('aria-label', `Caso sancionado por la DGA ${c.exp}${c.comuna ? ', ' + titleCase(c.comuna) : ''}`);
+      el.title = `${c.exp}${c.comuna ? ' · ' + titleCase(c.comuna) : ''} · caso sancionado por la DGA`;
+      el.innerHTML = `<span data-ring style="position:absolute;left:0;top:0;width:18px;height:18px;border-radius:50%;border:2px solid ${CASE_COL};box-shadow:0 0 0 1px rgba(5,8,11,.7),0 0 10px rgba(255,255,255,.55);box-sizing:border-box"></span>`
+        + `<span data-stem style="position:absolute;left:9px;top:9px;width:1px;background:rgba(255,255,255,.7);transform-origin:0 0"></span>`
+        + `<span data-tag style="position:absolute;left:9px;top:9px;white-space:nowrap;padding:2px 5px;background:rgba(5,8,11,.88);border:1px solid ${CASE_COL};color:#fff;font:600 10px/1.2 'IBM Plex Mono',ui-monospace,monospace;letter-spacing:.06em">`
+        + `<span style="opacity:.7">CASO</span> ${esc(expShort(c.exp))}</span>`;
+      Object.assign(el.style, {
+        position: 'absolute', left: '0', top: '0', width: '18px', height: '18px', padding: '0', margin: '-9px 0 0 -9px', border: '0', background: 'none',
+        cursor: 'pointer', pointerEvents: 'auto', transform: OFF, willChange: 'transform', zIndex: '4',
+      });
+      el.addEventListener('click', (ev) => { ev.stopPropagation(); selectCasoInternal(c.exp, { focus: true, notify: true }); });
+      el.addEventListener('pointerenter', () => { el.style.zIndex = '6'; });
+      el.addEventListener('pointerleave', () => { el.style.zIndex = '4'; });
+      layer.appendChild(el); zoneEls.push(el);
+      casos.push({ ...c, el, ring: el.querySelector('[data-ring]'), tag: el.querySelector('[data-tag]'), stem: el.querySelector('[data-stem]'), world: llToWorld(c.lon, c.lat, 0.02) });
+    }
+
+    drawOverlay();
+    updateDotSel();
+    renderSelLabel();
+    // camera: zone home + start pose (caller runs enter())
+    entered = false;
+    overlayAmt = 0; routeAmt = 0;
+    if (anim) { const r = anim.resolve; anim = null; r(); }
+    showLayer(false);
+    canvas.style.pointerEvents = 'none';
+    resize();
+    const sp = startPose();
+    cam.pol = sp.pol; cam.r = sp.r; camT.copy(sp.target);
+    placeCamera();
+    dirty = true;
+    if (!active) renderer.clear();
+    return true;
+  }
+  let ensureYear = () => Promise.resolve(null);
+
+  // position along the route (km) of each stop: first close approach searching forward from the previous stop
+  function alongRoute(lon, lat, fromIdx) {
+    if (!routeSamples.length) return { d: 0, i: 0 };
+    const p = llToWorld(lon, lat);
+    const dist = (i) => Math.hypot(routeSamples[i].p.x - p.x, routeSamples[i].p.z - p.z);
+    let best = -1;
+    for (let i = fromIdx; i < routeSamples.length; i++) {
+      if (dist(i) < 0.25) { best = i; while (best + 1 < routeSamples.length && dist(best + 1) <= dist(best)) best++; break; }
+    }
+    if (best < 0) {
+      let bd = Infinity;
+      for (let i = fromIdx; i < routeSamples.length; i++) { const dd = dist(i); if (dd < bd) { bd = dd; best = i; } }
+    }
+    if (best < 0) best = routeSamples.length - 1;
+    return { d: routeSamples[best].d, i: best };
+  }
+  function pointAt(dk) {
+    if (!routeSamples.length) return null;
+    let lo = 0, hi = routeSamples.length - 1;
+    while (hi - lo > 1) { const m = (lo + hi) >> 1; if (routeSamples[m].d < dk) lo = m; else hi = m; }
+    const a = routeSamples[lo], b = routeSamples[hi];
+    const t = clamp((dk - a.d) / ((b.d - a.d) || 1), 0, 1);
+    return a.p.clone().lerp(b.p, t);
+  }
+
+  // ---------- labels ----------
+  const rangeTxt = (p) => {
+    const lo = p.m3_estimado_min, hi = p.m3_estimado_max;
+    if (lo == null || hi == null || !isFinite(lo) || !isFinite(hi)) return null;
+    return `${fmtMil(lo)}–${fmtMil(hi)} mil m³/año`;
+  };
+  function renderSelLabel() {
+    const f = selectedId && byId.get(selectedId);
+    if (!f) { selLabel.style.transform = OFF; return; }
+    const p = f.properties, B = bandOf(p.banda), col = BAND_HEX[p.banda] || BAND_HEX.sin_dato;
+    const stop = paradas.find((s) => String(s.predio_id) === selectedId);
+    const exp = casoByPredio.get(selectedId) || p.caso;
+    const rng = rangeTxt(p);
+    const where = [p.rol ? `rol ${esc(p.rol)}` : null, p.comuna ? esc(titleCase(p.comuna)) : null,
+      isFinite(p.area_ha) && p.area_ha != null ? `${(+p.area_ha).toLocaleString('es-CL', { maximumFractionDigits: 1 })} ha` : null].filter(Boolean).join(' · ');
+    selLabel.style.borderColor = exp ? '#fff' : col;
+    selLabel.innerHTML = `<div style="display:flex;gap:8px;align-items:center"><b style="font-weight:600;color:#fff">${esc(p.id)}</b>`
+      + `<span style="color:${col}">● ${B.label}${p.banda !== 'sin_dato' ? ' <span style="opacity:.6">prov.</span>' : ''}</span>`
+      + (exp ? `<span style="color:#fff;border:1px solid #fff;padding:0 4px">CASO ${esc(expShort(exp))}</span>` : '')
+      + (stop ? `<span style="color:${CYAN}">PARADA ${esc(stop.orden)}</span>` : '') + '</div>'
+      + (where ? `<div style="color:#9fb0b6">${where}</div>` : '')
+      + (rng ? `<div style="color:#9fb0b6">consumo est.: <span style="color:#e8eef0">${rng}</span>${p.confianza ? ` · conf. ${esc(p.confianza)}` : ''}</div>` : '');
+  }
 
   // ---------- projection of HTML elements ----------
   function updateHtml() {
     const drawn = state.routeT * routeLen;
     const showStops = state.routeOn && entered;
-    // stops: ground point -> badge raised on a stem; simple horizontal de-clutter between close badges
     const placed = [];
     for (const st of stops) {
       const g = project(st.world);
@@ -761,15 +1072,10 @@ export async function initValle({
         if (Math.abs(q.x - bx) < 25 && Math.abs(q.y - by) < 25) bx = q.x + (bx >= q.x ? 25 : -25);
       }
       placed.push({ x: bx, y: by });
-      st.el.style.transform = showStops && g.ok ? `translate(${(bx - 11).toFixed(1)}px, ${(by - 11).toFixed(1)}px)` : 'translate(-9999px,-9999px)';
-      const stem = st.el.firstChild;
-      // stem from the badge to the ground point (may lean when de-cluttered)
+      st.el.style.transform = showStops && g.ok ? `translate(${(bx - 11).toFixed(1)}px, ${(by - 11).toFixed(1)}px)` : OFF;
       const dx = g.x - bx, dy = g.y - (by + 11);
-      stem.style.height = `${Math.max(0, Math.hypot(dx, dy)).toFixed(1)}px`;
-      stem.style.transformOrigin = '0 0';
-      stem.style.transform = `rotate(${(Math.atan2(dx, dy) * -180 / Math.PI).toFixed(1)}deg)`;
-      stem.style.top = '22px';
-      stem.style.left = '11px';
+      st.stem.style.height = `${Math.max(0, Math.hypot(dx, dy)).toFixed(1)}px`;
+      st.stem.style.transform = `rotate(${(Math.atan2(dx, dy) * -180 / Math.PI).toFixed(1)}deg)`;
       const reached = drawn >= st.d - 0.05 && state.routeT > 0;
       const sel = String(st.s.predio_id) === selectedId;
       if (reached !== st.reached || sel !== st.sel) {
@@ -779,9 +1085,45 @@ export async function initValle({
         st.num.style.boxShadow = sel ? `0 0 0 3px #fff, 0 0 14px ${st.col}` : reached ? `0 0 12px ${st.col}` : 'none';
       }
     }
+    // case badges: ring on the ground point + tag offset up-left (stacked when close; stops sit up-right)
+    // stop badges already placed count as obstacles for the case tags
+    const tags = showStops ? placed.map((q) => ({ x: q.x - 13, y: q.y - 13, w: 26, h: 26 })) : [];
     if (startPin) {
       const g = project(startPin.world);
-      startPin.el.style.transform = showStops && g.ok ? `translate(calc(${g.x.toFixed(1)}px - 50%), ${(g.y - 5).toFixed(1)}px)` : 'translate(-9999px,-9999px)';
+      const on = showStops && g.ok;
+      startPin.el.style.transform = on ? `translate(calc(${g.x.toFixed(1)}px - 50%), ${(g.y - 5).toFixed(1)}px)` : OFF;
+      if (on) { const w = startPin.el.offsetWidth || 200, h = startPin.el.offsetHeight || 30; tags.push({ x: g.x - w / 2, y: g.y - 5, w, h, pin: true }); }
+    }
+    const maxX = host.clientWidth - Math.min(insets.right, host.clientWidth * 0.6) - 4;
+    const order = casos.map((c) => ({ c, g: project(c.world) })).sort((a, b) => a.g.x - b.g.x);
+    for (const { c, g } of order) {
+      if (!entered || !g.ok) { c.el.style.transform = OFF; continue; }
+      const tw = c.tag.offsetWidth || 78, th = c.tag.offsetHeight || 16;
+      let tx = -tw - 14, ty = -th - 22;
+      if (g.x + tx < 8) tx = 14; // flip to the right near the left edge
+      const hitAt = (x, y) => tags.find((q) => g.x + x < q.x + q.w + 4 && g.x + x + tw + 4 > q.x && g.y + y < q.y + q.h + 3 && g.y + y + th + 3 > q.y);
+      // try up-left / up-right / down-left / down-right, then stack upwards
+      const cands = [[tx, ty], [14, ty], [tx, 14], [14, 14]];
+      const free = cands.find(([x, y]) => g.x + x >= 4 && g.x + x + tw <= maxX && !hitAt(x, y))
+        || cands.find(([x, y]) => g.x + x >= 4 && g.x + x + tw <= maxX);
+      if (free) [tx, ty] = free;
+      else for (let k = 0; k < 8; k++) { const hit = hitAt(tx, ty); if (!hit) break; ty = hit.y - g.y - th - 4; }
+      tags.push({ x: g.x + tx, y: g.y + ty, w: tw, h: th });
+      c.el.style.transform = `translate(${g.x.toFixed(1)}px, ${g.y.toFixed(1)}px)`;
+      c.tag.style.transform = `translate(${tx.toFixed(1)}px, ${ty.toFixed(1)}px)`;
+      // stem from the ring edge to the tag's bottom-right corner
+      const ex = tx < 0 ? tx + tw : tx, ey = ty < 0 ? ty + th : ty;
+      const len = Math.hypot(ex, ey), ang = Math.atan2(ey, ex);
+      c.stem.style.height = '1px';
+      c.stem.style.width = `${Math.max(0, len - 9).toFixed(1)}px`;
+      c.stem.style.transform = `rotate(${(ang * 180 / Math.PI).toFixed(1)}deg) translateX(9px)`;
+      const sel = c.predioId ? c.predioId === selectedId : selectedCaso === c.exp;
+      if (sel !== c.sel) {
+        c.sel = sel;
+        c.ring.style.boxShadow = sel ? '0 0 0 3px rgba(255,255,255,.35),0 0 16px rgba(255,255,255,.9)' : '0 0 0 1px rgba(5,8,11,.7),0 0 10px rgba(255,255,255,.55)';
+        c.tag.style.background = sel ? '#fff' : 'rgba(5,8,11,.88)';
+        c.tag.style.color = sel ? '#05080b' : '#fff';
+      }
     }
     const head = showStops && state.routeT > 0 && state.routeT < 1 ? pointAt(drawn) : null;
     if (head) {
@@ -790,58 +1132,116 @@ export async function initValle({
       headDot.style.opacity = '1';
     } else headDot.style.opacity = '0';
     const f = selectedId && byId.get(selectedId);
+    let lp = null;
     if (f && entered) {
       const [lon, lat] = f.properties.centroid;
       const g = project(llToWorld(lon, lat));
-      const w = selLabel.offsetWidth || 180;
-      const x = clamp(g.x + 18, 8, host.clientWidth - w - 8);
-      selLabel.style.transform = `translate(${x.toFixed(1)}px, ${(g.y - 70).toFixed(1)}px)`;
-    } else selLabel.style.transform = 'translate(-9999px,-9999px)';
+      if (g.ok) {
+        const w = selLabel.offsetWidth || 180, h = selLabel.offsetHeight || 56;
+        const xMax = host.clientWidth - Math.min(insets.right, host.clientWidth * 0.6) - w - 8;
+        const yMax = host.clientHeight - Math.min(insets.bottom, host.clientHeight * 0.6) - h - 8;
+        // below-right, below-left, above-right, above-left of the predio centroid
+        const cands = [[g.x + 18, g.y + 18], [g.x - w - 18, g.y + 18], [g.x + 18, g.y - h - 18], [g.x - w - 18, g.y - h - 18]]
+          .map(([x, y]) => [clamp(x, 8, Math.max(8, xMax)), clamp(y, 8, Math.max(8, yMax))]);
+        const hits = (x, y, q) => x < q.x + q.w + 6 && x + w + 6 > q.x && y < q.y + q.h + 6 && y + h + 6 > q.y;
+        // the route INICIO label must never be covered: hide the selection label if no position clears it
+        const pinRect = startPin && showStops && routeAmt > 0 ? tags.find((q) => q.pin) : null;
+        lp = cands.find(([x, y]) => !tags.some((q) => hits(x, y, q)))
+          || cands.find(([x, y]) => !pinRect || !hits(x, y, pinRect))
+          || null;
+      }
+    }
+    selLabel.style.transform = lp ? `translate(${lp[0].toFixed(1)}px, ${lp[1].toFixed(1)}px)` : OFF;
   }
 
   // ---------- picking ----------
   const raycaster = new THREE.Raycaster();
   const ndc = new THREE.Vector2();
   function predioAtClient(cx, cy) {
+    if (!terrain) return null;
     const r = canvas.getBoundingClientRect();
     ndc.set(((cx - r.left) / r.width) * 2 - 1, -((cy - r.top) / r.height) * 2 + 1);
     raycaster.setFromCamera(ndc, camera);
     const hit = raycaster.intersectObject(terrain, false)[0];
-    if (!hit || !hit.uv) return null;
-    const [lon, lat] = fromUV(hit.uv.x, hit.uv.y);
-    for (const f of features) {
-      const b = f._bb;
-      if (lon < b.w || lon > b.e || lat < b.s || lat > b.n) continue;
-      if (pointInRings(lon, lat, ringsOf(f.geometry))) return f;
+    if (hit && hit.uv) {
+      const [lon, lat] = fromUV(hit.uv.x, hit.uv.y);
+      for (const f of features) {
+        const b = f._bb;
+        if (lon < b.w || lon > b.e || lat < b.s || lat > b.n) continue;
+        if (pointInRings(lon, lat, ringsOf(f.geometry))) return f;
+      }
     }
-    return null;
+    // fall back to the nearest centroid dot on screen (predios are tiny at zone scale)
+    const hr = host.getBoundingClientRect();
+    const mx = cx - hr.left, my = cy - hr.top;
+    let best = null, bd = 11 * dotUniforms.uScale.value;
+    for (const f of features) {
+      const [lon, lat] = f.properties.centroid;
+      const g = project(llToWorld(lon, lat, 0.03));
+      const d = Math.hypot(g.x - mx, g.y - my);
+      if (g.ok && d < bd) { bd = d; best = f; }
+    }
+    return best;
   }
+  let selectedCaso = null;
   function pick(id, notify) {
     const nid = id == null ? null : String(id);
-    if (nid && !byId.has(nid)) return;
+    if (nid && !byId.has(nid)) return false;
     if (nid !== selectedId) {
       selectedId = nid;
       drawOverlay();
+      updateDotSel();
       renderSelLabel();
       stops.forEach((st) => { st.sel = null; });
     }
+    selectedCaso = nid ? casoByPredio.get(nid) || null : null;
+    if (!nid) casos.forEach((x) => { x.sel = null; });
     if (notify && typeof onSelectPredio === 'function') {
       try { onSelectPredio(nid ? byId.get(nid).properties : null); } catch (e) { console.error(e); }
     }
     dirty = true;
+    return true;
   }
+  function doFocus(target) {
+    // target: predio id or {lon, lat}
+    let f = null, lon, lat;
+    if (target && typeof target === 'object') { lon = target.lon; lat = target.lat; f = target.predioId ? byId.get(target.predioId) : null; }
+    else { f = byId.get(String(target)); if (!f) return Promise.resolve(); [lon, lat] = f.properties.centroid; }
+    if (!isFinite(lon) || !isFinite(lat)) return Promise.resolve();
+    const pose = focusPoseFor(lon, lat, f);
+    focus = { lon, lat, f, pose };
+    if (!active) { cam.pol = pose.pol; cam.r = pose.r; camT.copy(pose.target); placeCamera(); return Promise.resolve(); }
+    return startAnim(pose, 1500, 'focus');
+  }
+  function selectCasoInternal(exp, { focus: doF = false, notify = false } = {}) {
+    const c = casos.find((x) => x.exp === exp);
+    if (!c) return false;
+    if (c.predioId) pick(c.predioId, false); else pick(null, false);
+    selectedCaso = exp;
+    casos.forEach((x) => { x.sel = null; });
+    if (doF) {
+      if (entered) doFocus(c.predioId || { lon: c.lon, lat: c.lat, predioId: null });
+      else pendingFocus = c.predioId || { lon: c.lon, lat: c.lat, predioId: null };
+    }
+    if (notify && typeof onSelectCaso === 'function') { try { onSelectCaso(exp); } catch (e) { console.error(e); } }
+    dirty = true;
+    return true;
+  }
+
   let pendingMove = null;
   canvas.addEventListener('pointermove', (ev) => { pendingMove = { x: ev.clientX, y: ev.clientY }; });
   canvas.addEventListener('pointerleave', () => { pendingMove = null; setHover(null); });
   function setHover(f, x, y) {
     const id = f ? String(f.properties.id) : null;
     canvas.style.cursor = f ? 'pointer' : '';
-    if (!f) { tip.style.transform = 'translate(-9999px,-9999px)'; hoverId = null; return; }
+    if (!f) { tip.style.transform = OFF; hoverId = null; return; }
     if (id !== hoverId) {
       hoverId = id;
-      const p = f.properties, col = BAND_HEX[p.banda] || '#c4ced4';
+      const p = f.properties, col = BAND_HEX[p.banda] || BAND_HEX.sin_dato;
+      const exp = casoByPredio.get(id);
       tip.style.borderColor = col;
-      tip.innerHTML = `<b style="font-weight:600;color:#fff">${p.id}</b> <span style="color:${col}">· ${bandOf(p.banda).label}</span>`;
+      tip.innerHTML = `<b style="font-weight:600;color:#fff">${esc(p.id)}</b> <span style="color:${col}">· ${bandOf(p.banda).label}</span>`
+        + (exp ? ` <span style="color:#fff">· CASO ${esc(expShort(exp))}</span>` : '');
     }
     const r = host.getBoundingClientRect();
     tip.style.transform = `translate(${(x - r.left + 14).toFixed(1)}px, ${(y - r.top + 14).toFixed(1)}px)`;
@@ -855,7 +1255,7 @@ export async function initValle({
     pick(f ? f.properties.id : null, true);
   });
 
-  // ---------- route callbacks: progress + stops reached (forward crossings only) ----------
+  // ---------- route callbacks ----------
   let lastT = 0, lastReached = 0;
   function checkRoute() {
     const t = state.routeT;
@@ -875,7 +1275,6 @@ export async function initValle({
   }
 
   // ---------- loop ----------
-  let active = false, rafId = 0, prev = performance.now();
   function setActive(on) {
     on = !!on;
     if (on === active) return;
@@ -901,9 +1300,8 @@ export async function initValle({
     const dt = Math.min(0.1, (now - prev) / 1000);
     prev = now;
     stepAnim(now);
-    if (!active) return;
+    if (!active || !terrain) return;
 
-    // overlay fades in with the descent, out with the exit (transition of a user action, not autoplay)
     const ovTarget = anim && anim.kind === 'exit' ? 0 : 1;
     if (overlayAmt !== ovTarget) { overlayAmt = clamp(overlayAmt + Math.sign(ovTarget - overlayAmt) * dt * 1.4, 0, 1); dirty = true; }
     const rTarget = state.routeOn && entered && !(anim && anim.kind === 'exit') ? 1 : 0;
@@ -924,19 +1322,21 @@ export async function initValle({
 
     if (!dirty) return;
     dirty = false;
-    // year cross-fade between the two bracketing composites (only if both are loaded)
-    let a = lastYear, b = lastYear, t = 0;
-    const yf = clamp(state.year, years[0], lastYear);
-    for (let i = 0; i < years.length - 1; i++) {
-      if (yf <= years[i + 1]) { a = years[i]; b = years[i + 1]; t = (yf - a) / (b - a || 1); break; }
-    }
-    if (satTex[a] && satTex[b]) {
-      uniforms.uTexA.value = satTex[a]; uniforms.uTexB.value = satTex[b]; uniforms.uMix.value = t;
-    } else {
-      const have = satTex[a] || satTex[b];
-      if (have) { uniforms.uTexA.value = uniforms.uTexB.value = have; uniforms.uMix.value = 0; }
+    if (years.length) {
+      let a = lastYear, b = lastYear, t = 0;
+      const yf = clamp(state.year, years[0], lastYear);
+      for (let i = 0; i < years.length - 1; i++) {
+        if (yf <= years[i + 1]) { a = years[i]; b = years[i + 1]; t = (yf - a) / (b - a || 1); break; }
+      }
+      if (satTex[a] && satTex[b]) {
+        uniforms.uTexA.value = satTex[a]; uniforms.uTexB.value = satTex[b]; uniforms.uMix.value = t;
+      } else {
+        const have = satTex[a] || satTex[b];
+        if (have) { uniforms.uTexA.value = uniforms.uTexB.value = have; uniforms.uMix.value = 0; }
+      }
     }
     uniforms.uOverlayAmt.value = overlayAmt;
+    dotUniforms.uAmt.value = overlayAmt;
     routeUniforms.uAmt.value = routeAmt;
     routeUniforms.uDrawn.value = state.routeT >= 1 ? routeLen + 1 : state.routeT * routeLen;
     placeCamera();
@@ -944,45 +1344,76 @@ export async function initValle({
     updateHtml();
   }
 
-  drawOverlay();
-  placeCamera();
+  new ResizeObserver(() => { if (SB) resize(); }).observe(host);
+
+  await build(zona);
   renderer.render(scene, camera); // first frame at the START pose
 
   // ---------- controller ----------
   const controller = {
-    years: years.slice(),
-    predios: features.map((f) => f.properties),
-    ruta,
-    outsideImagery,
-    bbox: [FB.w, FB.s, FB.e, FB.n], // framed area (route + alta/media predios): use for map.flyToBounds before enter()
-    sceneBbox: [SB.w, SB.s, SB.e, SB.n], // full 3D terrain extent
-    // px of the canvas covered by page UI (right side panel / bottom sheet); re-frames the camera
+    get zonaId() { return zonaId; },
+    get years() { return years.slice(); },
+    get predios() { return features.map((f) => f.properties); },
+    get ruta() { return ruta; },
+    get casos() { return casos.map((c) => ({ expediente: c.exp, predio_id: c.predioId, lon: c.lon, lat: c.lat })); },
+    get outsideImagery() { return outsideImagery.slice(); },
+    // framed area (all predios + cases + route): use for map.flyToBounds before enter()
+    get bbox() { return FB ? [FB.w, FB.s, FB.e, FB.n] : null; },
+    get sceneBbox() { return SB ? [SB.w, SB.s, SB.e, SB.n] : null; }, // full 3D terrain extent
+    /** switch zone (same renderer). Leaves the camera at the start pose; call enter() afterwards. */
+    async setZona(zonaData) {
+      const ok = await build(zonaData);
+      if (ok && active) dirty = true;
+      return controller;
+    },
     setInsets({ right = 0, bottom = 0 } = {}) {
       insets.right = Math.max(0, +right || 0); insets.bottom = Math.max(0, +bottom || 0);
       resize();
     },
     enter({ duration = 2200 } = {}) {
       if (!active) { overlayAmt = 0; routeAmt = 0; entered = false; }
+      if (!entered) { focus = null; const sp = startPose(); if (!anim) { cam.pol = sp.pol; cam.r = sp.r; camT.copy(sp.target); } }
       setActive(true);
       showVignette(true);
-      return startAnim(FINAL, duration, 'enter');
+      return startAnim(homePose(), duration, 'enter');
     },
     exit({ duration = 1400 } = {}) {
       if (routePlay) { const r = routePlay.resolve; routePlay = null; r(); }
       entered = false;
+      focus = null; pendingFocus = null;
       showLayer(false);
       showVignette(false);
       canvas.style.pointerEvents = 'none';
       setHover(null);
       if (!active) {
         if (anim) { const r = anim.resolve; anim = null; r(); }
-        cam.pol = START.pol; cam.r = START.r; placeCamera(); renderer.clear();
+        const sp = startPose(); cam.pol = sp.pol; cam.r = sp.r; camT.copy(sp.target); placeCamera(); renderer.clear();
         return Promise.resolve();
       }
-      return startAnim(START, duration, 'exit');
+      const sp = startPose();
+      sp.target = camT.clone().lerp(home.target, 0.6);
+      return startAnim(sp, duration, 'exit');
     },
     setActive,
-    selectPredio(id) { pick(id, false); },
+    /** select a predio (no callback). {focus:true} also flies the camera to it (user-triggered only). */
+    selectPredio(id, { focus: doF = false } = {}) {
+      const ok = pick(id, false);
+      if (ok && doF && id != null) { if (entered) return doFocus(id); pendingFocus = String(id); }
+      return Promise.resolve();
+    },
+    /** highlight a case (its predio, or its point when the predio geometry is missing); no callback. */
+    selectCaso(expediente, opts = {}) { return selectCasoInternal(expediente, { focus: !!opts.focus, notify: false }); },
+    focusPredio(id) { if (!entered) { pendingFocus = String(id); return Promise.resolve(); } return doFocus(id); },
+    /** back to the whole-zone framing; clears the 3D selection (label, outline, case highlight). */
+    resetView({ duration = 1200 } = {}) {
+      focus = null; pendingFocus = null;
+      pick(null, false);
+      selectedCaso = null;
+      casos.forEach((x) => { x.sel = null; });
+      if (!entered) return Promise.resolve();
+      return startAnim(homePose(), duration, 'home');
+    },
+    isFocused() { return !!focus; },
     setRouteProgress(t) {
       if (routePlay) { const r = routePlay.resolve; routePlay = null; r(); }
       state.routeT = clamp(Number(t) || 0, 0, 1);
@@ -1000,6 +1431,7 @@ export async function initValle({
     },
     showRoute(on) { state.routeOn = !!on; dirty = true; },
     setYear(y) {
+      if (!years.length) return;
       state.year = clamp(Number(y) || lastYear, years[0], lastYear);
       const yf = state.year;
       for (let i = 0; i < years.length; i++) {

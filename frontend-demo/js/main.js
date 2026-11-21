@@ -1,15 +1,19 @@
 // Caudal · landing orchestration.
-// Modes on #stage: landing | to-lagoon | lagoon | to-valle | valle | to-landing.
+// Modes on #stage: landing | to-lagoon | lagoon | to-zona | zona | to-landing.
+// Zones (spec v2): Z1 Petorca, Z2 Aconcagua bajo, with the 10 validation cases (resolved DGA cases).
 // Every module is imported dynamically so a failure in one (or in its CDN deps) cannot take down the page.
 const initHero = async opts => (await import('./hero.js')).initHero(opts);
 const initMap = async opts => (await import('./map.js')).initMap(opts);
 const initValle = async opts => (await import('./valle.js')).initValle(opts);
-const loadPetorca = async () => (await import('./petorca-data.js')).loadPetorca(PETORCA_DATA);
-// panel modules (ficha / expediente / ruta): cached, but retried if a load fails
+const Zmod = () => import('./zona-data.js');
+// panel modules (ficha / expediente / ruta / caso): cached, but retried if a load fails.
+// caso.js is optional: if it fails the case panel falls back to a minimal summary.
 let panelsCache = null;
 const panels = () => (panelsCache ??= Promise.all([
   import('./ficha.js'), import('./expediente.js'), import('./ruta-panel.js'),
-]).then(([ficha, expediente, ruta]) => ({ ...ficha, ...expediente, ...ruta }))
+  import('./caso.js').catch(err => { console.error('[Caudal] caso.js:', err); return {}; }),
+  Zmod(),
+]).then(([ficha, expediente, ruta, caso, Z]) => ({ ...ficha, ...expediente, ...ruta, ...caso, Z }))
   .catch(err => { panelsCache = null; throw err; }));
 
 const $ = id => document.getElementById(id);
@@ -18,21 +22,53 @@ const MOBILE = matchMedia('(max-width: 760px)');
 const MANIFEST_URL = 'assets/aculeo/manifest.json';
 const ASSET_DIR = 'assets/aculeo/';
 const LAGOON_ID = 'aculeo';
-const VALLE_ID = 'petorca';
-const VALLE_ASSETS = 'assets/petorca/';
-const PETORCA_DATA = 'data/petorca/';
-const VALLE_BBOX_FALLBACK = [-71.06, -32.31, -70.89, -32.22];
+const ZONA_IDS = ['z1', 'z2'];
+const HASH_ALIAS = { petorca: 'z1', aconcagua: 'z2' };
 const LAGOON_CAM = { center: [-70.914, -33.843], zoom: 11.3, pitch: 50, bearing: 0, duration: 2600 };
-const SITE_ZOOM = 7;
 const ENTER_MS = 2200, EXIT_MS = 1400;
 const ROUTE_MS = 16000;
 const nf1 = new Intl.NumberFormat('es-CL', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+const nf0 = new Intl.NumberFormat('es-CL', { maximumFractionDigits: 0 });
 const MINUS = '−';
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 const SVGNS = 'http://www.w3.org/2000/svg';
 const BIG_LOSS = 0.5;   // a year is flagged amber when it holds < 50% of the baseline water
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-const isValleSite = s => !!s && (!!s.valle || s.id === VALLE_ID);
+const comunaFmt = s => String(s || '').toLowerCase().replace(/(^|\s)\p{L}/gu, c => c.toUpperCase());
+const dateNum = iso => { if (!iso) return '—'; const [y, m, d] = String(iso).slice(0, 10).split('-'); return d ? `${d}-${m}-${y}` : `${m}-${y}`; };
+const expShortL = e => String(e || '').replace(/^(\w+)-\d+-(\d+)$/, '$1-$2');
+const zkey = id => { const k = String(id || '').toLowerCase(); return HASH_ALIAS[k] || k; };
+
+/* ---------- static fallbacks while the team data lands (sites.json carries Z1/Z2 + the 10 cases) ---------- */
+let sitesJson = { sites: [], casos: [] };
+
+/** Zone index: data/zonas/index.json, else built from sites.json + data/zonas/bbox.json. */
+let indexP = null;
+function getIndex() {
+  return (indexP ??= Zmod().then(Z => Z.loadZonas()).catch(async err => {
+    console.warn('[Caudal] index.json no disponible, uso sites.json:', err?.message || err);
+    let bbox = {};
+    try { const r = await fetch('data/zonas/bbox.json'); if (r.ok) bbox = await r.json(); } catch (_) { /* opcional */ }
+    const zonas = (sitesJson.sites || []).filter(s => s.kind === 'zona').map(s => ({
+      id: s.zona || s.id, codigo: s.codigo || String(s.id).toUpperCase(), nombre: s.name, comunas: s.comunas || [],
+      bbox_escena: bbox[s.zona || s.id] || null, centro: [s.lon, s.lat],
+      base: `assets/zonas/${s.zona || s.id}/`, data: `data/zonas/${s.zona || s.id}/`,
+      casos: (sitesJson.casos || []).filter(c => c.zona === (s.zona || s.id)).map(c => c.expediente),
+    }));
+    return { zonas, _fallback: true };
+  }));
+}
+const zonaMeta = async id => (await getIndex()).zonas.find(z => zkey(z.id) === zkey(id) || zkey(z.codigo) === zkey(id)) || null;
+
+/** All 10 cases: data/zonas/casos.json, else the sites.json backup. */
+let casosP = null;
+function getCasos() {
+  return (casosP ??= Zmod().then(Z => Z.loadCasos()).catch(err => {
+    console.warn('[Caudal] casos.json no disponible, uso sites.json:', err?.message || err);
+    return (sitesJson.casos || []).map(c => ({ ...c }));
+  }));
+}
+const loadZonaData = async id => (await Zmod()).loadZona(zkey(id));
 
 function dms(v, pos, neg) {
   const s = v < 0 ? neg : pos; v = Math.abs(v);
@@ -226,55 +262,6 @@ function setupWaterHistory(years, onPick) {
   return { update };
 }
 
-/* ---------- section 02: Petorca summary (counts + top alta predios + route) ---------- */
-async function setupVallesSummary() {
-  const list = $('vs-list');
-  try {
-    const [data, fmt] = await Promise.all([loadPetorca(), import('./petorca-data.js')]);
-    const c = data.counts || {};
-    $('vs-alta').textContent = c.alta ?? '—';
-    $('vs-media').textContent = c.media ?? '—';
-    $('vs-baja').textContent = c.baja ?? '—';
-    $('vs-sin').textContent = c.sin_alerta ?? '—';
-    $('vs-total').textContent = data.predios.length;
-    $('vh-count').textContent = data.predios.length;
-    const n = $('vt-predios-n'); if (n) n.textContent = `· ${data.predios.length}`;
-    const top = data.predios.map(f => f.properties)
-      .filter(p => p.banda === 'alta')
-      .sort((a, b) => (b.indice ?? 0) - (a.indice ?? 0))
-      .slice(0, 5);
-    list.innerHTML = top.length ? top.map(p => `<li><span class="id">${esc(p.id)}</span><span class="cu">${esc(p.cultivo || '—')} · ${esc(fmt.fmtNum(p.area_ha, 1))} ha</span><span class="m3">${esc(fmt.fmtRange(p.m3_estimado_min, p.m3_estimado_max))}</span></li>`).join('')
-      : '<li class="note">Sin predios en banda alta.</li>';
-    const r = data.ruta;
-    if (r && Array.isArray(r.paradas)) {
-      const h = Math.floor(r.duracion_min / 60), m = Math.round(r.duracion_min % 60);
-      $('vs-route').textContent = `Ruta de inspección: ${r.paradas.length} paradas · ${nf1.format(r.distancia_km)} km · ${h} h ${String(m).padStart(2, '0')} min · sale ${r.inicio?.hora || '08:30'} desde ${r.inicio?.nombre || 'Plaza de Petorca'}`;
-    }
-  } catch (err) {
-    console.error('[Caudal] petorca summary:', err);
-    list.innerHTML = '<li class="note">No se pudieron cargar los datos de Petorca.</li>';
-  }
-}
-
-/* ---------- section 02: other (illustrative) signals on the map ---------- */
-function setupOthers(sites, onPick) {
-  const list = $('sites');
-  const others = sites.filter(s => !isValleSite(s));
-  $('count').textContent = others.length;
-  others.slice().sort((a, b) => b.loss - a.loss).forEach(s => {
-    const b = document.createElement('button');
-    b.type = 'button'; b.className = 'site'; b.dataset.id = s.id;
-    b.setAttribute('aria-pressed', 'false');
-    const tag = s.id === LAGOON_ID ? '<span class="tag">3D · contexto</span>' : '';
-    b.innerHTML = `<span>${esc(s.name)}${tag}<small>${esc(s.region)} · ${esc(s.type)}</small></span><span class="bar"><i class="${s.loss >= 85 ? 'crit' : ''}" style="width:${+s.loss || 0}%"></i></span><span class="pct">${+s.loss || 0}%</span>`;
-    b.addEventListener('click', () => onPick(s.id));
-    list.appendChild(b);
-  });
-  return {
-    mark(id) { list.querySelectorAll('.site').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.id === id))); },
-  };
-}
-
 /* ---------- Aculeo context thumbnails (before / driest year) ---------- */
 let cropP = null;
 async function getCrop(m) {
@@ -372,15 +359,74 @@ function lazyOnView(el, fn) {
   io.observe(el);
 }
 
-/* ---------- valley side panel: ranking -> ficha -> expediente  |  ruta ---------- */
-function setupVallePanel({ getValle }) {
+/* ---------- section 02: Zonas summary (Z1/Z2 cards + the 10-case list) ---------- */
+async function setupZonasSummary() {
+  const cards = $('zonas-cards'), list = $('casos-list');
+  let index = null, casos = [];
+  try { [index, casos] = await Promise.all([getIndex(), getCasos()]); }
+  catch (err) { console.error('[Caudal] zonas summary:', err); }
+
+  // 10-case list (links enter the zone and open the case)
+  if (list) {
+    const rows = (casos || []).slice().sort((a, b) => (a.zona || '').localeCompare(b.zona || '') || String(b.fecha_inspeccion).localeCompare(String(a.fecha_inspeccion)));
+    list.innerHTML = rows.length ? rows.map(c => `<li><a href="#caso-${esc(c.expediente)}" data-caso="${esc(c.expediente)}">
+        <span class="cl-z">${esc(String(c.zona || '').toUpperCase())}</span>
+        <span class="cl-exp">${esc(c.expediente)}${c.papel === 'demo_principal' ? '<i>demo</i>' : ''}</span>
+        <span class="cl-c">${esc(comunaFmt(c.comuna))} · inspección ${esc(dateNum(c.fecha_inspeccion))} · ${esc(c.decision || '—')}</span>
+        <span class="cl-m">${Number.isFinite(+c.multa_utm) ? nf1.format(+c.multa_utm) : '—'} UTM</span>
+      </a></li>`).join('') : '<li class="note">No se pudieron cargar los casos.</li>';
+    const n = $('casos-n'); if (n) n.textContent = rows.length || '—';
+  }
+
+  if (!cards) return;
+  const zonas = index?.zonas || [];
+  if (!zonas.length) { cards.innerHTML = '<p class="note">No se pudieron cargar las zonas.</p>'; return; }
+  cards.innerHTML = zonas.map(z => {
+    const id = zkey(z.id);
+    const nCasos = (casos || []).filter(c => zkey(c.zona) === id).length || (z.casos || []).length;
+    return `<article class="panel zc" id="zc-${esc(id)}" aria-labelledby="zc-${esc(id)}-t">
+      <span class="badge water">Zona ${esc(z.codigo || id.toUpperCase())}</span>
+      <h3 id="zc-${esc(id)}-t">${esc(z.nombre || id)}</h3>
+      <p class="p-loc">${esc((z.comunas || []).map(comunaFmt).join(' · '))}</p>
+      <p class="zc-meta"><span data-k="predios">— predios</span> · <b>${nCasos} casos DGA</b></p>
+      <dl class="stats stats-4" aria-label="Predios por banda (provisional)">
+        <div><dt>Alta</dt><dd class="b-alta" data-k="alta">—</dd></div>
+        <div><dt>Media</dt><dd class="b-media" data-k="media">—</dd></div>
+        <div><dt>Baja</dt><dd class="b-baja" data-k="baja">—</dd></div>
+        <div><dt>Sin indicio</dt><dd data-k="sin">—</dd></div>
+      </dl>
+      <p class="vs-route" data-k="ruta">Ruta de inspección: —</p>
+      <div class="row"><a class="btn primary" href="#${esc(id)}" data-zona="${esc(id)}">Ver zona en 3D ↑</a></div>
+    </article>`;
+  }).join('');
+
+  // fill counts per zone as each loads (a zone that fails keeps its dashes)
+  for (const z of zonas) {
+    const id = zkey(z.id), card = $('zc-' + id);
+    loadZonaData(id).then(d => {
+      const c = d.counts || {}, set = (k, v) => { const e = card.querySelector(`[data-k="${k}"]`); if (e) e.textContent = v; };
+      set('predios', `${d.predios.length} predios`);
+      set('alta', c.alta ?? 0); set('media', c.media ?? 0); set('baja', c.baja ?? 0);
+      set('sin', (c.sin_alerta || 0) + (c.sin_dato || 0));
+      const r = d.ruta;
+      if (r && Array.isArray(r.paradas) && r.paradas.length) {
+        const h = Math.floor(r.duracion_min / 60), m = Math.round(r.duracion_min % 60);
+        set('ruta', `Ruta: ${r.paradas.length} paradas · ${nf1.format(r.distancia_km)} km · ${h} h ${String(m).padStart(2, '0')} min · desde ${r.inicio?.nombre || 'la plaza'}`);
+      } else set('ruta', 'Ruta de inspección: en preparación');
+    }).catch(err => console.error(`[Caudal] zona ${id} summary:`, err));
+  }
+}
+
+/* ---------- zone side panel: Predios (ranking -> ficha -> expediente) | Casos (lista -> caso) | Ruta ---------- */
+function setupZonaPanel({ getValle }) {
   const panel = $('valle-panel');
-  const panePredios = $('vp-predios'), paneRuta = $('vp-ruta'), body = $('vp-body');
-  const tabs = { predios: $('vt-predios'), ruta: $('vt-ruta') };
-  const grip = $('vp-grip');
-  const st = { tab: 'predios', view: 'ranking', selectedId: null, playing: false, rutaCtl: null, rutaRendered: false };
+  const panes = { predios: $('vp-predios'), casos: $('vp-casos'), ruta: $('vp-ruta') };
+  const tabs = { predios: $('vt-predios'), casos: $('vt-casos'), ruta: $('vt-ruta') };
+  const TAB_ORDER = ['predios', 'casos', 'ruta'];
+  const body = $('vp-body'), grip = $('vp-grip');
+  const st = { zona: null, tab: 'predios', view: 'ranking', caseView: 'list', selectedId: null, selectedCaso: null, playing: false, rutaCtl: null, rutaRendered: false };
   let dataP = null;
-  const data = () => (dataP ??= loadPetorca().catch(err => { dataP = null; throw err; }));
+  const data = () => (dataP ??= loadZonaData(st.zona).catch(err => { dataP = null; throw err; }));
 
   const fail = (el, err, what) => {
     console.error(`[Caudal] panel ${what}:`, err);
@@ -392,13 +438,14 @@ function setupVallePanel({ getValle }) {
     return undefined;
   };
 
+  /* --- Predios --- */
   async function showRanking() {
     st.view = 'ranking';
     try {
       const [d, P] = await Promise.all([data(), panels()]);
       if (st.view !== 'ranking') return;
-      P.renderRanking(panePredios, d, { selectedId: st.selectedId, onSelect: id => selectPredio(id, { from: 'panel' }) });
-    } catch (err) { fail(panePredios, err, 'el ranking de predios'); }
+      P.renderRanking(panes.predios, d, { selectedId: st.selectedId, onSelect: id => selectPredio(id, { from: 'panel' }) });
+    } catch (err) { fail(panes.predios, err, 'el ranking de predios'); }
   }
 
   async function showFicha(id) {
@@ -408,40 +455,114 @@ function setupVallePanel({ getValle }) {
       if (st.view !== 'ficha' || st.selectedId !== id) return;
       const f = d.byId.get(id);
       if (!f) { showRanking(); return; }
-      P.renderFicha(panePredios, f, d, {
+      P.renderFicha(panes.predios, f, d, {
         onExpediente: pid => showExpediente(pid || id),
         onBack: () => deselect(),
+        onCaso: exp => showCaso(exp),
       });
       body.scrollTop = 0;
-    } catch (err) { fail(panePredios, err, 'la ficha del predio'); }
+    } catch (err) { fail(panes.predios, err, 'la ficha del predio'); }
   }
 
   async function showExpediente(id) {
     st.view = 'expediente';
+    if (st.tab !== 'predios') setTab('predios', { render: false });
     try {
       const [d, P] = await Promise.all([data(), panels()]);
       if (st.view !== 'expediente') return;
       const f = d.byId.get(id);
       if (!f) { showRanking(); return; }
-      P.renderExpediente(panePredios, f, d, { onBack: () => showFicha(id) });
+      st.selectedId = id;
+      P.renderExpediente(panes.predios, f, d, { onBack: () => showFicha(id) });
       body.scrollTop = 0;
-    } catch (err) { fail(panePredios, err, 'el expediente'); }
+    } catch (err) { fail(panes.predios, err, 'el expediente'); }
   }
 
+  function selectPredio(id, { from = 'panel' } = {}) {
+    if (!id) { deselect({ from }); return; }
+    st.selectedId = id;
+    if (from !== 'valle') valleCall('selectPredio', id, { focus: true });
+    if (st.tab !== 'predios') setTab('predios', { render: false });
+    showFicha(id);
+  }
+
+  function deselect({ from = 'panel' } = {}) {
+    st.selectedId = null;
+    if (from !== 'valle') { valleCall('selectPredio', null); if (getValle()?.isFocused?.()) valleCall('resetView'); }
+    showRanking();
+  }
+
+  /* --- Casos --- */
+  async function showCasos() {
+    st.caseView = 'list';
+    try {
+      const [d, P] = await Promise.all([data(), panels()]);
+      if (st.caseView !== 'list') return;
+      const onSelect = exp => showCaso(exp);
+      if (typeof P.renderCasosList === 'function') P.renderCasosList(panes.casos, d, { onSelect, selected: st.selectedCaso });
+      else casosListFallback(panes.casos, d, onSelect);
+    } catch (err) { fail(panes.casos, err, 'los casos de la zona'); }
+  }
+
+  async function showCaso(exp, { from = 'panel' } = {}) {
+    if (!exp) return;
+    st.caseView = 'caso';
+    st.selectedCaso = exp;
+    if (st.tab !== 'casos') setTab('casos', { render: false });
+    try {
+      const [d, P] = await Promise.all([data(), panels()]);
+      if (st.caseView !== 'caso' || st.selectedCaso !== exp) return;
+      const caso = d.casos.find(c => c.expediente === exp);
+      if (!caso) { showCasos(); return; }
+      if (from !== 'valle') {
+        if (getValle()?.selectCaso) valleCall('selectCaso', exp, { focus: true });
+        else if (caso.predio_id) valleCall('selectPredio', caso.predio_id, { focus: true });
+      }
+      if (caso.predio_id) st.selectedId = caso.predio_id;
+      const opts = {
+        onPredio: id => selectPredio(id, { from: 'panel' }),
+        onExpediente: id => showExpediente(id || caso.predio_id),
+        onBack: () => { st.selectedCaso = null; if (getValle()?.isFocused?.()) valleCall('resetView'); showCasos(); },
+      };
+      if (typeof P.renderCaso === 'function') P.renderCaso(panes.casos, caso, d, opts);
+      else casoFallback(panes.casos, caso, opts);
+      body.scrollTop = 0;
+    } catch (err) { fail(panes.casos, err, 'el caso'); }
+  }
+
+  function casosListFallback(el, d, onSelect) {
+    el.innerHTML = `<ul class="pn-list">${d.casos.map(c => `<li><button type="button" class="pn-row" data-exp="${esc(c.expediente)}"><span class="pn-row-top"><b class="pn-id">${esc(expShortL(c.expediente))}</b><span>${esc(comunaFmt(c.comuna))} · ${esc(dateNum(c.fecha_inspeccion))}</span><span class="pn-row-meta">${Number.isFinite(+c.multa_utm) ? nf0.format(+c.multa_utm) : '—'} UTM</span></span></button></li>`).join('')}</ul>`;
+    el.onclick = e => { const b = e.target.closest('.pn-row'); if (b) onSelect(b.dataset.exp); };
+  }
+  function casoFallback(el, c, { onPredio, onBack }) {
+    el.innerHTML = `<button type="button" class="pn-back" data-act="back">← Casos</button>
+      <header class="pn-fh"><h3 class="pn-title">Caso ${esc(c.expediente)}</h3>
+      <p class="pn-sub">${esc(comunaFmt(c.comuna))} · Caso sancionado por la DGA</p></header>
+      <dl class="pn-kpis"><div><dt>Inspección</dt><dd>${esc(dateNum(c.fecha_inspeccion))}</dd></div><div><dt>Multa</dt><dd>${Number.isFinite(+c.multa_utm) ? nf1.format(+c.multa_utm) : '—'} <small>UTM</small></dd></div></dl>
+      <p class="pn-note">${esc(c.decision || '')}</p>
+      ${c.predio_id ? '<div class="pn-actions"><button type="button" class="btn" data-act="predio">Ver predio</button></div>' : ''}`;
+    el.onclick = e => {
+      const a = e.target.closest('[data-act]')?.dataset.act;
+      if (a === 'back') onBack(); else if (a === 'predio') onPredio(c.predio_id);
+    };
+  }
+
+  /* --- Ruta --- */
   async function showRuta() {
     if (st.rutaRendered) return;
     try {
       const [d, P] = await Promise.all([data(), panels()]);
       if (st.rutaRendered) return;
-      st.rutaCtl = P.renderRuta(paneRuta, d, {
+      st.rutaCtl = P.renderRuta(panes.ruta, d, {
         onPlay: () => playRoute(),
-        onStop: pid => { if (pid) { st.selectedId = pid; valleCall('selectPredio', pid); } },
+        onStop: pid => { if (pid) { st.selectedId = String(pid); valleCall('selectPredio', String(pid)); } },
         onGPX: () => {},
       }) || null;
       st.rutaRendered = true;
-    } catch (err) { fail(paneRuta, err, 'la ruta de inspección'); }
+    } catch (err) { fail(panes.ruta, err, 'la ruta de inspección'); }
   }
 
+  // only on an explicit click of the "Recorrer" button: nothing plays by itself in 3D
   async function playRoute() {
     if (st.playing) return;
     const v = getValle();
@@ -449,48 +570,38 @@ function setupVallePanel({ getValle }) {
     st.playing = true;
     panel.classList.add('playing');
     valleCall('showRoute', true);
+    // the route is a whole-zone story: leave a predio close-up before playing it
+    if (v.isFocused?.()) { try { await v.resetView(); } catch (_) { /* opcional */ } }
     try { await v.playRoute({ duration: ROUTE_MS }); }
     catch (err) { console.error('[Caudal] playRoute:', err); }
     st.playing = false;
     panel.classList.remove('playing');
   }
 
-  function setTab(tab, { focus = false } = {}) {
+  /* --- tabs --- */
+  function setTab(tab, { focus = false, render = true } = {}) {
     st.tab = tab;
     for (const [k, b] of Object.entries(tabs)) {
       const on = k === tab;
       b.setAttribute('aria-selected', String(on));
       b.tabIndex = on ? 0 : -1;
     }
-    panePredios.hidden = tab !== 'predios';
-    paneRuta.hidden = tab !== 'ruta';
+    for (const [k, p] of Object.entries(panes)) p.hidden = k !== tab;
     body.scrollTop = 0;
     if (tab === 'ruta') showRuta();
+    if (render && tab === 'casos') { if (st.selectedCaso) showCaso(st.selectedCaso); else showCasos(); }
+    if (render && tab === 'predios' && st.view === 'ranking') showRanking();
     valleCall('showRoute', tab === 'ruta' || st.playing);
     if (focus) tabs[tab].focus();
   }
 
-  function selectPredio(id, { from = 'panel' } = {}) {
-    if (!id) { deselect({ from }); return; }
-    st.selectedId = id;
-    if (from !== 'valle') valleCall('selectPredio', id);
-    if (st.tab !== 'predios') setTab('predios');
-    showFicha(id);
-  }
-
-  function deselect({ from = 'panel' } = {}) {
-    st.selectedId = null;
-    if (from !== 'valle') valleCall('selectPredio', null);
-    showRanking();
-  }
-
-  tabs.predios.addEventListener('click', () => setTab('predios'));
-  tabs.ruta.addEventListener('click', () => setTab('ruta'));
+  for (const k of TAB_ORDER) tabs[k].addEventListener('click', () => setTab(k));
   for (const b of Object.values(tabs)) {
     b.addEventListener('keydown', e => {
       if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
       e.preventDefault();
-      setTab(st.tab === 'predios' ? 'ruta' : 'predios', { focus: true });
+      const i = TAB_ORDER.indexOf(st.tab), n = TAB_ORDER.length;
+      setTab(TAB_ORDER[(i + (e.key === 'ArrowRight' ? 1 : n - 1)) % n], { focus: true });
     });
   }
   grip.addEventListener('click', () => {
@@ -511,21 +622,40 @@ function setupVallePanel({ getValle }) {
   function syncInsets() { valleCall('setInsets', insets()); }
   if ('ResizeObserver' in window) new ResizeObserver(() => { if (!panel.hidden) syncInsets(); }).observe(panel);
 
+  function reset() {
+    st.selectedId = null; st.selectedCaso = null; st.view = 'ranking'; st.caseView = 'list'; st.playing = false;
+    st.rutaRendered = false; st.rutaCtl = null;
+    panes.predios.innerHTML = '<p class="vp-loading">Cargando predios…</p>';
+    panes.casos.innerHTML = '<p class="vp-loading">Cargando casos…</p>';
+    panes.ruta.innerHTML = '<p class="vp-loading">Cargando ruta…</p>';
+  }
+
   return {
-    open() {
+    get zona() { return st.zona; },
+    /** Point the panel at a zone (before it opens): headings + counts. */
+    prepare(meta, n = {}) {
+      const id = zkey(meta?.id);
+      if (st.zona !== id) { st.zona = id; dataP = null; reset(); }
+      const name = `${meta?.codigo || id.toUpperCase()} · ${meta?.nombre || ''}`;
+      $('vp-kicker').textContent = `${name} · priorización provisional`;
+      $('vp-grip-l').textContent = `Priorización · ${meta?.nombre || id.toUpperCase()}`;
+      panel.setAttribute('aria-label', `Priorización de la zona ${name}`);
+      $('vt-predios-n').textContent = n.predios ? `· ${n.predios}` : '';
+      $('vt-casos-n').textContent = `(${n.casos ?? (meta?.casos || []).length})`;
+    },
+    open({ caso = null } = {}) {
       panel.hidden = false;
-      setTab('predios');
-      if (st.selectedId) showFicha(st.selectedId); else showRanking();
+      if (caso) { setTab('casos', { render: false }); showCaso(caso); }
+      else { setTab('predios', { render: false }); if (st.selectedId) showFicha(st.selectedId); else showRanking(); }
       syncInsets();
     },
     close() {
       panel.hidden = true;
       panel.classList.remove('expanded', 'playing');
       grip.setAttribute('aria-expanded', 'false');
-      st.selectedId = null; st.view = 'ranking'; st.playing = false;
-      st.rutaRendered = false; st.rutaCtl = null;
-      paneRuta.innerHTML = '<p class="vp-loading">Cargando ruta…</p>';
+      reset();
     },
+    showCaso,
     // predicted insets for map padding before the panel is visible
     predictedPadding() {
       if (MOBILE.matches) return { top: 110, bottom: Math.round(innerHeight * 0.48), left: 24, right: 24 };
@@ -539,9 +669,11 @@ function setupVallePanel({ getValle }) {
     onValleSelect(arg) {
       const id = arg && typeof arg === 'object' ? arg.id : arg;
       if (!id) { if (st.selectedId) deselect({ from: 'valle' }); return; }
-      if (id === st.selectedId && st.view !== 'ranking' && st.tab === 'predios') return;
-      selectPredio(id, { from: 'valle' });
+      const sid = String(id);
+      if (sid === st.selectedId && st.view !== 'ranking' && st.tab === 'predios') return;
+      selectPredio(sid, { from: 'valle' });
     },
+    onValleCaso(exp) { if (exp) showCaso(String(exp), { from: 'valle' }); },
     onRouteStop(orden, parada) {
       try { st.rutaCtl?.setActiveStop?.(orden, parada); } catch (e) { console.error(e); }
     },
@@ -551,49 +683,27 @@ function setupVallePanel({ getValle }) {
   };
 }
 
-/* ---------- stage: landing (national map) <-> lagoon (Aculeo) <-> valle (Petorca) ---------- */
-function setupStage({ sites, others, heroP }) {
+/* ---------- stage: landing (national map) <-> lagoon (Aculeo) <-> zona (Z1 / Z2) ---------- */
+function setupStage({ heroP }) {
   const stage = $('top'), heroCanvas = $('hero-canvas'), valleCanvas = $('valle-canvas');
   const back = $('back'), bar = $('lagoon-bar'), hint = $('hint');
   const card = $('site-card');
+  const sites = sitesJson.sites || [];
   const byId = new Map(sites.map(s => [s.id, s]));
-  const valleSite = sites.find(isValleSite) || null;
-  const VALLE_SITE_ID = valleSite ? valleSite.id : VALLE_ID;
   let mapCtl = null;
   let hero = null, heroFailed = false;
-  let valle = null, valleFailed = false, valleP = null;
+  let valle = null, valleZona = null, valleFailed = false;
+  let valleQueue = Promise.resolve();
+  let curZona = null;
 
-  const vpanel = setupVallePanel({ getValle: () => valle });
+  const zp = setupZonaPanel({ getValle: () => valle });
 
-  heroP.then(h => { hero = h; heroFailed = !h; updateHint(); });
-
-  // valle 3D: init once (lazily, right after boot) so textures load while the map is on screen
-  function getValleP() {
-    return (valleP ??= initValle({
-      canvas: valleCanvas,
-      base: VALLE_ASSETS,
-      dataBase: PETORCA_DATA,
-      onSelectPredio: arg => vpanel.onValleSelect(arg),
-      onRouteStop: (orden, parada) => vpanel.onRouteStop(orden, parada),
-      onRouteProgress: t => vpanel.onRouteProgress(t),
-    }).then(v => {
-      if (!v || typeof v.enter !== 'function' || typeof v.exit !== 'function') throw new Error('valle sin enter()/exit()');
-      valle = v;
-      return v;
-    }).catch(err => {
-      console.error('[Caudal] valle:', err);
-      valleFailed = true;
-      valleCanvas.style.display = 'none';
-      updateHint();
-      return null;
-    }));
-  }
+  heroP.then(h => { hero = h; heroFailed = !h; });
 
   function updateHint() {
-    const parts = [];
-    if (!valleFailed) parts.push('Toca <b>Valle de Petorca</b> para ver la priorización');
-    if (!heroFailed) parts.push('Aculeo: vista 3D');
-    hint.innerHTML = '<span class="rec" aria-hidden="true"></span>' + (parts.length ? parts.join(' · ') : 'Toca un punto para ver la señal');
+    hint.innerHTML = '<span class="rec" aria-hidden="true"></span>' + (valleFailed
+      ? 'Toca un caso para ver su señal · 10 casos sancionados por la DGA'
+      : 'Toca una <b>zona</b> para ver la priorización · 10 casos sancionados por la DGA');
   }
 
   let mode = 'landing';
@@ -601,32 +711,66 @@ function setupStage({ sites, others, heroP }) {
   function setMode(m) {
     mode = m;
     stage.dataset.mode = m;
-    back.hidden = m !== 'lagoon' && m !== 'valle';
+    back.hidden = m !== 'lagoon' && m !== 'zona';
     bar.hidden = m !== 'lagoon';
   }
 
-  /* floating card for a generic site on the map */
+  /* --- one Three.js scene reused across zones: setZona() if the scene supports it, else re-init --- */
+  function ensureValle(id, data, meta) {
+    const run = async () => {
+      if (valle && valleZona === id) return valle;
+      if (valle && typeof valle.setZona === 'function') {
+        await valle.setZona(data);
+        valleZona = id;
+        return valle;
+      }
+      if (valle) { try { valle.dispose?.(); } catch (e) { console.error('[Caudal] valle.dispose:', e); } valle = null; valleZona = null; }
+      const v = await initValle({
+        canvas: valleCanvas,
+        zona: data,
+        base: meta?.base || `assets/zonas/${id}/`,
+        dataBase: meta?.data || `data/zonas/${id}/`,   // older valle.js loads predios/ruta itself
+        onSelectPredio: arg => zp.onValleSelect(arg),
+        onSelectCaso: exp => zp.onValleCaso(exp),
+        onRouteStop: (orden, parada) => zp.onRouteStop(orden, parada),
+        onRouteProgress: t => zp.onRouteProgress(t),
+      });
+      if (!v || typeof v.enter !== 'function' || typeof v.exit !== 'function') throw new Error('valle sin enter()/exit()');
+      valle = v; valleZona = id;
+      return v;
+    };
+    const p = valleQueue.then(run, run);
+    valleQueue = p.catch(() => {});
+    return p;
+  }
+
+  /** Background warm-up: load the zone data + scene while the national map is on screen. */
+  async function warm(id = 'z1') {
+    try {
+      const [data, meta] = await Promise.all([loadZonaData(id), zonaMeta(id)]);
+      if (mode === 'landing' && !valle) await ensureValle(id, data, meta);
+    } catch (err) { console.warn('[Caudal] warm-up zona:', err?.message || err); }
+  }
+
+  /* --- floating card (Aculeo, or a zone whose 3D failed) --- */
   function showCard(s) {
-    const crit = s.loss >= 85;
     const bd = $('c-badge');
-    const isValle = isValleSite(s);
-    bd.textContent = isValle ? 'Valle priorizado' : (crit ? 'Crítico' : 'En observación');
-    bd.className = 'badge ' + (isValle ? 'water' : (crit ? 'crit' : 'warn'));
-    $('c-name').textContent = s.name;
-    $('c-meta').textContent = `${s.type} · ${s.region}`;
-    const loss = $('c-loss');
-    loss.textContent = Number.isFinite(+s.loss) ? `${MINUS}${s.loss}%` : '';
-    loss.className = 'c-loss' + (crit ? ' crit' : '');
-    $('c-since').textContent = s.since ? `desde ${s.since}` : '';
+    const isZona = s.kind === 'zona';
     const isLagoon = s.id === LAGOON_ID;
+    bd.textContent = isZona ? `Zona ${s.codigo || ''}` : 'Contexto · lo que ya pasó';
+    bd.className = 'badge ' + (isZona ? 'water' : 'warn');
+    $('c-name').textContent = s.name;
+    $('c-meta').textContent = isZona ? (s.comunas || []).map(comunaFmt).join(' · ') : `${s.type} · ${s.region}`;
+    const loss = $('c-loss');
+    loss.textContent = isZona ? `${s.casos ?? '—'} casos DGA` : (Number.isFinite(+s.loss) ? `${MINUS}${s.loss}%` : '');
+    loss.className = 'c-loss' + (isZona ? '' : ' crit');
+    $('c-since').textContent = !isZona && s.since ? `desde ${s.since}` : '';
     const enter = $('c-enter');
     enter.hidden = !(isLagoon && !heroFailed);
     enter.textContent = 'Ver laguna en 3D';
     $('c-note').textContent = isLagoon
       ? (heroFailed ? 'Vista satelital 3D no disponible en este momento.' : 'Contexto: lo que ya pasó. ' + (s.note ? s.note + '.' : ''))
-      : isValle
-        ? 'Vista 3D del valle no disponible en este momento. Revisa el resumen más abajo.'
-        : 'Señal en observación · cifras ilustrativas en este prototipo.';
+      : 'Vista 3D de la zona no disponible en este momento. Revisa el resumen de zonas más abajo.';
     card.hidden = false;
     hint.hidden = true;
   }
@@ -637,7 +781,6 @@ function setupStage({ sites, others, heroP }) {
     if (mode !== 'landing' || heroFailed) return;
     setMode('to-lagoon');
     hideCard();
-    others.mark(LAGOON_ID);
     try {
       if (mapCtl) { mapCtl.select(LAGOON_ID); mapCtl.setLagoon(true); }
       const fly = mapCtl ? mapCtl.flyToSite(LAGOON_ID, { ...LAGOON_CAM, duration: RM ? 0 : LAGOON_CAM.duration }) : Promise.resolve();
@@ -671,6 +814,7 @@ function setupStage({ sites, others, heroP }) {
       let fly = Promise.resolve();
       if (mapCtl) {
         mapCtl.setLagoon(false);
+        mapCtl.select(null);
         if (home) fly = mapCtl.flyHome({ duration: RM ? 0 : 2400 });
       }
       await Promise.all([ex, fly]);
@@ -679,11 +823,12 @@ function setupStage({ sites, others, heroP }) {
       heroCanvas.classList.remove('on');
       if (mapCtl) mapCtl.setLagoon(false);
     }
+    clearHash(h => h === LAGOON_ID);
     setMode('landing');
     if (home) hint.focus({ preventScroll: true });
   }
 
-  /* ---- valle (Petorca, main flow) ---- */
+  /* ---- zona (Z1 / Z2, main flow) ---- */
   const mapSetValley = on => {
     if (!mapCtl) return;
     try {
@@ -691,49 +836,69 @@ function setupStage({ sites, others, heroP }) {
       else if (typeof mapCtl.setLagoon === 'function') mapCtl.setLagoon(on);
     } catch (e) { console.error('[Caudal] map.setValley:', e); }
   };
+  const validBbox = b => Array.isArray(b) && b.length === 4 && b.every(Number.isFinite);
 
-  function flyToValle(v) {
+  function flyToZona(meta, v) {
     if (!mapCtl) return Promise.resolve();
-    const bbox = Array.isArray(v?.bbox) && v.bbox.length === 4 ? v.bbox : VALLE_BBOX_FALLBACK;
+    const bbox = validBbox(meta?.bbox_escena) ? meta.bbox_escena : validBbox(v?.bbox) ? v.bbox : null;
     const duration = RM ? 0 : 2400;
-    if (typeof mapCtl.flyToBounds === 'function') {
-      return Promise.resolve(mapCtl.flyToBounds(bbox, { pitch: 50, bearing: 0, duration, padding: vpanel.predictedPadding() }));
+    if (bbox && typeof mapCtl.flyToBounds === 'function') {
+      return Promise.resolve(mapCtl.flyToBounds(bbox, { pitch: 50, bearing: 0, duration, padding: zp.predictedPadding() }));
     }
-    const center = [(bbox[0] + bbox[2]) / 2, (bbox[1] + bbox[3]) / 2];
-    return Promise.resolve(mapCtl.flyToSite(VALLE_SITE_ID, { center, zoom: 11.6, pitch: 50, bearing: 0, duration }));
+    const center = bbox ? [(bbox[0] + bbox[2]) / 2, (bbox[1] + bbox[3]) / 2] : meta?.centro;
+    return Promise.resolve(mapCtl.flyToSite(zkey(meta?.id), { center, zoom: 11.6, pitch: 50, bearing: 0, duration }));
   }
 
-  async function enterValle() {
+  function setZonaHud(meta, data) {
+    const nP = data?.predios?.length, nC = data?.casos?.length ?? (meta?.casos || []).length;
+    $('hz-name').textContent = `${meta?.codigo || ''} · ${meta?.nombre || ''}`;
+    $('hz-count').textContent = `${nP ?? '—'} predios · ${nC} casos DGA`;
+    const c = Array.isArray(meta?.centro) ? meta.centro : null;
+    $('hz-coords').textContent = c ? `${dms(c[1], 'N', 'S')} ${dms(c[0], 'E', 'O')} · Valparaíso · 10 m/px` : 'Valparaíso · 10 m/px';
+  }
+
+  async function enterZona(id, { caso = null } = {}) {
     if (mode !== 'landing') return;
-    if (valleFailed) { if (valleSite) showCard(valleSite); return; }
-    setMode('to-valle');
+    id = zkey(id);
+    const site = byId.get(id);
+    if (valleFailed) { if (site) showCard(site); return; }
+    setMode('to-zona');
     hideCard();
     try {
-      if (mapCtl) mapCtl.select(VALLE_SITE_ID);
+      if (mapCtl) mapCtl.select(caso ? 'caso-' + caso : id);
+      const meta = await zonaMeta(id);
+      if (!meta) throw new Error('zona desconocida: ' + id);
+      const data = await loadZonaData(id);
+      zp.prepare(meta, { predios: data.predios.length, casos: data.casos.length });
+      setZonaHud(meta, data);
       mapSetValley(true);
-      const v = await getValleP();
-      if (!v) throw new Error('valle no disponible');
-      try { v.setInsets?.(vpanel.predictedInsets()); } catch (_) { /* opcional */ }
-      await flyToValle(v);
+      const flyP = flyToZona(meta, null);
+      const v = await ensureValle(id, data, meta);
+      try { v.setInsets?.(zp.predictedInsets()); } catch (_) { /* opcional */ }
+      await flyP;
       valleCanvas.classList.add('on');
       await v.enter({ duration: RM ? 0 : ENTER_MS });
-      setMode('valle');
-      vpanel.open();
+      curZona = id;
+      setMode('zona');
+      zp.open({ caso });
+      const h = caso ? 'caso-' + caso : id;
+      if (location.hash !== '#' + h) history.replaceState(null, '', '#' + h);
       back.focus({ preventScroll: true });
     } catch (err) {
-      console.error('[Caudal] valle enter:', err);
+      console.error('[Caudal] zona enter:', err);
+      if (/valle|initValle|WebGL/i.test(String(err?.message))) { valleFailed = true; valleCanvas.style.display = 'none'; updateHint(); }
       valleCanvas.classList.remove('on');
       mapSetValley(false);
-      vpanel.close();
+      zp.close();
       setMode('landing');
-      if (valleSite) showCard(valleSite);
+      if (site) showCard(site);
     }
   }
 
-  async function exitValle({ home = true } = {}) {
-    if (mode !== 'valle') return;
+  async function exitZona({ home = true } = {}) {
+    if (mode !== 'zona') return;
     setMode('to-landing');
-    vpanel.close();
+    zp.close();
     try {
       const ex = Promise.resolve().then(() => valle.exit({ duration: RM ? 0 : EXIT_MS })).catch(e => console.error('[Caudal] valle.exit:', e));
       await sleep(RM ? 0 : EXIT_MS * 0.55);
@@ -746,43 +911,66 @@ function setupStage({ sites, others, heroP }) {
       }
       await Promise.all([ex, fly]);
     } catch (err) {
-      console.error('[Caudal] valle exit:', err);
+      console.error('[Caudal] zona exit:', err);
       valleCanvas.classList.remove('on');
       mapSetValley(false);
     }
-    if (location.hash === '#' + VALLE_ID) history.replaceState(null, '', location.pathname + location.search);
+    curZona = null;
+    clearHash(h => ZONA_IDS.includes(zkey(h)) || h.startsWith('caso-'));
     setMode('landing');
     if (home) hint.focus({ preventScroll: true });
   }
 
-  async function exitAny(opts) {
-    if (mode === 'lagoon') await exitLagoon(opts);
-    else if (mode === 'valle') await exitValle(opts);
+  function clearHash(test) {
+    const h = location.hash.slice(1);
+    if (h && test(h)) history.replaceState(null, '', location.pathname + location.search);
   }
 
-  async function selectSite(id, { scroll = false } = {}) {
-    const s = byId.get(id);
+  async function exitAny(opts) {
+    if (mode === 'lagoon') await exitLagoon(opts);
+    else if (mode === 'zona') await exitZona(opts);
+  }
+
+  /* ---- public navigation ---- */
+  async function goZona(id, { caso = null, scroll = false } = {}) {
     if (busy()) return;
+    id = zkey(id);
     if (scroll) window.scrollTo({ top: 0, behavior: RM ? 'auto' : 'smooth' });
-    if ((s && isValleSite(s)) || id === VALLE_ID) {
-      if (mode === 'valle') return;
-      await exitAny({ home: false });
-      if (mode === 'landing') await enterValle();
-      return;
-    }
-    if (!s) return;
-    others.mark(id);
-    if (id === LAGOON_ID && !heroFailed) {
-      if (mode === 'lagoon') return;
-      await exitAny({ home: false });
-      if (mode === 'landing') await enterLagoon();
+    if (mode === 'zona' && curZona === id) {
+      if (caso) { zp.showCaso(caso); history.replaceState(null, '', '#caso-' + caso); }
       return;
     }
     await exitAny({ home: false });
-    if (mode !== 'landing') return;
-    if (mapCtl) mapCtl.select(id);
-    showCard(s);
-    if (mapCtl) await mapCtl.flyToSite(id, { zoom: SITE_ZOOM, duration: RM ? 0 : 2200 });
+    if (mode === 'landing') await enterZona(id, { caso });
+  }
+
+  async function goCaso(exp, { zona = null, scroll = false } = {}) {
+    if (!exp) return;
+    let z = zona;
+    if (!z) {
+      const c = (await getCasos()).find(x => x.expediente === exp);
+      z = c?.zona;
+    }
+    if (!z) { console.warn('[Caudal] caso desconocido:', exp); return; }
+    return goZona(z, { caso: exp, scroll });
+  }
+
+  async function goLagoon({ scroll = false } = {}) {
+    if (busy()) return;
+    if (scroll) window.scrollTo({ top: 0, behavior: RM ? 'auto' : 'smooth' });
+    if (heroFailed) { if (mode === 'landing') { const s = byId.get(LAGOON_ID); if (s) showCard(s); } return; }
+    if (mode === 'lagoon') return;
+    await exitAny({ home: false });
+    if (mode === 'landing') await enterLagoon();
+  }
+
+  /** Map marker → navigation. site = {kind:"zona", zona} | {kind:"caso", expediente, zona} | {id:"aculeo"} */
+  function onMapSelect(site) {
+    if (!site) return;
+    if (site.kind === 'zona') goZona(site.zona || site.id);
+    else if (site.kind === 'caso') goCaso(site.expediente, { zona: site.zona });
+    else if (site.id === LAGOON_ID) goLagoon();
+    else if (ZONA_IDS.includes(zkey(site.id))) goZona(site.id);
   }
 
   async function closeCard() {
@@ -795,12 +983,12 @@ function setupStage({ sites, others, heroP }) {
 
   function goBack() {
     if (mode === 'lagoon') exitLagoon();
-    else if (mode === 'valle') exitValle();
+    else if (mode === 'zona') exitZona();
   }
 
   hint.addEventListener('click', () => {
-    if (!valleFailed) selectSite(VALLE_SITE_ID);
-    else if (!heroFailed) enterLagoon();
+    if (!valleFailed) goZona('z1');
+    else if (!heroFailed) goLagoon();
   });
   back.addEventListener('click', goBack);
   $('c-enter').addEventListener('click', () => enterLagoon());
@@ -810,7 +998,7 @@ function setupStage({ sites, others, heroP }) {
     const t = e.target;
     // never throw away what the person is typing in the expediente
     if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT' || t.isContentEditable)) return;
-    if (mode === 'lagoon' || mode === 'valle') goBack();
+    if (mode === 'lagoon' || mode === 'zona') goBack();
     else if (mode === 'landing' && !card.hidden) closeCard();
   });
 
@@ -818,32 +1006,32 @@ function setupStage({ sites, others, heroP }) {
   if ('IntersectionObserver' in window) {
     new IntersectionObserver(es => {
       const vis = es.some(e => e.isIntersecting);
-      const ctl = mode === 'lagoon' ? hero : mode === 'valle' ? valle : null;
+      const ctl = mode === 'lagoon' ? hero : mode === 'zona' ? valle : null;
       if (ctl && typeof ctl.setActive === 'function') {
         try { ctl.setActive(vis); } catch (e) { console.error(e); }
       }
     }, { threshold: 0.02 }).observe(stage);
   }
-  MOBILE.addEventListener?.('change', () => { if (mode === 'valle') vpanel.syncInsets(); });
+  MOBILE.addEventListener?.('change', () => { if (mode === 'zona') zp.syncInsets(); });
+  updateHint();
 
   return {
-    selectSite,
-    warmValle: () => getValleP(),
+    goZona, goCaso, goLagoon, onMapSelect, warm,
     setMap(ctl) { mapCtl = ctl; },
     get mode() { return mode; },
   };
 }
 
-async function setupMap(sites, onSelect) {
+async function setupMap(onSelect) {
   const container = $('map');
   try {
-    const ctl = await initMap({ container, sites, onSelect });
+    const ctl = await initMap({ container, sites: sitesJson.sites || [], casos: sitesJson.casos || [], onSelect });
     if (!ctl || typeof ctl.select !== 'function' || typeof ctl.flyToSite !== 'function') throw new Error('controlador inválido');
     return ctl;
   } catch (err) {
     console.error('[Caudal] map:', err);
     container.querySelectorAll('canvas').forEach(c => { c.style.display = 'none'; });
-    showFallback(container, 'Mapa 3D no disponible en este momento. Usa el resumen de valles más abajo para explorar.');
+    showFallback(container, 'Mapa 3D no disponible en este momento. Usa el resumen de zonas más abajo para explorar.');
     document.querySelectorAll('.map-legend').forEach(el => { el.hidden = true; });
     return null;
   }
@@ -853,61 +1041,140 @@ async function setupMap(sites, onSelect) {
 async function boot() {
   setupReveal();
 
-  // "Cómo funciona" chart: real Petorca NDVI (chart.js).
+  try {
+    const r = await fetch('data/sites.json');
+    if (!r.ok) throw new Error('sites ' + r.status);
+    const j = await r.json();
+    sitesJson = Array.isArray(j) ? { sites: j, casos: [] } : { sites: j.sites || [], casos: j.casos || [] };
+  } catch (err) {
+    console.error('[Caudal] sites:', err);
+    showFallback($('map'), 'No se pudieron cargar los sitios. Sirve la carpeta con un servidor local (python3 -m http.server).');
+  }
+  getCasos().then(c => { $('hud-count').textContent = c.length || '—'; }).catch(() => {});
+
+  // "Cómo funciona" chart: the demo case predio vs secano, with its inspection date (chart.js).
   import('./chart.js')
     .then(m => m.renderChart($('chart'), $('callout')))
     .catch(err => console.error('[Caudal] chart:', err));
 
-  setupVallesSummary();
+  setupZonasSummary();
   lazyOnView($('th-a'), drawThumbs);
 
   // Start the hero right away so its textures preload while the map is on screen.
   const heroP = setupHero().catch(err => { console.error('[Caudal] hero setup:', err); return null; });
 
-  let sites = [];
-  try {
-    const r = await fetch('data/sites.json');
-    if (!r.ok) throw new Error('sites ' + r.status);
-    const j = await r.json();
-    sites = Array.isArray(j) ? j : (j.sites || []);
-  } catch (err) {
-    console.error('[Caudal] sites:', err);
-    showFallback($('map'), 'No se pudieron cargar los sitios. Sirve la carpeta con un servidor local (python3 -m http.server).');
-  }
-  $('hud-count').textContent = sites.length || '—';
+  const stage = setupStage({ heroP });
 
-  let stage = null;
-  const others = setupOthers(sites, id => stage && stage.selectSite(id, { scroll: true }));
-  stage = setupStage({ sites, others, heroP });
-
-  // Section links (#petorca / #aculeo) enter the 3D views; keep them from jumping the scroll.
-  for (const a of [$('vs-open'), $('ac-open')]) {
-    a?.addEventListener('click', e => {
-      e.preventDefault();
-      const id = a.getAttribute('href').slice(1);
-      if (location.hash !== '#' + id) history.pushState(null, '', '#' + id);
-      stage.selectSite(id, { scroll: true });
-    });
+  // intro controller (null until/unless the intro runs). hideTitle(): navigation removes the title;
+  // if it happens mid-flight (e.g. browser back to a #z1 link) the intro is skipped first.
+  let introP = Promise.resolve(null);
+  let introFinished = false;
+  function hideTitle() {
+    introP.then(i => {
+      if (!i) return;
+      if (!introFinished && typeof i.skip === 'function') { try { i.skip(); } catch (_) { /* opcional */ } }
+      const hide = () => {
+        if (typeof i.hideTitle === 'function') i.hideTitle();
+        else i.title?.hide?.('external');
+      };
+      hide();
+      // the title may only exist once the (skipped) intro settles
+      Promise.resolve(i.done).then(r => { hide(); r?.title?.hide?.('external'); }).catch(() => {});
+    }).catch(() => {});
   }
 
-  if (sites.length) {
-    const mapCtl = await setupMap(sites, site => {
-      if (!site || !site.id) return;
-      stage.selectSite(site.id);
-    });
-    if (mapCtl) stage.setMap(mapCtl);
-  }
-  // Load the valley scene in the background once the map is up.
-  stage.warmValle();
+  // In-page links (#z1 / #z2 / #caso-… / #aculeo) enter the 3D views; keep them from jumping the scroll.
+  document.addEventListener('click', e => {
+    const a = e.target.closest('a[href^="#"]');
+    if (!a) return;
+    const t = parseHash(a.getAttribute('href').slice(1));
+    if (!t) return;
+    e.preventDefault();
+    go(t, { scroll: true });
+  });
 
-  // Deep links for demos: #petorca opens the valley, #aculeo the 3D lagoon.
-  const fromHash = () => {
-    const h = location.hash.slice(1);
-    if (h === VALLE_ID) stage.selectSite(VALLE_ID, { scroll: true });
-    else if (h === LAGOON_ID && sites.length) { heroP.then(() => stage.selectSite(LAGOON_ID, { scroll: true })); }
-  };
-  fromHash();
-  addEventListener('hashchange', fromHash);
+  const mapCtl = await setupMap(site => {
+    hideTitle();   // a marker click opens a view: the title goes away
+    stage.onMapSelect(site);
+  });
+  if (mapCtl) stage.setMap(mapCtl);
+  // Load the main zone's scene in the background once the map is up (unless a deep link takes over).
+  const first = parseHash(location.hash.slice(1));
+  if (first) {
+    // deep link: no intro and no title
+    $('top').classList.remove('is-intro', 'intro-pending');
+    go(first, { scroll: true });
+  } else {
+    const introDone = startIntro(mapCtl);
+    // the zone scene warms up only after the flight, so it never competes with it for the GPU
+    Promise.race([introDone, sleep(15000)]).then(() => stage.warm('z1'));
+  }
+
+  /* ---- intro satelital (js/intro.js) + título. Only when the page opens without a hash. ---- */
+  function startIntro(ctl) {
+    const top = $('top');
+    const clear = () => top.classList.remove('is-intro', 'intro-pending');
+    const map = ctl ? ctl.map || globalThis.__caudalMap || null : null;
+    // reduced motion (or no map): no flight, static title over the home view
+    if (RM || !ctl) {
+      clear();
+      introP = import('./intro.js')
+        .then(m => {
+          const t = m.showTitle({ stage: top, map });
+          return { done: Promise.resolve({ title: t, reason: RM ? 'reduced-motion' : 'fallback' }), hideTitle: () => t?.hide?.('external'), title: t };
+        })
+        .catch(err => { console.error('[Caudal] title:', err); return null; });
+      return introP.then(i => i?.done);
+    }
+    // move to the far-out globe camera and hide the markers before the map is shown (intro.js does it
+    // too; doing it here guarantees the first visible frame is already the planet)
+    try {
+      ctl.setMarkersVisible?.(false);
+      const cam = ctl.introStartCamera?.();
+      if (cam && map) map.jumpTo(cam);
+    } catch (e) { console.warn('[Caudal] intro start camera:', e); }
+    introP = import('./intro.js')
+      .then(m => m.initIntro({
+        stage: top,
+        mapCtl: ctl,
+        map,                              // older intro.js signature
+        nav: top.querySelector('.nav'),
+        skip: false,
+        onDone: () => { introFinished = true; },
+      }))
+      .then(i => {
+        requestAnimationFrame(() => top.classList.remove('intro-pending'));
+        if (i?.done) i.done.then(() => { introFinished = true; }, () => { introFinished = true; });
+        else introFinished = true;
+        return i;
+      })
+      .catch(err => {
+        console.error('[Caudal] intro:', err);
+        introFinished = true;
+        clear();
+        try { ctl.setMarkersVisible?.(true); ctl.flyHome?.({ duration: 0 }); } catch (_) { /* opcional */ }
+        return null;
+      });
+    // safety net: never leave the map hidden
+    setTimeout(() => top.classList.remove('intro-pending'), 4000);
+    return introP.then(i => i?.done).catch(() => null);
+  }
+
+  function parseHash(h) {
+    if (!h) return null;
+    const k = zkey(h);
+    if (ZONA_IDS.includes(k)) return { kind: 'zona', zona: k };
+    if (/^caso-/i.test(h)) return { kind: 'caso', expediente: decodeURIComponent(h.slice(5)) };
+    if (k === LAGOON_ID) return { kind: 'lagoon' };
+    return null;
+  }
+  function go(t, opts) {
+    hideTitle();
+    if (t.kind === 'zona') return stage.goZona(t.zona, opts);
+    if (t.kind === 'caso') return stage.goCaso(t.expediente, opts);
+    if (t.kind === 'lagoon') return heroP.then(() => stage.goLagoon(opts));
+  }
+  addEventListener('hashchange', () => { const t = parseHash(location.hash.slice(1)); if (t) go(t, { scroll: true }); });
 }
 
 boot();

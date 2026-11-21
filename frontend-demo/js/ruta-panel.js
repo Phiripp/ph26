@@ -1,13 +1,19 @@
 // Caudal · panel de ruta de inspección (la decisión física del sistema).
-import { BAND_SHORT, fmtNum, fmtMin, esc } from './petorca-data.js';
+import { BAND_SHORT, fmtNum, esc } from './zona-data.js';
 
 export function renderRuta(el, data, { onPlay, onStop, onGPX } = {}) {
   if (!el) return null;
   const r = data.ruta;
+  if (!r || !(r.paradas || []).length) {
+    el.innerHTML = `<p class="pn-note">Sin ruta de inspección para esta zona todavía.</p>`;
+    return { setActiveStop() {}, setProgress() {} };
+  }
   const paradas = (r.paradas || []).slice().sort((a, b) => a.orden - b.orden);
   const ini = r.inicio || {};
   const reg = r.regreso || {};
-  const banda = s => s.banda || data.byId.get(s.predio_id)?.properties.banda || 'baja';
+  const banda = s => s.banda || data.byId.get(String(s.predio_id))?.properties.banda || 'baja';
+  const lab = s => { const p = data.byId.get(String(s.predio_id))?.properties; return p?.rol || s.rol || s.predio_id; };
+  const caso = s => data.byId.get(String(s.predio_id))?.properties.caso;
 
   // Google Maps directions: start → stops in optimized order → back to start (driving).
   const ll = p => `${(+p.lat).toFixed(6)},${(+p.lon).toFixed(6)}`;
@@ -26,9 +32,9 @@ export function renderRuta(el, data, { onPlay, onStop, onGPX } = {}) {
     <div class="pn-prog" aria-hidden="true"><i></i></div>
     <ol class="pn-stops">
       <li class="pn-stop pn-stop-base"><span class="pn-ord">⌂</span><span class="pn-st-main"><b>${esc(ini.nombre || 'Inicio')}</b><small>Salida ${esc(ini.hora || '')}</small></span></li>
-      ${paradas.map(s => `<li><button type="button" class="pn-stop" data-orden="${s.orden}" data-id="${esc(s.predio_id)}" aria-label="Parada ${s.orden}: predio ${esc(s.predio_id)}">
+      ${paradas.map(s => `<li><button type="button" class="pn-stop" data-orden="${s.orden}" data-id="${esc(s.predio_id)}" aria-label="Parada ${s.orden}: rol ${esc(lab(s))}">
         <span class="pn-ord">${s.orden}</span>
-        <span class="pn-st-main"><b>${esc(s.predio_id)}</b> <span class="pn-pill pn-${banda(s)}">${esc(BAND_SHORT[banda(s)] || '')}</span></span>
+        <span class="pn-st-main"><b>${esc(lab(s))}</b> <span class="pn-pill pn-${banda(s)}">${esc(BAND_SHORT[banda(s)] || '')}</span>${caso(s) ? '<span class="pn-caso">Caso</span>' : ''}</span>
         <span class="pn-st-time"><b>${esc(s.llegada)}</b></span>
       </button></li>`).join('')}
       <li class="pn-stop pn-stop-base"><span class="pn-ord">⌂</span><span class="pn-st-main"><b>${esc(reg.nombre || 'Regreso')}</b><small>${fmtNum(+(reg.distancia_km_acum ?? r.distancia_km), 1)} km</small></span><span class="pn-st-time"><b>${esc(reg.llegada || '')}</b></span></li>
@@ -37,8 +43,8 @@ export function renderRuta(el, data, { onPlay, onStop, onGPX } = {}) {
       <button type="button" class="btn primary" data-act="play">▶ Recorrer ruta</button>
       ${gmapsUrl ? `<a class="btn" data-act="gmaps" href="${esc(gmapsUrl)}" target="_blank" rel="noopener">Abrir en Google Maps ↗</a>` : ''}
     </div>
-    <p class="pn-note"><a data-act="gpx" href="${esc(data.gpxUrl || data.base + 'ruta.gpx')}" download="caudal-ruta-petorca.gpx">Descargar GPX</a> para otras apps de navegación.</p>
-    <p class="pn-note">Orden óptimo (OR-Tools) sobre caminos reales. Es la decisión física del sistema.</p>`;
+    <p class="pn-note"><a data-act="gpx" href="${esc(data.gpxUrl || data.base + 'ruta.gpx')}" download="caudal-ruta-${esc(data.id || 'zona')}.gpx">Descargar GPX</a> para otras apps de navegación.</p>
+    <p class="pn-note">Orden óptimo (OR-Tools) sobre caminos reales, priorizando bandas provisionales alta y media.</p>`;
 
   const playBtn = el.querySelector('[data-act="play"]');
   const bar = el.querySelector('.pn-prog i');

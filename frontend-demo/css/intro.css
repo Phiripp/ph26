@@ -1,0 +1,222 @@
+/* ==========================================================================
+   intro.css — satellite intro overlay + animated landing title (PLACEHOLDER)
+   Load AFTER css/styles.css (uses its tokens: --void --water --ink --dim
+   --f-display --f-body --f-mono --ease --gutter, and the .wrap container).
+
+   Layering inside header.stage (see styles.css):
+     #map 0 · canvases 1 · scrim/grain 2 · hud-frame 3 · hud-meta 4
+     nav / stage-top / stage-bottom 5 · valle-panel 6
+     .intro-title 4   (over the map, under nav + bottom HUD)
+     .intro-overlay 8 (dark cover, then transparent input blocker + satellite canvas)
+     .intro-skip 9
+   ========================================================================== */
+
+/* --------------------------------------------------------------------------
+   1. Intro overlay (js/intro.js + js/intro/satlayer.js)
+   The intro plays on the live map (MapLibre globe). The overlay starts as a
+   dark cover while the globe draws its first frame, then turns transparent
+   (.is-clear) and only blocks input; the satellite canvas inside it lets the
+   map show through.
+   -------------------------------------------------------------------------- */
+.intro-overlay{
+  position:absolute;inset:0;z-index:8;overflow:hidden;
+  background:var(--void,#05080b);
+  transition:background-color .7s var(--ease,cubic-bezier(.2,.7,.2,1));
+  touch-action:none;cursor:default;
+}
+.intro-overlay.is-clear{background-color:rgba(5,8,11,0)}
+.intro-canvas{position:absolute;inset:0;width:100%;height:100%;display:block;pointer-events:none}
+
+/* single discreet label ("SENTINEL-2 · 786 km") that follows the satellite
+   (js/intro.js sets transform: translate(x, y)) */
+.intro-tag{
+  position:absolute;left:0;top:0;z-index:1;pointer-events:none;white-space:nowrap;
+  display:inline-flex;align-items:center;gap:8px;
+  font:500 10.5px/1 var(--f-mono,ui-monospace,monospace);letter-spacing:.14em;text-transform:uppercase;
+  color:var(--ink,#e4ebee);opacity:0;transition:opacity .5s var(--ease,ease);
+  padding:6px 9px;background:rgba(5,8,11,.55);border:1px solid rgba(69,214,238,.28);
+  backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px);
+}
+.intro-tag::before{content:"";width:6px;height:6px;border-radius:50%;background:var(--water,#45d6ee);box-shadow:0 0 10px var(--water,#45d6ee)}
+.intro-tag.is-on{opacity:.9}
+
+/* "Saltar intro" — bottom-right, discreet */
+.intro-skip{
+  position:absolute;z-index:9;
+  right:max(16px,env(safe-area-inset-right,0px));
+  bottom:max(18px,env(safe-area-inset-bottom,0px));
+  display:inline-flex;align-items:center;gap:8px;cursor:pointer;
+  font:500 11px/1 var(--f-mono,ui-monospace,monospace);letter-spacing:.12em;text-transform:uppercase;
+  color:var(--dim,#8b9ba4);background:rgba(5,8,11,.5);
+  border:1px solid rgba(139,155,164,.28);padding:9px 12px;
+  backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);
+  transition:color .2s,border-color .2s,opacity .4s var(--ease,ease);
+}
+.intro-skip::after{content:"→";font-size:12px;transition:transform .2s}
+.intro-skip:hover,.intro-skip:focus-visible{color:var(--ink,#e4ebee);border-color:var(--water,#45d6ee)}
+.intro-skip:hover::after{transform:translateX(3px)}
+.intro-skip:focus-visible{outline:2px solid var(--water,#45d6ee);outline-offset:2px}
+.intro-skip.is-gone{opacity:0;pointer-events:none}
+@media (min-width:700px){.intro-skip{right:max(28px,env(safe-area-inset-right,0px));bottom:max(26px,env(safe-area-inset-bottom,0px))}}
+
+/* While the satellite part plays, the stage chrome is hidden; it fades back in
+   with the title. js/intro.js toggles .is-intro on header.stage. */
+.stage .nav,.stage .hud-meta,.stage .stage-bottom,.stage .hud-frame{transition:opacity .7s var(--ease,ease)}
+.stage.is-intro .nav,
+.stage.is-intro .hud-meta,
+.stage.is-intro .stage-bottom,
+.stage.is-intro .hud-frame{opacity:0;pointer-events:none}
+.stage.is-intro .stage-bottom *{pointer-events:none!important}
+/* map chrome during the flight: controls, attribution and (fallback for
+   mapCtl.setMarkersVisible) the HTML markers */
+.stage .maplibregl-ctrl-top-right,.stage .maplibregl-ctrl-bottom-right,.stage .maplibregl-ctrl-bottom-left{transition:opacity .7s var(--ease,ease)}
+.stage.is-intro .maplibregl-ctrl-top-right,
+.stage.is-intro .maplibregl-ctrl-bottom-right,
+.stage.is-intro .maplibregl-ctrl-bottom-left,
+.stage.is-intro .maplibregl-marker{opacity:0!important;pointer-events:none!important}
+/* generic helper for an arbitrary element passed as `nav` */
+.intro-nav-hidden{opacity:0!important;pointer-events:none!important;transition:opacity .7s var(--ease,ease)}
+
+/* --------------------------------------------------------------------------
+   2. Animated title (js/intro-title.js) — PLACEHOLDER copy, final design TBD
+   Base styles = END state, so prefers-reduced-motion simply drops animations.
+   -------------------------------------------------------------------------- */
+.intro-title{
+  --it-size:clamp(50px,7.4vw,132px);
+  --it-water:#45d6ee;
+  --it-water-hi:#c9f7ff;
+  --it-water-lo:#0f7e96;
+  --it-d:0ms;                 /* global start delay, set from JS */
+  position:absolute;inset:0;z-index:4;pointer-events:none;
+  display:flex;align-items:center;
+  transition:opacity .4s var(--ease,ease),transform .4s var(--ease,ease),filter .4s var(--ease,ease);
+}
+/* soft scrim on the left so the title reads over satellite imagery */
+.intro-title::before{
+  content:"";position:absolute;inset:0;pointer-events:none;
+  background:radial-gradient(ellipse 52% 62% at 14% 52%,rgba(5,8,11,.62) 0%,rgba(5,8,11,.28) 48%,rgba(5,8,11,0) 75%);
+  animation:it-fade .9s var(--ease,ease) var(--it-d) both;
+}
+.intro-title .it-wrap{position:relative;width:100%;margin-top:-2vh}
+.intro-title .it-block{max-width:min(46vw,640px)}
+
+/* kicker: "● PLATANUS HACK 26 · PHYSICAL WORLD ———" */
+.it-kicker{
+  display:flex;align-items:center;gap:10px;margin:0 0 clamp(10px,1.4vw,18px);
+  font:500 clamp(10px,.85vw,12px)/1 var(--f-mono,monospace);letter-spacing:.2em;text-transform:uppercase;
+  color:var(--water,#45d6ee);
+  animation:it-fade-up .7s var(--ease,ease) var(--it-d) both;
+}
+.it-kicker .it-dot{width:7px;height:7px;border-radius:50%;background:currentColor;box-shadow:0 0 0 0 rgba(69,214,238,.6);animation:it-pulse 2.4s ease-out calc(var(--it-d) + 600ms) 2}
+.it-kicker .it-rule{flex:0 0 clamp(28px,4vw,64px);height:1px;background:linear-gradient(90deg,currentColor,transparent);transform-origin:left;animation:it-draw .9s var(--ease,ease) calc(var(--it-d) + 250ms) both}
+
+/* the word */
+.it-name{
+  position:relative;margin:0;padding:0;display:inline-block;white-space:nowrap;
+  font-family:var(--f-display,"Archivo",sans-serif);font-stretch:125%;font-weight:850;
+  font-size:var(--it-size);line-height:.9;letter-spacing:.035em;
+  font-kerning:none;font-variant-ligatures:none;  /* keeps letters and shine layer aligned */
+  color:var(--ink,#e4ebee);
+}
+/* each letter sits in a clipping slot so it rises from a baseline "horizon" */
+.it-slot{display:inline-block;overflow:hidden;vertical-align:top;padding:.04em 0 .06em;margin:-.04em 0 -.06em}
+.it-ch{
+  display:inline-block;
+  /* outline + water filling from the bottom (gradient lower half = water) */
+  color:transparent;-webkit-text-fill-color:transparent;
+  -webkit-text-stroke:max(1px,.012em) rgba(201,247,255,.85);
+  background-image:linear-gradient(180deg,
+    rgba(69,214,238,0) 0 50%,
+    var(--it-water-hi) 50%,
+    var(--it-water) 62%,
+    var(--it-water-lo) 100%);
+  background-size:100% 200%;background-repeat:no-repeat;
+  background-position:0 100%;            /* END: full of water */
+  -webkit-background-clip:text;background-clip:text;
+  animation:
+    it-rise .8s cubic-bezier(.16,.84,.24,1) calc(var(--it-d) + 150ms + var(--i) * 70ms) both,
+    it-fill 1.3s cubic-bezier(.45,.05,.25,1) calc(var(--it-d) + 750ms + var(--i) * 95ms) both;
+}
+/* shine sweep: a single text run (content from data-text) with a moving light band */
+.it-name::after{
+  content:attr(data-text);position:absolute;left:0;top:0;pointer-events:none;
+  padding:.04em 0 .06em;margin-top:-.04em; /* match .it-slot box */
+  color:transparent;-webkit-text-fill-color:transparent;
+  background-image:linear-gradient(105deg,transparent 0 38%,rgba(255,255,255,.0) 40%,rgba(255,255,255,.95) 48%,rgba(201,247,255,.55) 52%,transparent 60% 100%);
+  background-size:260% 100%;background-repeat:no-repeat;background-position:120% 0;
+  -webkit-background-clip:text;background-clip:text;
+  mix-blend-mode:screen;
+  animation:it-shine 1.5s cubic-bezier(.4,0,.2,1) calc(var(--it-d) + 1900ms) 1 both; /* once: nothing loops after the intro */
+}
+/* underline: thin cyan line drawing left→right with a glowing head */
+.it-line{
+  position:relative;display:block;height:2px;margin:clamp(12px,1.5vw,20px) 0 clamp(14px,1.6vw,22px);
+  width:min(100%,calc(var(--it-size) * 5.4));
+  background:linear-gradient(90deg,var(--water,#45d6ee) 0%,rgba(69,214,238,.55) 70%,rgba(69,214,238,0) 100%);
+  transform-origin:left center;
+  animation:it-draw 1s cubic-bezier(.7,0,.2,1) calc(var(--it-d) + 1500ms) both;
+}
+.it-line::after{
+  content:"";position:absolute;left:100%;top:50%;width:6px;height:6px;margin:-3px 0 0 -3px;border-radius:50%;
+  background:#dffaff;box-shadow:0 0 12px 3px rgba(69,214,238,.85);
+  opacity:0;animation:it-head 1s cubic-bezier(.7,0,.2,1) calc(var(--it-d) + 1500ms) both;
+}
+/* tagline: chars appear one by one (spans built in JS, --c = index) */
+.it-tagline{
+  margin:0;max-width:30ch;
+  font:400 clamp(16px,1.55vw,23px)/1.3 var(--f-body,sans-serif);letter-spacing:.005em;color:var(--ink,#e4ebee);
+  text-wrap:balance;
+}
+.it-tagline .it-c{display:inline;animation:it-type .28s ease-out calc(var(--it-d) + 2050ms + var(--c) * 30ms) both}
+.it-sub{
+  margin:10px 0 0;font:400 11px/1.4 var(--f-mono,monospace);letter-spacing:.12em;text-transform:uppercase;color:var(--dim,#8b9ba4);
+  animation:it-fade .8s var(--ease,ease) calc(var(--it-d) + 2900ms) both;
+}
+.it-sub:empty{display:none}
+
+/* leaving (first map interaction) */
+.intro-title.is-leaving{opacity:0;transform:translateX(-28px);filter:blur(6px)}
+.intro-title.is-leaving::before{opacity:0;transition:opacity .4s}
+
+/* narrow screens: Chile occupies the centre column, so the title goes to the
+   top, smaller, with a top-down scrim */
+@media (max-width:699px){
+  .intro-title{align-items:flex-start;--it-size:clamp(38px,12.5vw,70px)} /* leaves room for the map zoom control on the right */
+  .intro-title .it-wrap{margin-top:calc(env(safe-area-inset-top,0px) + 112px)}
+  .intro-title .it-block{max-width:100%}
+  .intro-title::before{background:linear-gradient(180deg,rgba(5,8,11,.72) 0%,rgba(5,8,11,.45) 38%,rgba(5,8,11,0) 62%)}
+  .it-tagline{font-size:15px}
+  .it-sub{display:none}
+}
+
+/* keyframes (all animate FROM a start state TO the base/end state) */
+@keyframes it-fade{from{opacity:0}}
+@keyframes it-fade-up{from{opacity:0;transform:translateY(8px)}}
+@keyframes it-rise{
+  from{transform:translateY(105%) skewY(6deg);opacity:0}
+  60%{opacity:1}
+}
+@keyframes it-fill{from{background-position:0 0%}}
+@keyframes it-shine{
+  from{background-position:120% 0}
+  to{background-position:-20% 0}
+}
+@keyframes it-draw{from{transform:scaleX(0)}}
+/* the head rides the scaled line's right edge (left:100% inside the scaled box) */
+@keyframes it-head{
+  0%{opacity:0}
+  25%{opacity:1}
+  85%{opacity:1}
+  100%{opacity:0}
+}
+@keyframes it-type{from{opacity:0;filter:blur(3px)}}
+@keyframes it-pulse{
+  0%{box-shadow:0 0 0 0 rgba(69,214,238,.55)}
+  70%,100%{box-shadow:0 0 0 9px rgba(69,214,238,0)}
+}
+
+@media (prefers-reduced-motion:reduce){
+  .intro-title,.intro-title *,.intro-title::before,.intro-title *::before,.intro-title *::after{animation:none!important;transition:none!important}
+  .it-name::after{display:none}
+  .intro-overlay,.intro-skip,.intro-tag{transition:none}
+}

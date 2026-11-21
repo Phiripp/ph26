@@ -1,11 +1,34 @@
-// Caudal — mapa nacional (MapLibre, global UMD)
-// export async function initMap({ container, sites, onSelect })
+// Caudal — mapa nacional (MapLibre GL JS 5.x, global UMD; version in ../.maplibre-version)
+// export async function initMap({ container, sites, casos?, onSelect })
 //   -> { map, select(id), flyToSite(id, opts) -> Promise, flyHome(opts) -> Promise,
-//        flyToBounds([w,s,e,n], opts) -> Promise, setLagoon(on), setValley(on) }
+//        flyToBounds([w,s,e,n], opts) -> Promise, setLagoon(on), setValley(on),
+//        getHomeCamera() -> {center, zoom, pitch, bearing},
+//        introStartCamera() -> {center, zoom, pitch, bearing}  (far-out globe; lifts the zoom/pan
+//          limits until the camera is back at the home zoom, flyHome() or setMarkersVisible(true)),
+//        setMarkersVisible(bool)  (false: markers, clusters, site glow and fiscalization hidden),
+//        zonas: [{id, codigo, name, casos, lon, lat}], casos: [...] }
 // select(id) only highlights (no camera move); main.js decides the flights.
-// Sites with `valle` (e.g. Petorca) get a cyan "VALLE" marker; they and Aculeo ("3D") are never
-// clustered. Other markers whose dots overlap on screen collapse into a count bubble that zooms
-// in on its members when clicked.
+//
+// Projection: globe ("vertical-perspective") when zoomed far out, blending into flat Mercator
+// before the zoom-out floor, so the intro starts on a planet and every interactive view (home
+// included) looks exactly like the flat map.
+//
+// Markers (landing):
+//   · zones (sites with kind:"zona", or `valle` for back-compat): cyan ring + "ZONA" badge, label
+//     "Z1 · Petorca · 7 casos" always on. Never clustered; when two zones overlap on screen they
+//     are pushed apart (Z1/Z2 are ~40 km apart, a dozen px at the national zoom).
+//   · Aculeo ("3D" hook): red dot, never clustered.
+//   · the 10 validation cases (data/zonas/casos.json, fallback data/sites.json `casos`): hidden
+//     below CASES_MIN_ZOOM (at the national view they are reached through the zone markers, the
+//     panel and deep links), then small white/red dots, label "FD-0501-181 · Cabildo" on hover/focus/selection (always from zoom
+//     CASE_LABEL_ZOOM). Overlapping cases collapse into a count bubble that zooms in on them;
+//     from SPREAD_ZOOM on they never cluster: coincident ones fan out around their mean point.
+//   · DGA fiscalization points (data/zonas/fiscalizaciones.geojson) as a MapLibre circle layer
+//     from zoom FISC_MIN_ZOOM (positivo red, negativo grey, en trámite amber), hidden in 3D modes.
+// onSelect(site): zone -> {kind:"zona", zona:"z1", id:"z1", ...}; case -> {kind:"caso",
+//   expediente, zona, id:"caso-<expediente>", ...}; Aculeo -> the sites.json entry {id:"aculeo"}.
+// Marker ids accepted by select/flyToSite: "z1", "z2", "aculeo", "caso-<expediente>" or the bare
+// expediente; "petorca" is an alias of "z1".
 //
 // Base: Chile in Sentinel-2 cloudless imagery with relief; neighbouring countries as dark
 // landmasses, the ocean in the page background colour. Imagery comes from the local tile cache
@@ -19,6 +42,11 @@ const URL_OF = (p) => new URL(p, import.meta.url).href;
 const CHILE_URL = URL_OF('../data/chile.geojson');
 const WORLD_URL = URL_OF('../data/world.geojson');
 const TILES_INDEX_URL = URL_OF('../tiles/index.json');
+const CASOS_URL = URL_OF('../data/zonas/casos.json');
+const FISC_URL = URL_OF('../data/zonas/fiscalizaciones.geojson');
+const ZONAS_INDEX_URL = URL_OF('../data/zonas/index.json');
+const ZONAS_BBOX_URL = URL_OF('../data/zonas/bbox.json');
+const SITES_URL = URL_OF('../data/sites.json');
 // Local tiles go through the caudal-tile:// protocol (see registerLocalProtocol): tiles listed in
 // tiles/index.json come from disk, anything else gets a blank tile without touching the network.
 const LOCAL_S2 = 'caudal-tile://s2/{z}/{x}/{y}';
@@ -43,6 +71,7 @@ const terrainExag = (z) => {
 };
 const HILLSHADE_EXAG = ['interpolate', ['linear'], ['zoom'], 4, 0.6, 8, 0.45, 11, 0.35];
 const BG = '#05080b';
+const OCEAN_GLOBE = '#0b1820';      // ocean on the far-out globe, a step above the space colour
 const LAND = '#0d1216';
 const LAND_LINE = '#24303a';
 const CYAN = '#45d6ee';
@@ -65,9 +94,31 @@ const PAN_LAT = [-60, -8];          // pan limits (lat); lon limits are derived 
 const AUTO_LABEL_ZOOM = 6.3;        // from here on labels show by themselves (collision-filtered)
 const LABEL_GAP_PX = 40;            // two labels closer than this on screen: keep the higher loss
 const CLUSTER_PX = 26;              // two (non-anchor) dots closer than this on screen cluster
-const ANCHOR_CLEAR_PX = 30;         // cluster bubbles are pushed this far from Aculeo / valley markers
+const ANCHOR_CLEAR_PX = 30;         // cluster bubbles are pushed this far from Aculeo / zone markers
+const ANCHOR_SEP_PX = 38;           // two zone/anchor markers closer than this are pushed apart
+const CASE_LABEL_ZOOM = 10;         // case labels show by themselves from here on
+const SPREAD_ZOOM = 10.5;           // from here on cases never cluster; coincident ones fan out
+const SPREAD_R = 13;                // fan-out radius (px)
+const FISC_MIN_ZOOM = 8;            // DGA fiscalization points show from here on
+const CASES_MIN_ZOOM = 7;           // validation-case markers (and their clusters) show from here on
+const GLOBE_SPAN = 1.2;             // min zoom levels over which the globe flattens into Mercator
+const INTRO_CENTER = [-63, -10];    // intro camera: South America with Chile below centre (the
+                                    // unrendered south-pole cap stays hidden on the limb)
+const GREY = '#8a979e';
+const ZONE_SIZE = 16, ACULEO_SIZE = 14, CASE_SIZE = 9;
 
 const sevColor = (loss) => (loss >= 85 ? RED : AMBER);
+const EMPTY_FC = { type: 'FeatureCollection', features: [] };
+const titleCase = (s) => String(s || '').toLowerCase().replace(/(^|[\s-])(\p{L})/gu, (_, a, b) => a + b.toUpperCase());
+const fmtUTM = (v) => (Number.isFinite(+v) ? (+v).toLocaleString('es-CL', { maximumFractionDigits: 1 }) + ' UTM' : '');
+const fmtDate = (iso) => {
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(iso || ''));
+  return m ? `${m[3]}-${m[2]}-${m[1]}` : '';
+};
+/** "FD-0501-181" -> "FD-181" */
+const shortExp = (e) => { const p = String(e || '').split('-'); return p.length >= 3 ? `${p[0]}-${p[p.length - 1]}` : String(e || ''); };
+const caseId = (exp) => 'caso-' + exp;
+const zoneKey = (z) => String(z || '').toLowerCase();
 
 function fetchTimeout(url, ms, init = {}) {
   const ctl = 'AbortController' in window ? new AbortController() : null;
@@ -138,6 +189,146 @@ function blankTile(kind) {
   }
   return blankCache[kind].then((buf) => buf.slice(0));
 }
+/**
+ * caudal-sat://{z}/{x}/{y}: Chile-only satellite imagery. Nothing outside Chile is ever loaded or
+ * drawn — there is no mask "covering" other countries, the background is simply all there is.
+ *  - z <= local maxzoom: tile from the local cache if listed, otherwise transparent (no request).
+ *  - z  > local maxzoom: remote EOX (or Esri after repeated failures) only when the tile's ancestor
+ *    at the local max zoom is in the cached Chile tile set; otherwise transparent (no request).
+ *  - Every loaded tile is clipped per pixel to the Chile polygon, so border tiles show no Argentina.
+ */
+const SAT = { rings: null, remote: 'eox' };
+const EOX_URL = (z, x, y) => `https://tiles.maps.eox.at/wmts/1.0.0/s2cloudless-2023_3857/default/g/${z}/${y}/${x}.jpg`;
+const ESRI_URL = (z, x, y) => `https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/${z}/${y}/${x}`;
+const lon2tx = (lon, z) => ((lon + 180) / 360) * 2 ** z;
+const lat2ty = (lat, z) => {
+  const r = (lat * Math.PI) / 180;
+  return ((1 - Math.log(Math.tan(r) + 1 / Math.cos(r)) / Math.PI) / 2) * 2 ** z;
+};
+function prepareChileRings(chile) {
+  SAT.rings = polysOf(chile).map((poly) => {
+    let w = 180, e = -180, s = 90, n = -90;
+    for (const [lo, la] of poly[0]) { if (lo < w) w = lo; if (lo > e) e = lo; if (la < s) s = la; if (la > n) n = la; }
+    return { poly, w, e, s, n };
+  });
+}
+let transparentTile = null;
+function blankTransparent() {
+  if (!transparentTile) {
+    transparentTile = new Promise((resolve, reject) => {
+      const c = document.createElement('canvas');
+      c.width = c.height = 1;
+      c.toBlob((b) => (b ? b.arrayBuffer().then(resolve, reject) : reject(new Error('blank'))), 'image/png');
+    });
+  }
+  return transparentTile.then((buf) => buf.slice(0));
+}
+/** Draw the tile and keep only the pixels inside Chile. Returns PNG bytes, or null if no overlap. */
+async function clipToChile(buf, z, x, y) {
+  if (!SAT.rings) return buf;
+  // tile bounds in lon/lat
+  const n2 = 2 ** z;
+  const w = (x / n2) * 360 - 180, e = ((x + 1) / n2) * 360 - 180;
+  const merc = (t) => (Math.atan(Math.sinh(Math.PI * (1 - (2 * t) / n2))) * 180) / Math.PI;
+  const nLat = merc(y), sLat = merc(y + 1);
+  const hits = SAT.rings.filter((r) => r.e >= w && r.w <= e && r.n >= sLat && r.s <= nLat);
+  if (!hits.length) return null;
+  const bmp = await createImageBitmap(new Blob([buf]));
+  const S = bmp.width || 256;
+  const c = typeof OffscreenCanvas === 'function' ? new OffscreenCanvas(S, S) : Object.assign(document.createElement('canvas'), { width: S, height: S });
+  const g = c.getContext('2d');
+  g.drawImage(bmp, 0, 0, S, S);
+  bmp.close && bmp.close();
+  g.globalCompositeOperation = 'destination-in';
+  g.beginPath();
+  for (const { poly } of hits) {
+    for (const ring of poly) {
+      ring.forEach(([lo, la], i) => {
+        const px = (lon2tx(lo, z) - x) * S, py = (lat2ty(la, z) - y) * S;
+        if (i) g.lineTo(px, py); else g.moveTo(px, py);
+      });
+      g.closePath();
+    }
+  }
+  g.fillStyle = '#000';
+  g.fill('evenodd');
+  const blob = c.convertToBlob ? await c.convertToBlob({ type: 'image/png' }) : await new Promise((r) => c.toBlob(r, 'image/png'));
+  return blob.arrayBuffer();
+}
+function registerSatProtocol(maplibregl, local) {
+  if (registerSatProtocol.done || typeof maplibregl.addProtocol !== 'function') return;
+  registerSatProtocol.done = true;
+  maplibregl.addProtocol('caudal-sat', async (params, abortController) => {
+    const m = /^caudal-sat:\/\/(\d+)\/(\d+)\/(\d+)/.exec(params.url);
+    if (!m) throw new Error('bad tile url ' + params.url);
+    const z = +m[1], x = +m[2], y = +m[3];
+    const s2 = local && local.s2;
+    let url = null;
+    if (s2 && s2.keys) {
+      if (z <= s2.maxzoom) {
+        if (s2.keys.has(`${z}/${x}/${y}`)) url = LOCAL_FILE.s2(`${z}/${x}/${y}`);
+      } else {
+        const d = z - s2.maxzoom;
+        if (s2.keys.has(`${s2.maxzoom}/${x >> d}/${y >> d}`)) url = (SAT.remote === 'esri' ? ESRI_URL : EOX_URL)(z, x, y);
+      }
+    } else {
+      url = (SAT.remote === 'esri' ? ESRI_URL : EOX_URL)(z, x, y);
+    }
+    if (!url) return { data: await blankTransparent() };
+    const r = await fetch(url, { signal: abortController && abortController.signal });
+    if (!r.ok) {
+      if (z > ((s2 && s2.maxzoom) || 0)) throw new Error('remote tile ' + r.status); // lets the Esri fallback count errors
+      return { data: await blankTransparent() };
+    }
+    const clipped = await clipToChile(await r.arrayBuffer(), z, x, y);
+    return { data: clipped || (await blankTransparent()) };
+  });
+}
+
+/** Same clip for the hillshade DEM: outside Chile the elevation becomes flat 0 m, so no relief
+ *  (ocean floor, Argentine Andes) is ever shaded there. Terrarium 0 m = rgb(128,0,0). */
+async function clipDemToChile(buf, z, x, y) {
+  if (!SAT.rings) return buf;
+  const bmp = await createImageBitmap(new Blob([buf]));
+  const S = bmp.width || 256;
+  const c = typeof OffscreenCanvas === 'function' ? new OffscreenCanvas(S, S) : Object.assign(document.createElement('canvas'), { width: S, height: S });
+  const g = c.getContext('2d');
+  g.drawImage(bmp, 0, 0, S, S);
+  bmp.close && bmp.close();
+  const n2 = 2 ** z;
+  const w = (x / n2) * 360 - 180, e = ((x + 1) / n2) * 360 - 180;
+  const merc = (t) => (Math.atan(Math.sinh(Math.PI * (1 - (2 * t) / n2))) * 180) / Math.PI;
+  const hits = SAT.rings.filter((r) => r.e >= w && r.w <= e && r.n >= merc(y + 1) && r.s <= merc(y));
+  g.globalCompositeOperation = 'destination-in';
+  g.beginPath();
+  for (const { poly } of hits) for (const ring of poly) {
+    ring.forEach(([lo, la], i) => { const px = (lon2tx(lo, z) - x) * S, py = (lat2ty(la, z) - y) * S; if (i) g.lineTo(px, py); else g.moveTo(px, py); });
+    g.closePath();
+  }
+  g.fillStyle = '#000';
+  if (hits.length) g.fill('evenodd'); else g.clearRect(0, 0, S, S);
+  g.globalCompositeOperation = 'destination-over';
+  g.fillStyle = 'rgb(128,0,0)';
+  g.fillRect(0, 0, S, S);
+  const blob = c.convertToBlob ? await c.convertToBlob({ type: 'image/png' }) : await new Promise((r) => c.toBlob(r, 'image/png'));
+  return blob.arrayBuffer();
+}
+function registerHillshadeProtocol(maplibregl, local) {
+  if (registerHillshadeProtocol.done || typeof maplibregl.addProtocol !== 'function') return;
+  registerHillshadeProtocol.done = true;
+  maplibregl.addProtocol('caudal-hs', async (params, abortController) => {
+    const m = /^caudal-hs:\/\/(\d+)\/(\d+)\/(\d+)/.exec(params.url);
+    if (!m) throw new Error('bad tile url ' + params.url);
+    const z = +m[1], x = +m[2], y = +m[3], key = `${z}/${x}/${y}`;
+    const keys = local.dem && local.dem.keys;
+    if (keys && !keys.has(key)) return { data: await blankTile('dem') };
+    const url = local.dem ? LOCAL_FILE.dem(key) : `https://s3.amazonaws.com/elevation-tiles-prod/terrarium/${key}.png`;
+    const r = await fetch(url, { signal: abortController && abortController.signal });
+    if (!r.ok) return { data: await blankTile('dem') };
+    return { data: await clipDemToChile(await r.arrayBuffer(), z, x, y) };
+  });
+}
+
 function registerLocalProtocol(maplibregl, local) {
   if (registerLocalProtocol.done || typeof maplibregl.addProtocol !== 'function') return;
   registerLocalProtocol.done = true;
@@ -153,9 +344,25 @@ function registerLocalProtocol(maplibregl, local) {
   });
 }
 
+/** Globe far out, flat Mercator from just below the zoom-out floor (homeZoom - ZOOM_OUT_ROOM). */
+function globeStops(homeZoom, introZoom) {
+  const flat = Math.max(1.5, homeZoom - ZOOM_OUT_ROOM - 0.05);
+  const globe = Math.max(0, Math.min(introZoom + 0.05, flat - GLOBE_SPAN));
+  return { globe, flat };
+}
+function projectionFor(homeZoom, introZoom) {
+  const { globe, flat } = globeStops(homeZoom, introZoom);
+  return { type: ['interpolate', ['linear'], ['zoom'], globe, 'vertical-perspective', flat, 'mercator'] };
+}
+/** Ocean colour: lifted on the globe so the planet reads against space, BG once flat. */
+function oceanFor(homeZoom, introZoom) {
+  const { globe, flat } = globeStops(homeZoom, introZoom);
+  return ['interpolate', ['linear'], ['zoom'], globe, OCEAN_GLOBE, flat, BG];
+}
+
 function buildStyle({ chile, world, local, sitesFC }) {
   const sources = {};
-  const layers = [{ id: 'bg', type: 'background', paint: { 'background-color': BG } }];
+  const layers = [{ id: 'bg', type: 'background', paint: { 'background-color': oceanFor(4.6, 1.8) } }];
   const satPaint = {
     'raster-brightness-max': 0.84,  // a touch darker so amber/red markers pop
     'raster-saturation': -0.12,
@@ -166,23 +373,24 @@ function buildStyle({ chile, world, local, sitesFC }) {
   // ---- relief (terrain + hillshade) ----
   if (local.dem) {
     sources.dem = { type: 'raster-dem', tiles: [LOCAL_DEM], encoding: 'terrarium', tileSize: 256, minzoom: local.dem.minzoom, maxzoom: local.dem.maxzoom, attribution: DEM_ATTR };
-    sources['dem-hs'] = { type: 'raster-dem', tiles: [LOCAL_DEM], encoding: 'terrarium', tileSize: 256, minzoom: local.dem.minzoom, maxzoom: local.dem.maxzoom };
+    sources['dem-hs'] = { type: 'raster-dem', tiles: [chile ? 'caudal-hs://{z}/{x}/{y}' : LOCAL_DEM], encoding: 'terrarium', tileSize: 256, minzoom: local.dem.minzoom, maxzoom: local.dem.maxzoom };
   } else {
     sources.dem = { type: 'raster-dem', tiles: DEM_TILES, encoding: 'terrarium', tileSize: 256, maxzoom: 12, attribution: DEM_ATTR };
-    sources['dem-hs'] = { type: 'raster-dem', tiles: DEM_TILES, encoding: 'terrarium', tileSize: 256, maxzoom: 12 };
+    sources['dem-hs'] = { type: 'raster-dem', tiles: chile ? ['caudal-hs://{z}/{x}/{y}'] : DEM_TILES, encoding: 'terrarium', tileSize: 256, maxzoom: 12 };
   }
 
   if (chile) {
     // ---- Chile satellite: local cache (overzoomed past its max) + remote EOX above it ----
+    // Both sources go through caudal-sat:// (registerSatProtocol): Chile-only, clipped per pixel.
     if (local.s2) {
-      sources['s2-local'] = { type: 'raster', tiles: [LOCAL_S2], tileSize: 256, minzoom: local.s2.minzoom, maxzoom: local.s2.maxzoom, attribution: EOX_ATTR };
-      sources['s2-remote'] = { type: 'raster', tiles: EOX_TILES, tileSize: 256, minzoom: local.s2.maxzoom, maxzoom: 15 };
+      sources['s2-local'] = { type: 'raster', tiles: ['caudal-sat://{z}/{x}/{y}'], tileSize: 256, minzoom: local.s2.minzoom, maxzoom: local.s2.maxzoom, attribution: EOX_ATTR };
+      sources['s2-remote'] = { type: 'raster', tiles: ['caudal-sat://{z}/{x}/{y}'], tileSize: 256, minzoom: local.s2.maxzoom, maxzoom: 15 };
       layers.push(
         { id: 's2-local', type: 'raster', source: 's2-local', paint: satPaint },
         { id: 's2-remote', type: 'raster', source: 's2-remote', minzoom: local.s2.maxzoom + 0.5, paint: satPaint }
       );
     } else {
-      sources['s2-remote'] = { type: 'raster', tiles: EOX_TILES, tileSize: 256, maxzoom: 15, attribution: EOX_ATTR };
+      sources['s2-remote'] = { type: 'raster', tiles: ['caudal-sat://{z}/{x}/{y}'], tileSize: 256, maxzoom: 15, attribution: EOX_ATTR };
       layers.push({ id: 's2-remote', type: 'raster', source: 's2-remote', paint: satPaint });
     }
     layers.push({
@@ -195,9 +403,7 @@ function buildStyle({ chile, world, local, sitesFC }) {
         'hillshade-illumination-direction': 315
       }
     });
-    // everything outside Chile goes back to the dark background
-    sources['world-mask'] = { type: 'geojson', data: worldMinus(chile) };
-    layers.push({ id: 'world-mask', type: 'fill', source: 'world-mask', paint: { 'fill-color': BG, 'fill-opacity': 1, 'fill-antialias': false } });
+    // No mask layer: outside Chile no imagery is ever loaded (caudal-sat clips it at the source).
   }
 
   // ---- neighbouring countries as dark landmasses ----
@@ -228,12 +434,29 @@ function buildStyle({ chile, world, local, sitesFC }) {
     );
   }
 
-  // ---- soft glow under each site (draped on the terrain) ----
+  // ---- DGA fiscalization points (filled in once data/zonas/fiscalizaciones.geojson loads) ----
+  sources.fisc = { type: 'geojson', data: EMPTY_FC, attribution: 'Fiscalizaciones: DGA' };
+  const fiscColor = ['match', ['get', 'etiqueta'], 'positivo', RED, 'en_tramite', AMBER, GREY];
+  layers.push({
+    id: 'fisc', type: 'circle', source: 'fisc', minzoom: FISC_MIN_ZOOM,
+    paint: {
+      'circle-color': fiscColor,
+      'circle-radius': ['interpolate', ['linear'], ['zoom'], FISC_MIN_ZOOM, 2, 10, 3, 12, 4.2],
+      'circle-opacity': ['interpolate', ['linear'], ['zoom'], FISC_MIN_ZOOM, 0, FISC_MIN_ZOOM + 0.4,
+        ['match', ['get', 'etiqueta'], 'positivo', 0.9, 'en_tramite', 0.8, 0.55]],
+      'circle-stroke-color': 'rgba(5,8,11,.85)',
+      'circle-stroke-width': 0.8,
+      'circle-stroke-opacity': ['interpolate', ['linear'], ['zoom'], FISC_MIN_ZOOM, 0, FISC_MIN_ZOOM + 0.4, 1],
+      'circle-pitch-alignment': 'map'
+    }
+  });
+
+  // ---- soft glow under each anchor site (draped on the terrain) ----
   sources.sites = { type: 'geojson', data: sitesFC };
   layers.push({
     id: 'site-glow', type: 'circle', source: 'sites',
     paint: {
-      'circle-color': ['case', ['>=', ['get', 'loss'], 85], RED, AMBER],
+      'circle-color': ['get', 'c'],
       'circle-radius': ['interpolate', ['exponential', 1.6], ['zoom'],
         3, ['*', 6, ['get', 'k']], 6, ['*', 16, ['get', 'k']], 9, ['*', 46, ['get', 'k']], 12, ['*', 90, ['get', 'k']]],
       'circle-blur': 1,
@@ -248,6 +471,10 @@ function buildStyle({ chile, world, local, sitesFC }) {
     sources,
     layers,
     terrain: { source: 'dem', exaggeration: terrainExag(4.6) },
+    projection: projectionFor(4.6, 1.8),
+    // sun behind the globe, up-left: a thin cyan-white atmosphere rim on the upper-left limb and a
+    // dark disc (only used by the globe atmosphere; no fill-extrusions here)
+    light: { anchor: 'viewport', position: [1.5, 225, 24] },
     sky: {
       'sky-color': BG,
       'horizon-color': '#0b1a20',
@@ -255,7 +482,8 @@ function buildStyle({ chile, world, local, sitesFC }) {
       'sky-horizon-blend': 0.6,
       'horizon-fog-blend': 0.4,
       'fog-ground-blend': 0.85,
-      'atmosphere-blend': 0
+      // globe atmosphere rim (scaled by MapLibre with the globe->mercator transition, so 0 when flat)
+      'atmosphere-blend': ['interpolate', ['linear'], ['zoom'], 0, 1, 3, 0.8, 4, 0.5]
     }
   };
 }
@@ -268,12 +496,14 @@ function watchRemoteSatellite(map) {
     if (++errors < 4) return;
     swapped = true;
     try {
+      // keep the Chile-only clipping: just switch the remote provider behind caudal-sat://
+      SAT.remote = 'esri';
       const src = map.getSource('s2-remote');
-      if (src && typeof src.setTiles === 'function') {
+      if (src) {
         src.attribution = ESRI_ATTR;
-        src.setTiles(ESRI_TILES);
-        console.warn('[map] EOX no responde; usando Esri World Imagery');
+        if (typeof src.setTiles === 'function') src.setTiles(['caudal-sat://{z}/{x}/{y}?esri']);
       }
+      console.warn('[map] EOX no responde; usando Esri World Imagery');
     } catch (err) { console.warn('[map] fallback satelital falló:', err); }
   });
 }
@@ -283,20 +513,22 @@ const CSS = `
   -webkit-tap-highlight-color:transparent;color:var(--c);font:inherit;outline:none}
 .cm-in{position:absolute;inset:0;transition:opacity .45s ease}
 .cm.off .cm-in{opacity:0}
-.cm.off{pointer-events:none}
+.cm.off,.cm.zh{pointer-events:none}
+.cm.zh .cm-in{opacity:0}
+/* hidden (intro / 3D modes): hold the entrance animation so it plays when the markers come back */
+.cm.off.cm-enter .cm-in,.cm.zh.cm-enter .cm-in{animation:none}
 .cm-dot{position:absolute;left:50%;top:50%;width:var(--s);height:var(--s);margin:calc(var(--s) / -2) 0 0 calc(var(--s) / -2);border-radius:50%;
   background:radial-gradient(circle at 50% 50%,#fff 0 16%,var(--c) 44%,var(--c) 100%);
   box-shadow:0 0 0 1.5px rgba(5,8,11,.75),0 0 10px 1px var(--c),0 0 26px 4px color-mix(in srgb,var(--c) 38%,transparent);
   transition:transform .25s cubic-bezier(.2,.8,.2,1),box-shadow .25s}
 .cm-ring{position:absolute;left:50%;top:50%;width:var(--s);height:var(--s);margin:calc(var(--s) / -2) 0 0 calc(var(--s) / -2);border-radius:50%;
-  border:1.5px solid var(--c);opacity:0;animation:cm-pulse 2.8s cubic-bezier(.2,.6,.3,1) infinite;animation-delay:var(--d,0s)}
-@keyframes cm-pulse{0%{transform:scale(1);opacity:.75}80%,100%{transform:scale(2.9);opacity:0}}
+  border:1.5px solid var(--c);opacity:.45;transform:scale(1.7)}
+/* static ring: nothing on the page animates by itself once the intro is over */
 .cm-enter .cm-in{animation:cm-in .7s cubic-bezier(.2,.8,.2,1) both;animation-delay:var(--e,0s)}
 @keyframes cm-in{from{opacity:0;transform:scale(.4)}to{opacity:1;transform:none}}
 .cm:hover .cm-dot,.cm:focus-visible .cm-dot{transform:scale(1.18)}
 .cm:focus-visible .cm-dot{box-shadow:0 0 0 2px #05080b,0 0 0 3.5px #fff,0 0 14px 2px var(--c)}
 .cm.sel .cm-dot{transform:scale(1.3);box-shadow:0 0 0 2px #05080b,0 0 0 3.5px #fff,0 0 16px 3px var(--c),0 0 34px 8px color-mix(in srgb,var(--c) 45%,transparent)}
-.cm.sel .cm-ring{animation-duration:1.8s}
 .cm-badge{position:absolute;left:calc(50% + var(--s) / 2 - 3px);top:calc(50% - var(--s) / 2 - 9px);
   font:600 8.5px/1 'IBM Plex Mono',ui-monospace,monospace;letter-spacing:.04em;padding:2px 3px 1.5px;background:${CYAN};color:#05080b;
   box-shadow:0 0 10px rgba(69,214,238,.55);pointer-events:none}
@@ -344,8 +576,22 @@ const CSS = `
 @media (prefers-reduced-motion: reduce){
   .cc,.cc-b,.cc-tip,.cm-halo{transition:none}
 }
+/* validation case: small white dot with a red rim, no pulse */
+.cm-caso{width:22px;height:22px}
+.cm-caso .cm-ring{display:none}
+.cm-caso .cm-dot{background:#f4f7f8;box-shadow:0 0 0 2px var(--c),0 0 0 3.5px rgba(5,8,11,.8),0 0 10px 2px color-mix(in srgb,var(--c) 70%,transparent)}
+.cm-caso.sel .cm-dot{transform:scale(1.35);box-shadow:0 0 0 2px var(--c),0 0 0 3.5px #05080b,0 0 0 5px #fff,0 0 14px 3px var(--c)}
+.cm-caso:focus-visible .cm-dot{box-shadow:0 0 0 2px var(--c),0 0 0 3.5px #05080b,0 0 0 5px #fff}
+.cm-caso .cm-pill b{font:600 11.5px/1.1 'IBM Plex Mono',ui-monospace,monospace;letter-spacing:.01em}
+.cm-caso .cm-pill em{color:#cfd8dc;font-size:11px}
+.cm-zona .cm-pill em{color:#cfd8dc}
+/* fiscalization hover tip */
+.maplibregl-popup.cf-pop .maplibregl-popup-content{background:rgba(5,8,11,.92);color:#cfd8dc;padding:5px 8px 4px;border-radius:0;
+  border:1px solid rgba(138,151,158,.5);box-shadow:0 4px 14px rgba(0,0,0,.45);font:500 10.5px/1.35 'IBM Plex Mono',ui-monospace,monospace;white-space:nowrap}
+.maplibregl-popup.cf-pop .maplibregl-popup-tip{display:none}
+.cf-pop b{color:#e4ebee;font-weight:600}
+.cf-pop i{font-style:normal;color:var(--c,#8a979e)}
 @media (prefers-reduced-motion: reduce){
-  .cm-ring{animation:none;opacity:.45;transform:scale(1.7)}
   .cm-enter .cm-in{animation:none}
   .cm-dot,.cm-tag,.cm-in{transition:none}
 }
@@ -359,40 +605,102 @@ function injectCSS() {
   document.head.appendChild(st);
 }
 
-export async function initMap({ container, sites, onSelect } = {}) {
+/** Case record from data/zonas/casos.json (or the sites.json fallback) -> normalized, or null. */
+function normCaso(c) {
+  if (!c || !c.expediente) return null;
+  const lon = +c.lon, lat = +c.lat;
+  if (!Number.isFinite(lon) || !Number.isFinite(lat)) return null;
+  return { ...c, expediente: String(c.expediente), zona: zoneKey(c.zona), lon, lat };
+}
+
+const FISC_LABEL = { positivo: 'infracción constatada', negativo: 'sin infracción en la visita', en_tramite: 'en trámite', otro: 'otro trámite' };
+const FISC_COLOR = { positivo: RED, en_tramite: AMBER };
+
+export async function initMap({ container, sites, casos: casosIn, onSelect } = {}) {
   const maplibregl = globalThis.maplibregl;
   if (typeof maplibregl === 'undefined' || !maplibregl) {
-    throw new Error('[map] maplibregl no está cargado: incluye maplibre-gl@4.7.1 (UMD) antes de main.js');
+    throw new Error('[map] maplibregl no está cargado: incluye maplibre-gl 5.x (UMD) antes de main.js');
   }
   if (!container) throw new Error('[map] falta el contenedor');
   injectCSS();
 
   const list = Array.isArray(sites) ? sites : (sites && Array.isArray(sites.sites) ? sites.sites : []);
-  const losses = list.map((s) => s.loss).filter(Number.isFinite);
-  const lmin = losses.length ? Math.min(...losses) : 0, lmax = losses.length ? Math.max(...losses) : 100;
-  const norm = (loss) => (lmax > lmin ? (loss - lmin) / (lmax - lmin) : 1);
-  // north -> south order for the entrance stagger
-  const data = list.slice().sort((a, b) => b.lat - a.lat).map((s, i) => ({ ...s, _rank: i }));
-
   const reduced = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   const coarse = window.matchMedia && window.matchMedia('(pointer: coarse)').matches;
 
-  // Boundary files + tile-cache index in parallel (all small, all local).
-  const [chileFC, world, idx] = await Promise.all([
+  // Boundary files, tile-cache index, cases and zone index in parallel (all small, all local).
+  const [chileFC, world, idx, casosJ, zIndex, zBbox] = await Promise.all([
     fetchJSON(CHILE_URL, 8000),
     fetchJSON(WORLD_URL, 8000),
-    fetchJSON(TILES_INDEX_URL, 2500)
+    fetchJSON(TILES_INDEX_URL, 2500),
+    Array.isArray(casosIn) ? Promise.resolve(null) : fetchJSON(CASOS_URL, 4000),
+    fetchJSON(ZONAS_INDEX_URL, 3000),
+    fetchJSON(ZONAS_BBOX_URL, 3000)
   ]);
   const chile = polysOf(chileFC).length ? chileFC : null;
   if (!chile) console.warn('[map] chile.geojson no disponible: mapa oscuro sin satélite');
   const local = readIndex(idx);
   if (local.s2 || local.dem) registerLocalProtocol(maplibregl, local);
+  if (chile) { prepareChileRings(chile); registerSatProtocol(maplibregl, local); registerHillshadeProtocol(maplibregl, local); }
+
+  // ---- cases: explicit arg > data/zonas/casos.json > sites.json `casos` ----
+  let casosRaw = Array.isArray(casosIn) ? casosIn
+    : Array.isArray(casosJ) ? casosJ
+    : (casosJ && Array.isArray(casosJ.casos) ? casosJ.casos : null);
+  if (!casosRaw && sites && !Array.isArray(sites) && Array.isArray(sites.casos)) casosRaw = sites.casos;
+  if (!casosRaw) {
+    const sj = await fetchJSON(SITES_URL, 3000);
+    casosRaw = (sj && Array.isArray(sj.casos)) ? sj.casos : [];
+    if (casosRaw.length) console.info('[map] data/zonas/casos.json no disponible: casos desde data/sites.json');
+  }
+  const casos = casosRaw.map(normCaso).filter(Boolean);
+
+  // ---- zones: sites.json entries, positioned/named from data/zonas/index.json when present ----
+  const zIdx = new Map(((zIndex && zIndex.zonas) || []).map((z) => [zoneKey(z.id || z.codigo), z]));
+  const bboxOf = (k) => {
+    const e = zIdx.get(k);
+    const b = (e && e.bbox_escena) || (zBbox && zBbox[k]);
+    return Array.isArray(b) && b.length === 4 && b.every(Number.isFinite) ? b : null;
+  };
+  const isZone = (s) => s && (s.kind === 'zona' || !!s.valle);
+  const items = [];
+  for (const s of list) {
+    if (!s) continue;
+    if (isZone(s)) {
+      const k = zoneKey(s.zona || (typeof s.valle === 'string' && /^z\d/i.test(s.valle) ? s.valle : '') || s.id);
+      const e = zIdx.get(k) || {};
+      const b = bboxOf(k);
+      let lon = +s.lon, lat = +s.lat;
+      if (Array.isArray(e.centro) && e.centro.every(Number.isFinite)) [lon, lat] = e.centro;
+      else if (b) { lon = (b[0] + b[2]) / 2; lat = (b[1] + b[3]) / 2; }
+      if (!Number.isFinite(lon) || !Number.isFinite(lat)) continue;
+      const nCasos = casos.filter((c) => c.zona === k).length || (Number.isFinite(+s.casos) ? +s.casos : 0);
+      const codigo = e.codigo || s.codigo || k.toUpperCase();
+      const name = e.nombre || s.name || codigo;
+      const orig = { ...s, kind: 'zona', zona: k, id: k, codigo, name, casos: nCasos, lon, lat, bbox: b };
+      items.push({ id: k, kind: 'zona', lon, lat, size: ZONE_SIZE, color: CYAN, anchor: true, orig, pri: 500 });
+    } else {
+      const lon = +s.lon, lat = +s.lat;
+      if (!Number.isFinite(lon) || !Number.isFinite(lat)) continue;
+      const is3d = s.id === 'aculeo';
+      items.push({
+        id: s.id, kind: 'site', lon, lat, size: is3d ? ACULEO_SIZE : 11, color: sevColor(s.loss),
+        anchor: is3d, is3d, orig: s, pri: 200 + (Number.isFinite(+s.loss) ? +s.loss : 0)
+      });
+    }
+  }
+  for (const c of casos) {
+    const id = caseId(c.expediente);
+    items.push({ id, kind: 'caso', lon: c.lon, lat: c.lat, size: CASE_SIZE, color: RED, anchor: false, orig: { ...c, kind: 'caso', id }, pri: 100 });
+  }
+  // north -> south order for the entrance stagger
+  const data = items.sort((a, b) => b.lat - a.lat).map((d, i) => ({ ...d, _rank: i }));
 
   const sitesFC = {
     type: 'FeatureCollection',
-    features: data.map((d) => ({
+    features: data.filter((d) => d.anchor).map((d) => ({
       type: 'Feature',
-      properties: { id: d.id, loss: d.loss, k: 0.75 + 0.5 * norm(d.loss) },
+      properties: { id: d.id, c: d.color, k: d.kind === 'zona' ? 0.85 : 1 },
       geometry: { type: 'Point', coordinates: [d.lon, d.lat] }
     }))
   };
@@ -451,22 +759,29 @@ export async function initMap({ container, sites, onSelect } = {}) {
     let zoom = 4.6;
     let center = maplibregl.LngLat.convert(HOME_CENTER);
     try {
+      // MapLibre 5 transforms use setters (setZoom...) and locationToScreenPoint; 4.x used plain
+      // properties and locationPoint. The clone is forced to flat Mercator (globeness 0) so the
+      // result does not depend on where the live camera is (e.g. the far-out intro globe).
       const tr = map.transform.clone();
-      tr.resize(w, h);
-      tr.minZoom = 0;
-      tr.maxZoom = 22;
+      if (typeof tr.setTransitionState === 'function') tr.setTransitionState(0, 0);
+      const set = (k, v) => { const f = 'set' + k[0].toUpperCase() + k.slice(1); if (typeof tr[f] === 'function') tr[f](v); else tr[k] = v; };
       if (typeof tr.setMaxBounds === 'function') tr.setMaxBounds(null);
-      tr.pitch = HOME_PITCH;
-      tr.bearing = HOME_BEARING;
-      const ends = () => [FIT_NORTH, FIT_SOUTH].map((ll) => tr.locationPoint(maplibregl.LngLat.convert(ll)));
+      set('minZoom', 0);
+      set('maxZoom', 22);
+      tr.resize(w, h, false);
+      set('pitch', HOME_PITCH);
+      set('bearing', HOME_BEARING);
+      const toScreen = (ll) => (typeof tr.locationToScreenPoint === 'function' ? tr.locationToScreenPoint(ll) : tr.locationPoint(ll));
+      const toLngLat = (p) => (typeof tr.screenPointToLocation === 'function' ? tr.screenPointToLocation(p) : tr.pointLocation(p));
+      const ends = () => [FIT_NORTH, FIT_SOUTH].map((ll) => toScreen(maplibregl.LngLat.convert(ll)));
       const fits = (z) => {
-        tr.zoom = z;
+        set('zoom', z);
         const [n, s] = ends();
         if (![n.x, n.y, s.x, s.y].every(Number.isFinite)) return false;
         return Math.abs(s.y - n.y) <= h - padTop - padBottom && Math.abs(s.x - n.x) <= w - 2 * padX && n.y < s.y;
       };
       for (let round = 0; round < 4; round++) {
-        tr.center = center;
+        set('center', center);
         let lo = 2.5, hi = 7.5;
         if (!fits(lo)) break;
         for (let i = 0; i < 22; i++) {
@@ -474,12 +789,12 @@ export async function initMap({ container, sites, onSelect } = {}) {
           if (fits(mid)) lo = mid; else hi = mid;
         }
         zoom = lo;
-        tr.zoom = zoom;
+        set('zoom', zoom);
         const [n, s] = ends();
         const wantY = (padTop + h - padBottom) / 2, wantX = w / 2;
         const dy = (n.y + s.y) / 2 - wantY, dx = (n.x + s.x) / 2 - wantX;
         if (Math.abs(dy) < 2 && Math.abs(dx) < 2) break;
-        center = tr.pointLocation(new maplibregl.Point(w / 2 + dx, h / 2 + dy));
+        center = toLngLat(new maplibregl.Point(w / 2 + dx, h / 2 + dy));
       }
     } catch (_) { /* private transform API changed: keep the default camera */ }
     return { center: [center.lng, center.lat], zoom, bearing: HOME_BEARING, pitch: HOME_PITCH };
@@ -490,21 +805,88 @@ export async function initMap({ container, sites, onSelect } = {}) {
    * and pan only a bit east/west (the rest of the continent is just dark land).
    */
   let home = null;
+  let freeCam = false; // intro: zoom/pan limits lifted (see introStartCamera)
+  /** Intro camera zoom: the whole globe at ~62% of the shorter viewport side. */
+  function introZoom() {
+    const c = map.getContainer();
+    const s = Math.min(c.clientWidth || innerWidth, c.clientHeight || innerHeight);
+    // never below the zoom where the world is as tall as the viewport: the Mercator constraint
+    // applied while jumping from the flat home view would clamp it there anyway
+    const hMin = Math.log2((c.clientHeight || innerHeight) / 512) + 0.02;
+    return Math.min(3, Math.max(0.4, hMin, Math.log2((0.62 * s * Math.PI) / 512)));
+  }
+  /**
+   * map.setMaxBounds() only updates the live transform; with terrain on, MapLibre 5 keeps a
+   * pending camera clone (_requestedCameraState) that jumpTo/flyTo/setMinZoom start from, and
+   * its stale bounds would be copied back (clamping the intro zoom, or dropping the pan limits).
+   */
+  function setBounds(b) {
+    map.setMaxBounds(b);
+    const rq = map._requestedCameraState;
+    if (rq && typeof rq.setMaxBounds === 'function') {
+      try { rq.setMaxBounds(b ? maplibregl.LngLatBounds.convert(b) : null); } catch (_) { /* private API changed */ }
+    }
+  }
+  let projKey = '';
+  function applyProjection() {
+    const p = projectionFor(home.zoom, introZoom());
+    const key = JSON.stringify(p);
+    if (key === projKey || typeof map.setProjection !== 'function') return;
+    try {
+      map.setProjection(p);
+      const ocean = oceanFor(home.zoom, introZoom());
+      map.setPaintProperty('bg', 'background-color', ocean);
+      if (map.getLayer('world-mask')) map.setPaintProperty('world-mask', 'fill-color', ocean);
+      projKey = key;
+    } catch (_) { /* style not ready: retried on style.load */ }
+  }
   function applyLimits() {
     home = homeCamera();
+    applyProjection();
+    if (freeCam) return;
     const minZ = Math.max(MIN_ZOOM_FLOOR, home.zoom - ZOOM_OUT_ROOM);
     const c = map.getContainer();
     const w = c.clientWidth || innerWidth;
     // degrees of longitude the (unpitched) viewport spans at the zoom-out floor, plus some slack
     const spanAtMin = (w / (512 * Math.pow(2, minZ))) * 360;
     const half = Math.max(22, spanAtMin * 0.5 + 8);
-    map.setMaxBounds(null);
+    setBounds(null);
     map.setMinZoom(minZ);
-    map.setMaxBounds([[home.center[0] - half, PAN_LAT[0]], [home.center[0] + half, PAN_LAT[1]]]);
+    setBounds([[home.center[0] - half, PAN_LAT[0]], [home.center[0] + half, PAN_LAT[1]]]);
+  }
+  function liftLimits() {
+    freeCam = true;
+    setBounds(null);
+    map.setMinZoom(0);
+    // MapLibre 5's GlobeTransform constrains zoom through its inner Mercator / perspective
+    // transforms, which only pick up a new minZoom on the next matrix update: force it now so
+    // the very next jumpTo can go below the old floor.
+    for (const t of [map.transform, map._requestedCameraState]) {
+      if (t && typeof t._calcMatrices === 'function') { try { t._calcMatrices(); } catch (_) { /* private API changed */ } }
+    }
+  }
+  function restoreLimits() {
+    if (!freeCam) return;
+    freeCam = false;
+    applyLimits();
   }
   applyLimits();
   map.jumpTo(home);
   globalThis.__caudalMap = map; // debug handle (devtools / headless checks)
+  // The style (inline GeoJSON + local index) parses quickly; wait for it so the globe transform
+  // and projection are in place before the caller (intro) moves the camera.
+  await new Promise((resolve) => {
+    if (map.isStyleLoaded && map.isStyleLoaded()) return resolve();
+    const t = setTimeout(resolve, 5000);
+    map.once('style.load', () => { clearTimeout(t); resolve(); });
+  });
+  projKey = '';
+  applyLimits();
+  if (!freeCam) map.jumpTo(home);
+  // back at (or past) the zoom-out floor after the intro flight: re-apply the limits
+  map.on('moveend', () => {
+    if (freeCam && home && map.getZoom() >= home.zoom - ZOOM_OUT_ROOM - 0.02) restoreLimits();
+  });
 
   // Wheel at the zoom-out floor scrolls the page instead of being swallowed by the map, so the
   // full-screen hero never traps the scroll.
@@ -515,48 +897,60 @@ export async function initMap({ container, sites, onSelect } = {}) {
 
   // ---------- markers ----------
   let selectedId = null;
-  let lagoon = false, valley = false;
-  const isHidden = () => lagoon || valley;
+  let lagoon = false, valley = false, intro = false;
+  const isHidden = () => lagoon || valley || intro;
   let hoverId = null, focusId = null;
-  const markers = new Map(); // id -> { d, el, marker, size, anchor, valle }
+  const markers = new Map(); // id -> { d, el, marker, size, anchor, kind, off, p, po }
   const clusters = new Map(); // key (sorted member ids) -> { el, marker, ids }
 
   for (const d of data) {
     const el = document.createElement('button');
     el.type = 'button';
-    el.className = 'cm' + (reduced ? '' : ' cm-enter');
+    el.className = 'cm' + (reduced || d.kind === 'caso' ? '' : ' cm-enter');
     el.dataset.id = d.id;
-    const size = Math.round(10 + 8 * norm(d.loss));
-    el.style.setProperty('--s', size + 'px');
-    const isValle = !!d.valle;
-    const is3d = !isValle && d.id === 'aculeo';
-    el.style.setProperty('--c', isValle ? CYAN : sevColor(d.loss));
+    el.dataset.kind = d.kind;
+    el.style.setProperty('--s', d.size + 'px');
+    el.style.setProperty('--c', d.color);
     el.style.setProperty('--d', ((d._rank * 0.37) % 2.8).toFixed(2) + 's');
-    el.style.setProperty('--e', (0.25 + d._rank * 0.08).toFixed(2) + 's');
-    if (isValle) el.classList.add('cm-valle');
-    const label = isValle
-      ? `${d.name}, ${d.region || 'Chile'}: priorización de inspección` + (d.predios ? ` de ${d.predios} predios` : '') + '. Abrir vista del valle'
-      : `${d.name}, ${d.type || ''} en ${d.region || 'Chile'}: pérdida de ${d.loss}%` + (is3d ? '. Abrir vista satelital 3D' : '');
+    el.style.setProperty('--e', (0.25 + d._rank * 0.06).toFixed(2) + 's');
+    const o = d.orig;
+    let label, badge = '', title, sub, tag = '';
+    if (d.kind === 'zona') {
+      el.classList.add('cm-valle', 'cm-zona');
+      badge = 'ZONA'; tag = 'ZONA';
+      title = `${o.codigo} · ${o.name}`;
+      sub = o.casos ? `${o.casos} caso${o.casos === 1 ? '' : 's'}` : 'priorización';
+      label = `Zona ${o.codigo}, ${o.name}` + (o.casos ? `: ${o.casos} casos sancionados por la DGA` : '') + '. Abrir la priorización de la zona';
+    } else if (d.kind === 'caso') {
+      el.classList.add('cm-caso');
+      title = o.expediente;
+      sub = titleCase(o.comuna);
+      label = `Caso ${o.expediente}, ${titleCase(o.comuna)}: caso sancionado por la DGA` +
+        (o.fecha_inspeccion ? `, inspección ${fmtDate(o.fecha_inspeccion)}` : '') +
+        (o.decision ? `, ${o.decision}` : '') + (o.multa_utm != null ? `, multa ${fmtUTM(o.multa_utm)}` : '') + '. Abrir el caso';
+    } else {
+      if (d.is3d) { badge = '3D'; tag = '3D'; }
+      title = o.name;
+      sub = Number.isFinite(+o.loss) ? `−${o.loss}%` : '';
+      label = `${o.name}, ${o.type || ''} en ${o.region || 'Chile'}` + (Number.isFinite(+o.loss) ? `: pérdida de ${o.loss}%` : '') + (d.is3d ? '. Abrir vista satelital 3D' : '');
+    }
     el.innerHTML =
       '<span class="cm-in" aria-hidden="true">' +
-        (isValle ? '<span class="cm-halo"></span>' : '') +
+        (d.kind === 'zona' ? '<span class="cm-halo"></span>' : '') +
         '<span class="cm-ring"></span><span class="cm-dot"></span>' +
-        (is3d ? '<span class="cm-badge">3D</span>' : '') +
-        (isValle ? '<span class="cm-badge">VALLE</span>' : '') +
+        (badge ? `<span class="cm-badge">${badge}</span>` : '') +
         '<span class="cm-tag"><i class="cm-lead"></i><span class="cm-pill"></span></span>' +
       '</span>';
     const pill = el.querySelector('.cm-pill');
-    const b = document.createElement('b'); b.textContent = d.name;
-    const em = document.createElement('em');
-    em.textContent = isValle ? (d.predios ? `${d.predios} predios` : 'priorización') : `−${d.loss}%`;
-    pill.append(b, em);
-    if (is3d || isValle) { const i = document.createElement('i'); i.textContent = isValle ? 'VALLE' : '3D'; pill.append(i); }
+    const b = document.createElement('b'); b.textContent = title;
+    pill.append(b);
+    if (sub) { const em = document.createElement('em'); em.textContent = sub; pill.append(em); }
+    if (tag) { const i = document.createElement('i'); i.textContent = tag; pill.append(i); }
 
     el.addEventListener('click', (ev) => {
       ev.stopPropagation();
       if (isHidden() || typeof onSelect !== 'function') return;
-      const orig = list.find((s) => s.id === d.id) || d;
-      try { onSelect(orig); } catch (err) { console.error(err); }
+      try { onSelect(d.orig); } catch (err) { console.error(err); }
     });
     el.addEventListener('pointerenter', () => { hoverId = d.id; layoutLabels(); });
     el.addEventListener('pointerleave', () => { if (hoverId === d.id) { hoverId = null; layoutLabels(); } });
@@ -569,46 +963,88 @@ export async function initMap({ container, sites, onSelect } = {}) {
       .setLngLat([d.lon, d.lat])
       .addTo(map);
     el.setAttribute('aria-label', label); // Marker.addTo() overwrites it with 'Map marker'
-    markers.set(d.id, { d, el, marker, size, anchor: isValle || is3d, valle: isValle });
+    markers.set(d.id, { d, el, marker, size: d.size, anchor: d.anchor, kind: d.kind, off: [0, 0], offKey: '0,0' });
   }
 
+  const setOff = (m, off) => {
+    const key = Math.round(off[0]) + ',' + Math.round(off[1]);
+    m.off = [Math.round(off[0]), Math.round(off[1])];
+    m.po = { x: m.p.x + m.off[0], y: m.p.y + m.off[1] };
+    if (key !== m.offKey) { m.offKey = key; m.marker.setOffset(m.off); }
+  };
+
   /**
-   * Which labels show: the selected, hovered and focused sites always want one; from
-   * AUTO_LABEL_ZOOM on every site does. Wanted labels are accepted by priority (selection >
-   * hover/focus > loss) and dropped when an accepted one is within LABEL_GAP_PX on screen.
+   * Anchors (zones, Aculeo) never cluster; two that land closer than ANCHOR_SEP_PX on screen
+   * (Z1/Z2 at the national zoom) are pushed apart along the line between them, the southern one
+   * downwards when they coincide.
+   */
+  function spreadAnchors() {
+    const an = [...markers.values()].filter((m) => m.anchor);
+    const off = new Map(an.map((m) => [m, [0, 0]]));
+    for (let it = 0; it < 4; it++) {
+      let moved = false;
+      for (let i = 0; i < an.length; i++) {
+        for (let j = i + 1; j < an.length; j++) {
+          const a = an[i], b = an[j], oa = off.get(a), ob = off.get(b);
+          const dx = (b.p.x + ob[0]) - (a.p.x + oa[0]), dy = (b.p.y + ob[1]) - (a.p.y + oa[1]);
+          const dist = Math.hypot(dx, dy);
+          if (dist >= ANCHOR_SEP_PX) continue;
+          let ux = 0, uy = b.d.lat < a.d.lat ? 1 : -1;
+          if (dist > 0.5) { ux = dx / dist; uy = dy / dist; }
+          const push = (ANCHOR_SEP_PX - dist) / 2;
+          oa[0] -= ux * push; oa[1] -= uy * push;
+          ob[0] += ux * push; ob[1] += uy * push;
+          moved = true;
+        }
+      }
+      if (!moved) break;
+    }
+    for (const m of an) setOff(m, off.get(m));
+  }
+
+  // Screen box of each label pill (geometry mirrors .cm-tag/.cm-lead/.cm-pill in CSS): the pill
+  // is 22 px tall, its bottom 7 px above the dot, offset by the 22 px leader; flipped to the left.
+  const boxOf = (m) => {
+    if (!m.pw) m.pw = m.el.querySelector('.cm-pill').offsetWidth || 0;
+    const w = m.pw || 170, off = m.size * 0.3 + 22, flip = m.el.classList.contains('flip');
+    const x0 = flip ? m.po.x - off - w : m.po.x + off;
+    return { x0: x0 - 4, x1: x0 + w + 4, y0: m.po.y - 29 - 3, y1: m.po.y - 7 + 3 };
+  };
+
+  /**
+   * Which labels show: zones always; the selected, hovered and focused markers; Aculeo from
+   * AUTO_LABEL_ZOOM and cases from CASE_LABEL_ZOOM. Wanted labels are accepted by priority
+   * (selection > hover/focus > zone > site > case) and dropped when they overlap an accepted one.
    * Labels near the right edge flip to the left side of their dot.
    */
   function layoutLabels() {
     const z = map.getZoom();
     const w = map.getContainer().clientWidth;
-    for (const m of markers.values()) m.p = map.project([m.d.lon, m.d.lat]);
+    for (const m of markers.values()) { m.p = map.project([m.d.lon, m.d.lat]); m.po = { x: m.p.x + m.off[0], y: m.p.y + m.off[1] }; }
+    spreadAnchors();
+    // validation cases only from CASES_MIN_ZOOM (a selected one always shows)
+    const casesOn = z >= CASES_MIN_ZOOM;
+    for (const m of markers.values()) m.zh = m.kind === 'caso' && !casesOn && m.d.id !== selectedId;
+    // zone labels are always on: place them first so case bubbles can keep clear of them
+    for (const m of markers.values()) if (m.kind === 'zona') { m.el.classList.toggle('flip', m.po.x > w - 230); m.box = boxOf(m); }
     layoutClusters();
     const cands = [];
     for (const m of markers.values()) {
       const id = m.d.id;
-      // valley markers keep their label on: they are the main entry point of the landing
-      const want = !isHidden() && !m.clustered &&
-        (m.valle || id === selectedId || id === hoverId || id === focusId || z >= AUTO_LABEL_ZOOM);
-      const p = m.p;
-      m.el.classList.toggle('flip', p.x > w - 230);
+      const always = m.kind === 'zona' ||
+        (m.kind === 'caso' ? z >= CASE_LABEL_ZOOM : z >= AUTO_LABEL_ZOOM);
+      const want = !isHidden() && !m.clustered && !m.zh && (always || id === selectedId || id === hoverId || id === focusId);
+      m.el.classList.toggle('flip', m.po.x > w - 230);
       if (!want) { m.show = false; continue; }
-      const pri = (id === selectedId ? 2000 : 0) + (id === hoverId || id === focusId ? 1000 : 0) + (m.valle ? 500 : 0) + m.d.loss;
+      const pri = (id === selectedId ? 2000 : 0) + (id === hoverId || id === focusId ? 1000 : 0) + m.d.pri;
       cands.push({ m, pri });
     }
     cands.sort((a, b) => b.pri - a.pri);
-    // Screen box of each label pill (geometry mirrors .cm-tag/.cm-lead/.cm-pill in CSS): the pill
-    // is 22 px tall, its bottom 7 px above the dot, offset by the 22 px leader; flipped to the left.
-    const boxOf = (m) => {
-      if (!m.pw) m.pw = m.el.querySelector('.cm-pill').offsetWidth || 0;
-      const w = m.pw || 170, off = m.size * 0.3 + 22, flip = m.el.classList.contains('flip');
-      const x0 = flip ? m.p.x - off - w : m.p.x + off;
-      return { x0: x0 - 4, x1: x0 + w + 4, y0: m.p.y - 29 - 3, y1: m.p.y - 7 + 3 };
-    };
     const hit = (a, b) => a.x0 < b.x1 && b.x0 < a.x1 && a.y0 < b.y1 && b.y0 < a.y1;
     const accepted = [];
     for (const { m } of cands) {
       m.box = boxOf(m);
-      const clash = accepted.some((o) => hit(o.box, m.box) || Math.hypot(o.p.x - m.p.x, o.p.y - m.p.y) < LABEL_GAP_PX * 0.5);
+      const clash = accepted.some((o) => hit(o.box, m.box) || Math.hypot(o.po.x - m.po.x, o.po.y - m.po.y) < LABEL_GAP_PX * 0.5);
       m.show = !clash;
       if (!clash) accepted.push(m);
     }
@@ -616,35 +1052,54 @@ export async function initMap({ container, sites, onSelect } = {}) {
       m.el.classList.toggle('lbl', !!m.show);
       m.el.classList.toggle('sel', m.d.id === selectedId);
       m.el.classList.toggle('clu', !!m.clustered);
-      if (m.clustered) m.el.tabIndex = -1; else if (!isHidden()) m.el.tabIndex = 0;
-      // selected > anchors (Aculeo, valleys) > cluster bubbles > labelled > the rest
+      m.el.classList.toggle('zh', !!m.zh);
+      if (m.clustered || m.zh) m.el.tabIndex = -1; else if (!isHidden()) m.el.tabIndex = 0;
+      if (m.zh || isHidden()) m.el.setAttribute('aria-hidden', 'true'); else m.el.removeAttribute('aria-hidden');
+      // selected > anchors (zones, Aculeo) > cluster bubbles > labelled > the rest
       m.el.style.zIndex = m.d.id === selectedId ? '6' : (m.anchor ? '5' : (m.show ? '3' : '2'));
     }
   }
 
-  /**
-   * Screen-space clustering: non-anchor markers whose dots are closer than CLUSTER_PX (single
-   * linkage) collapse into one bubble at their mean position, showing the count. Anchors
-   * (Aculeo, valleys) never cluster and bubbles are pushed clear of them. Hidden in lagoon /
-   * valley mode. Bubbles are reused by member set, so they do not flicker while zooming.
-   */
-  function layoutClusters() {
-    const free = isHidden() ? [] : [...markers.values()].filter((m) => !m.anchor);
-    const parent = free.map((_, i) => i);
+  /** Single-linkage groups (indices into `pts`) of screen points closer than `px`. */
+  function groupsOf(pts, px) {
+    const parent = pts.map((_, i) => i);
     const root = (i) => (parent[i] === i ? i : (parent[i] = root(parent[i])));
-    for (let i = 0; i < free.length; i++) {
-      for (let j = i + 1; j < free.length; j++) {
-        const a = free[i].p, b = free[j].p;
-        if (Math.hypot(a.x - b.x, a.y - b.y) < CLUSTER_PX) parent[root(i)] = root(j);
+    for (let i = 0; i < pts.length; i++) {
+      for (let j = i + 1; j < pts.length; j++) {
+        if (Math.hypot(pts[i].x - pts[j].x, pts[i].y - pts[j].y) < px) parent[root(i)] = root(j);
       }
     }
-    const groups = new Map();
-    free.forEach((m, i) => { const r = root(i); if (!groups.has(r)) groups.set(r, []); groups.get(r).push(m); });
+    const g = new Map();
+    pts.forEach((_, i) => { const r = root(i); if (!g.has(r)) g.set(r, []); g.get(r).push(i); });
+    return [...g.values()];
+  }
+
+  /**
+   * Below SPREAD_ZOOM, non-anchor markers (cases) whose dots are closer than CLUSTER_PX collapse
+   * into one bubble at their mean position, showing the count; bubbles are pushed clear of the
+   * anchors and reused by member set, so they do not flicker while zooming. From SPREAD_ZOOM on
+   * nothing clusters: markers that still overlap (some DGA acts are a few hundred metres apart)
+   * fan out on a small circle around their mean point. Hidden in lagoon / zone mode.
+   */
+  function layoutClusters() {
+    const free = isHidden() ? [] : [...markers.values()].filter((m) => !m.anchor && !m.zh);
     for (const m of markers.values()) m.clustered = false;
     const live = new Set();
+    const spread = map.getZoom() >= SPREAD_ZOOM;
+    const groups = groupsOf(free.map((m) => m.p), spread ? SPREAD_R * 1.6 : CLUSTER_PX).map((g) => g.map((i) => free[i]));
+    for (const m of markers.values()) if (!m.anchor) setOff(m, [0, 0]);
     const anchors = [...markers.values()].filter((m) => m.anchor);
-    for (const g of groups.values()) {
+    for (const g of groups) {
       if (g.length < 2) continue;
+      if (spread) {
+        const cx = g.reduce((s, m) => s + m.p.x, 0) / g.length, cy = g.reduce((s, m) => s + m.p.y, 0) / g.length;
+        const r = SPREAD_R * (g.length > 2 ? 1.25 : 1);
+        g.slice().sort((a, b) => (a.d.id < b.d.id ? -1 : 1)).forEach((m, k) => {
+          const ang = (-90 + (360 * k) / g.length) * Math.PI / 180;
+          setOff(m, [cx + r * Math.cos(ang) - m.p.x, cy + r * Math.sin(ang) - m.p.y]);
+        });
+        continue;
+      }
       g.forEach((m) => { m.clustered = true; });
       const ids = g.map((m) => m.d.id).sort();
       const key = ids.join('|');
@@ -658,14 +1113,16 @@ export async function initMap({ container, sites, onSelect } = {}) {
         c.el.setAttribute('aria-label', c.el.dataset.aria); // Marker.addTo() writes 'Map marker'
         clusters.set(key, c);
       }
-      // move the bubble clear of nearby anchors: smallest offset that clears them all, trying
-      // west (the ocean side) first
+      // move the bubble clear of nearby anchors and their (always-on zone) labels: smallest
+      // offset that clears them all, trying west (the ocean side) first
       const p = map.project([lon, lat]);
-      const clearOf = (x, y) => anchors.every((a) => Math.hypot(x - a.p.x, y - a.p.y) >= ANCHOR_CLEAR_PX);
+      const R = 18; // ~bubble radius + margin
+      const clearOf = (x, y) => anchors.every((a) => Math.hypot(x - a.po.x, y - a.po.y) >= ANCHOR_CLEAR_PX &&
+        !(a.kind === 'zona' && a.box && x > a.box.x0 - R && x < a.box.x1 + R && y > a.box.y0 - R && y < a.box.y1 + R));
       let off = [0, 0];
       if (!clearOf(p.x, p.y)) {
         search:
-        for (let r = 12; r <= 72; r += 6) {
+        for (let r = 12; r <= 84; r += 6) {
           for (const deg of [180, 210, 150, 240, 120, 270, 90, 0]) {
             const ox = r * Math.cos(deg * Math.PI / 180), oy = r * Math.sin(deg * Math.PI / 180);
             if (clearOf(p.x + ox, p.y + oy)) { off = [Math.round(ox), Math.round(oy)]; break search; }
@@ -677,39 +1134,52 @@ export async function initMap({ container, sites, onSelect } = {}) {
     for (const [key, c] of clusters) {
       if (!live.has(key)) { c.marker.remove(); clusters.delete(key); }
     }
+    // a lone case dot hidden under a zone halo is nudged out to the halo's edge
+    for (const m of free) {
+      if (m.clustered || m.off[0] || m.off[1]) continue;
+      for (const a of anchors) {
+        const dx = m.p.x - a.po.x, dy = m.p.y - a.po.y, dist = Math.hypot(dx, dy);
+        const need = (a.size + 14) / 2 + m.size / 2 + 3;
+        if (dist >= need) continue;
+        const ux = dist > 0.5 ? dx / dist : -1, uy = dist > 0.5 ? dy / dist : 0;
+        setOff(m, [a.po.x + ux * need - m.p.x, a.po.y + uy * need - m.p.y]);
+        break;
+      }
+    }
   }
 
   function makeCluster(group, ids) {
     const el = document.createElement('button');
     el.type = 'button';
     el.className = 'cc';
-    const top = group.reduce((a, m) => (m.d.loss > a.d.loss ? m : a), group[0]);
-    const zpx = Math.min(38, 24 + 3 * group.length);
+    const allCases = group.every((m) => m.kind === 'caso');
+    const zpx = Math.min(36, 22 + 2 * group.length);
     el.style.setProperty('--z', zpx + 'px');
-    el.style.setProperty('--c', sevColor(top.d.loss));
+    el.style.setProperty('--c', allCases ? RED : sevColor(Math.max(...group.map((m) => +m.d.orig.loss || 0))));
     el.style.zIndex = '4';
-    const names = group.slice().sort((a, b) => b.d.loss - a.d.loss).map((m) => m.d.name);
+    const names = group.map((m) => (m.kind === 'caso' ? m.d.orig.expediente : m.d.orig.name)).sort();
+    const noun = allCases ? 'casos' : 'sitios';
     el.innerHTML = '<span class="cc-b" aria-hidden="true"></span><span class="cc-tip" aria-hidden="true"></span>';
     el.querySelector('.cc-b').textContent = String(group.length);
-    el.querySelector('.cc-tip').textContent = `${group.length} sitios · acercar`;
+    el.querySelector('.cc-tip').textContent = `${group.length} ${noun}${allCases ? ' sancionados' : ''} · acercar`;
     el.addEventListener('click', (ev) => {
       ev.stopPropagation();
       if (isHidden()) return;
       zoomToMembers(ids);
     });
     const marker = new maplibregl.Marker({ element: el, anchor: 'center', opacityWhenCovered: '0.5' });
-    el.dataset.aria = `${group.length} sitios: ${names.join(', ')}. Acercar`;
+    el.dataset.aria = `${group.length} ${noun}: ${names.join(', ')}. Acercar`;
     return { el, marker, ids };
   }
 
-  /** Zoom in on a cluster's members (keeps pitch and bearing) until they separate. */
+  /** Zoom in on a cluster's members (keeps pitch and bearing) until they separate or fan out. */
   function zoomToMembers(ids) {
     const pts = ids.map((id) => markers.get(id)).filter(Boolean).map((m) => [m.d.lon, m.d.lat]);
     if (!pts.length) return Promise.resolve();
     const lons = pts.map((p) => p[0]), lats = pts.map((p) => p[1]);
     const bbox = [Math.min(...lons), Math.min(...lats), Math.max(...lons), Math.max(...lats)];
     const minZ = Math.min(MAX_ZOOM, map.getZoom() + 1.2); // always zoom in at least a bit
-    return api.flyToBounds(bbox, { padding: 120, duration: 1400, maxZoom: 8.8, minZoom: minZ });
+    return api.flyToBounds(bbox, { padding: 120, duration: 1400, maxZoom: SPREAD_ZOOM + 0.6, minZoom: minZ });
   }
   let layoutRaf = 0;
   const scheduleLayout = () => { if (!layoutRaf) layoutRaf = requestAnimationFrame(() => { layoutRaf = 0; layoutLabels(); }); };
@@ -719,15 +1189,55 @@ export async function initMap({ container, sites, onSelect } = {}) {
   // pill widths change once the web fonts arrive: re-measure
   if (document.fonts && document.fonts.ready) document.fonts.ready.then(() => { for (const m of markers.values()) m.pw = 0; layoutLabels(); });
 
+  // ---------- DGA fiscalization points ----------
+  let fiscPopup = null;
+  const whenStyle = (fn) => { let ok = false; try { ok = !!map.getLayer('fisc'); } catch (_) { /* style not parsed yet */ } if (ok) fn(); else map.once('load', fn); };
+  function setFiscVisible(on) {
+    whenStyle(() => { try { map.setLayoutProperty('fisc', 'visibility', on ? 'visible' : 'none'); } catch (_) { /* no layer */ } });
+    if (!on && fiscPopup) { fiscPopup.remove(); }
+  }
+  fetchJSON(FISC_URL, 8000).then((fc) => {
+    // the 10 validation cases already have their own markers
+    const feats = ((fc && fc.features) || []).filter((f) => f && f.geometry && f.geometry.type === 'Point' && !(f.properties && f.properties.es_caso))
+      .map((f) => ({ type: 'Feature', geometry: f.geometry, properties: { ...(f.properties || {}), etiqueta: String((f.properties || {}).etiqueta || 'otro') } }));
+    if (!feats.length) { if (fc === null) console.info('[map] data/zonas/fiscalizaciones.geojson no disponible'); return; }
+    whenStyle(() => {
+      const src = map.getSource('fisc');
+      if (src && typeof src.setData === 'function') src.setData({ type: 'FeatureCollection', features: feats });
+      if (isHidden()) setFiscVisible(false);
+    });
+  });
+  if (!coarse) {
+    fiscPopup = new maplibregl.Popup({ closeButton: false, closeOnClick: false, className: 'cf-pop', offset: 8, maxWidth: 'none' });
+    map.on('mousemove', 'fisc', (e) => {
+      const f = e.features && e.features[0];
+      if (!f || isHidden()) return;
+      const p = f.properties || {};
+      const et = String(p.etiqueta || 'otro');
+      const node = document.createElement('div');
+      node.style.setProperty('--c', FISC_COLOR[et] || GREY);
+      const b = document.createElement('b'); b.textContent = p.expediente || 'Fiscalización DGA';
+      const line1 = document.createElement('div'); line1.append(b, document.createTextNode(p.comuna ? ' · ' + titleCase(p.comuna) : ''));
+      const line2 = document.createElement('div');
+      const i = document.createElement('i'); i.textContent = FISC_LABEL[et] || et;
+      line2.append(document.createTextNode((p.fecha_inspeccion ? fmtDate(p.fecha_inspeccion) + ' · ' : '')), i,
+        document.createTextNode(Number.isFinite(+p.multa_utm) && +p.multa_utm > 0 ? ' · ' + fmtUTM(p.multa_utm) : ''));
+      node.append(line1, line2);
+      fiscPopup.setLngLat(f.geometry.coordinates).setDOMContent(node).addTo(map);
+      map.getCanvas().style.cursor = 'default';
+    });
+    map.on('mouseleave', 'fisc', () => { fiscPopup.remove(); map.getCanvas().style.cursor = ''; });
+  }
+
   function setMarkersOff(off) {
     for (const m of markers.values()) {
       m.el.classList.toggle('off', off);
-      m.el.tabIndex = off || m.clustered ? -1 : 0;
-      if (off) m.el.setAttribute('aria-hidden', 'true'); else m.el.removeAttribute('aria-hidden');
+      m.el.tabIndex = off || m.clustered || m.zh ? -1 : 0;
+      if (off || m.zh) m.el.setAttribute('aria-hidden', 'true'); else m.el.removeAttribute('aria-hidden');
     }
     for (const c of clusters.values()) c.el.classList.toggle('off', off);
-    const setGlow = () => { try { map.setPaintProperty('site-glow', 'circle-opacity', off ? 0 : 0.32); } catch (_) { /* style not ready */ } };
-    if (map.isStyleLoaded()) setGlow(); else map.once('style.load', setGlow);
+    whenStyle(() => { try { map.setPaintProperty('site-glow', 'circle-opacity', off ? 0 : 0.32); } catch (_) { /* style not ready */ } });
+    setFiscVisible(!off);
   }
 
   if ('ResizeObserver' in window) {
@@ -751,16 +1261,32 @@ export async function initMap({ container, sites, onSelect } = {}) {
     });
   }
 
+  /** "z1" | "Z1" | "aculeo" | "caso-FD-0501-181" | "FD-0501-181" | "petorca" -> marker id or null */
+  function resolveId(id) {
+    if (id == null) return null;
+    const s = String(id);
+    if (markers.has(s)) return s;
+    if (markers.has(s.toLowerCase())) return s.toLowerCase();
+    if (markers.has(caseId(s))) return caseId(s);
+    if (s === 'petorca' && markers.has('z1')) return 'z1';
+    return null;
+  }
+
   const api = {
     map,
+    /** Zones as shown on the map: [{ id, codigo, name, casos, lon, lat, bbox }] */
+    zonas: data.filter((d) => d.kind === 'zona').map((d) => d.orig),
+    /** The validation cases the map shows (normalized: zona lower-case, lon/lat numbers). */
+    casos,
     select(id) {
-      if (id !== null && !markers.has(id)) return;
-      selectedId = id;
+      const rid = resolveId(id);
+      if (id !== null && !rid) return;
+      selectedId = rid;
       layoutLabels();
     },
-    /** Fly to a site. opts: { center, zoom = 7, pitch (keeps current), bearing (keeps current), duration } */
+    /** Fly to a marker. opts: { center, zoom = 7, pitch (keeps current), bearing (keeps current), duration } */
     flyToSite(id, opts = {}) {
-      const m = markers.get(id);
+      const m = markers.get(resolveId(id));
       if (!m) return Promise.resolve();
       const cam = {
         center: opts.center || [m.d.lon, m.d.lat],
@@ -772,7 +1298,26 @@ export async function initMap({ container, sites, onSelect } = {}) {
     },
     /** Fly back to the national view (upright Chile, gently tilted). */
     flyHome(opts = {}) {
-      return move(homeCamera(), { duration: opts.duration ?? 2400 });
+      return move(homeCamera(), { duration: opts.duration ?? 2400 }).then(() => restoreLimits());
+    },
+    /** The national landing camera { center, zoom, pitch, bearing } for the current viewport. */
+    getHomeCamera() {
+      return homeCamera();
+    },
+    /**
+     * Far-out globe camera (planet with Chile visible) for the intro. Side effect: lifts the
+     * zoom-out floor and pan limits; they come back when a move ends at the home zoom range,
+     * on flyHome() or on setMarkersVisible(true).
+     */
+    introStartCamera() {
+      liftLimits();
+      applyProjection();
+      return { center: INTRO_CENTER.slice(), zoom: introZoom(), pitch: 0, bearing: 0 };
+    },
+    /** false hides every marker, cluster bubble, site glow and fiscalization point (intro). */
+    setMarkersVisible(on) {
+      setHidden('intro', !on);
+      if (on) restoreLimits();
     },
     /**
      * Fly so a [w, s, e, n] box fills the viewport. opts: { pitch (keeps current), bearing
@@ -799,16 +1344,16 @@ export async function initMap({ container, sites, onSelect } = {}) {
       zoom = Math.min(zoom, opts.maxZoom ?? MAX_ZOOM);
       return move({ center, zoom, pitch, bearing }, { duration: opts.duration ?? 2400 });
     },
-    /** Hide (true) or restore (false) the markers, for the lagoon close-up. */
+    /** Hide (true) or restore (false) the markers and fiscalization points, for the lagoon close-up. */
     setLagoon(on) { setHidden('lagoon', on); },
-    /** Hide (true) or restore (false) the markers, for the valley view. */
+    /** Hide (true) or restore (false) the markers and fiscalization points, for the zone 3D view. */
     setValley(on) { setHidden('valley', on); }
   };
 
   function setHidden(which, on) {
     on = !!on;
     const before = isHidden();
-    if (which === 'lagoon') lagoon = on; else valley = on;
+    if (which === 'lagoon') lagoon = on; else if (which === 'intro') intro = on; else valley = on;
     const now = isHidden();
     if (now === before) return;
     if (now) { hoverId = null; focusId = null; }
@@ -817,7 +1362,7 @@ export async function initMap({ container, sites, onSelect } = {}) {
   }
 
   // ---------- relief exaggeration follows the zoom ----------
-  // MapLibre 4 has no zoom expression for terrain exaggeration and setTerrain() rebuilds the
+  // MapLibre 4/5 have no zoom expression for terrain exaggeration and setTerrain() rebuilds the
   // terrain (heavy), so update the live Terrain's exaggeration in place while zooming; fall back
   // to setTerrain() once the zoom settles if that private field is not there.
   let lastExag = terrainExag(map.getZoom());

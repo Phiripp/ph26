@@ -8,6 +8,8 @@ Los polígonos del catastro son cuarteles plantados (mediana 1,45 ha), no predio
 por superficie: para cada predio elegible se suma la superficie plantada de cada especie que cae dentro.
 El rol del catastro (`rolpredi`) solo se usa para medir la coincidencia con el predio.
 
+Con zonas de data/regiones.json (corrida nacional) baja la capa frutícola de la región completa.
+
 Entradas: data/zonas.json y data/processed/predio.parquet (correr antes predios_ciren.py).
 
 Salidas:
@@ -20,42 +22,33 @@ Uso: uv run scripts/extract/cultivos_ciren.py [--refrescar]
 import argparse
 import json
 import sys
-import urllib.parse
-import urllib.request
 from pathlib import Path
 
 import geopandas as gpd
 import pandas as pd
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from comun.arcgis import paginar  # noqa: E402
 from comun.rutas import DATA, ZONAS  # noqa: E402
-URL = "https://esri.ciren.cl/server/rest/services/IDEMINAGRI/CATASTRO_FRUTICOLA/MapServer/59/query"
+
+URL = "https://esri.ciren.cl/server/rest/services/IDEMINAGRI/CATASTRO_FRUTICOLA/MapServer/{capa}/query"
+CAPA_VALPARAISO = 59
 PAGINA = 2000  # maxRecordCount del servicio
 CRS_METROS = "EPSG:32719"
 MIN_SOLAPE_HA = 0.05  # ignora astillas de borde entre cuarteles y predios vecinos
 
 
-def descargar(comunas: list[str], destino: Path) -> None:
-    where = "desccomu IN ({})".format(",".join(f"'{c}'" for c in comunas))
-    partes, offset = [], 0
-    while True:
-        params = {"where": where, "outFields": "*", "outSR": "4326", "f": "geojson",
-                  "resultOffset": offset, "resultRecordCount": PAGINA, "orderByFields": "objectid"}
-        req = urllib.request.Request(URL, data=urllib.parse.urlencode(params).encode(),
-                                     headers={"User-Agent": "caudal-hackathon/0.1"})
-        with urllib.request.urlopen(req, timeout=120) as r:
-            cuerpo = json.load(r)
-        if "error" in cuerpo:
-            sys.exit(f"CIREN devolvió un error: {cuerpo['error']}")
-        # from_features: GDAL intenta seguir la paginación de ArcGIS por su cuenta y falla.
-        g = gpd.GeoDataFrame.from_features(cuerpo["features"], crs="EPSG:4326")
-        partes.append(g)
-        offset += len(g)
-        if len(g) < PAGINA:
-            break
-    cuarteles = gpd.GeoDataFrame(pd.concat(partes, ignore_index=True), crs="EPSG:4326")
-    if not cuarteles["objectid"].is_unique:
-        sys.exit("objectid repetido: la paginación falló")
+def descargar(zonas: dict, destino: Path) -> None:
+    """Cuarteles de cada zona: por comuna en Z1 y Z2 (capa 59); la capa regional completa en las regiones."""
+    partes = []
+    for cfg in zonas.values():
+        regional = "fruticola" in cfg
+        where = "1=1" if regional else "desccomu IN ({})".format(",".join(f"'{c}'" for c in cfg["comunas"]))
+        params = {"where": where, "outFields": "*", "outSR": "4326", "f": "geojson"}
+        for cuerpo in paginar(URL.format(capa=cfg.get("fruticola", CAPA_VALPARAISO)), params, PAGINA):
+            # from_features: GDAL intenta seguir la paginación de ArcGIS por su cuenta y falla.
+            partes.append(gpd.GeoDataFrame.from_features(cuerpo["features"], crs="EPSG:4326"))
+    cuarteles = gpd.GeoDataFrame(pd.concat(partes, ignore_index=True), crs="EPSG:4326").drop_duplicates("objectid")
     destino.parent.mkdir(parents=True, exist_ok=True)
     cuarteles.to_parquet(destino, index=False)
     print(f"Cuarteles descargados: {len(cuarteles)}")
@@ -68,11 +61,10 @@ def main() -> None:
 
     if not (DATA / "processed" / "predio.parquet").exists():
         sys.exit("Falta data/processed/predio.parquet: corre antes predios_ciren.py")
-    zonas = json.loads((ZONAS).read_text(encoding="utf-8"))["zonas"]
-    comunas = [c for z in zonas.values() for c in z["comunas"]]
+    zonas = json.loads(ZONAS.read_text(encoding="utf-8"))["zonas"]
     crudo = DATA / "raw" / "ciren_fruticola" / "cuarteles.parquet"
     if args.refrescar or not crudo.exists():
-        descargar(comunas, crudo)
+        descargar(zonas, crudo)
 
     cuarteles = gpd.read_parquet(crudo).to_crs(CRS_METROS)
     for c in ("especie_01", "especie_02", "especie_03", "especie_04", "rolpredi", "desccomu"):

@@ -20,8 +20,6 @@ Uso: uv run scripts/extract/cauces_dga.py
 
 import json
 import sys
-import urllib.parse
-import urllib.request
 from pathlib import Path
 
 import geopandas as gpd
@@ -29,7 +27,9 @@ import pandas as pd
 from shapely.geometry import MultiLineString
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from comun.arcgis import paginar  # noqa: E402
 from comun.rutas import DATA, ZONAS  # noqa: E402
+
 URL = "https://ideserver.sma.gob.cl/arcgis/rest/services/IDE/Recursos_hidricos_glaciares/MapServer/2/query"
 PAGINA = 1000
 CRS_METROS = "EPSG:32719"
@@ -40,24 +40,14 @@ MAX_DIST_M = 20_000
 
 
 def bajar_bbox(bbox: list[float]) -> gpd.GeoDataFrame:
-    filas, offset = [], 0
-    while True:
-        params = {"geometry": ",".join(map(str, bbox)), "geometryType": "esriGeometryEnvelope", "inSR": "4326",
-                  "spatialRel": "esriSpatialRelIntersects", "outFields": ",".join(CAMPOS), "outSR": "4326",
-                  "f": "json", "resultOffset": offset, "resultRecordCount": PAGINA, "orderByFields": "OBJECTID"}
-        req = urllib.request.Request(URL, data=urllib.parse.urlencode(params).encode(),
-                                     headers={"User-Agent": "caudal-hackathon/0.1"})
-        with urllib.request.urlopen(req, timeout=180) as r:
-            cuerpo = json.load(r)
-        if "error" in cuerpo:
-            sys.exit(f"El servidor de la SMA devolvió un error: {cuerpo['error']}")
-        feats = cuerpo.get("features", [])
-        for f in feats:
+    params = {"geometry": ",".join(map(str, bbox)), "geometryType": "esriGeometryEnvelope", "inSR": "4326",
+              "spatialRel": "esriSpatialRelIntersects", "outFields": ",".join(CAMPOS), "outSR": "4326", "f": "json"}
+    filas = []
+    for cuerpo in paginar(URL, params, PAGINA, orden="OBJECTID"):
+        for f in cuerpo["features"]:
             caminos = f.get("geometry", {}).get("paths") or []
             filas.append({**f["attributes"], "geometry": MultiLineString(caminos) if caminos else None})
-        offset += len(feats)
-        if len(feats) < PAGINA and not cuerpo.get("exceededTransferLimit"):
-            return gpd.GeoDataFrame(filas, geometry="geometry", crs="EPSG:4326")
+    return gpd.GeoDataFrame(filas, geometry="geometry", crs="EPSG:4326")
 
 
 def mas_cercano(predios: gpd.GeoDataFrame, capa: gpd.GeoDataFrame, prefijo: str, campos: dict) -> pd.DataFrame:
@@ -72,7 +62,7 @@ def mas_cercano(predios: gpd.GeoDataFrame, capa: gpd.GeoDataFrame, prefijo: str,
 def main() -> None:
     if not (DATA / "processed" / "predio.parquet").exists():
         sys.exit("Falta data/processed/predio.parquet: corre antes predios_ciren.py")
-    zonas = json.loads((ZONAS).read_text(encoding="utf-8"))["zonas"]
+    zonas = json.loads(ZONAS.read_text(encoding="utf-8"))["zonas"]
     cauces = pd.concat([bajar_bbox(z["bbox"]) for z in zonas.values()], ignore_index=True)
     cauces = gpd.GeoDataFrame(cauces.drop_duplicates("OBJECTID"), crs="EPSG:4326")
     cauces = cauces[cauces.geometry.notna()].rename(columns=str.lower)

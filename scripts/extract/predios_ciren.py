@@ -4,16 +4,22 @@
 # ///
 """Descarga los predios de CIREN para las zonas de data/zonas.json (tarea D3).
 
+Dos modos, según la zona: con `comunas` (Z1 y Z2) consulta la capa 4 por comuna; con `ciren_predios` (regiones de
+data/regiones.json, corrida nacional) baja la capa completa de la región, paginando por `objectid`.
+
 Salidas:
 - data/raw/ciren/<COMUNA>.geojson: respuesta cruda de CIREN, una por comuna (caché; no va a git).
-- data/processed/predio.parquet: todos los predios de Z1 y Z2 (no va a git: es la capa completa de CIREN).
-- data/processed/predio_muestra.geojson: 50 predios por zona alrededor de los casos de validación (va a git).
+- data/raw/ciren/<ZONA>/<offset>.geojson: páginas crudas de la capa de una región (caché, no se vuelven a pedir).
+- data/processed/predio.parquet: todos los predios de las zonas (no va a git: es la capa completa de CIREN).
+- data/processed/predio_muestra.geojson: 50 predios por zona alrededor de los casos de validación (va a git;
+  solo en el modo por comuna, la corrida nacional no usa muestra).
 
 Uso: uv run scripts/extract/predios_ciren.py [--refrescar]
 """
 
 import argparse
 import json
+import shutil
 import sys
 import urllib.parse
 import urllib.request
@@ -23,9 +29,13 @@ import geopandas as gpd
 import pandas as pd
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from comun.arcgis import paginar  # noqa: E402
 from comun.rutas import DATA, ZONAS  # noqa: E402
+
 URL = "https://esri.ciren.cl/server/rest/services/IDEMINAGRI/PROPIEDADES_RURALES/MapServer/4/query"
+URL_CAPA = "https://esri.ciren.cl/server/rest/services/IDEMINAGRI/PROPIEDADES_RURALES/MapServer/{capa}/query"
 LIMITE_SERVICIO = 10_000
+PAGINA_REGION = 5_000  # el servicio devuelve hasta 10.000; páginas más chicas fallan menos con polígonos grandes
 CRS_METROS = "EPSG:32719"
 # Rol SII con formato manzana-predio (p. ej. "87-3"). Lo demás no es un predio:
 # SR (sin rol), BC (bien común), ríos, caminos, vialidad (VP-*, RV-*), reservas.
@@ -62,9 +72,35 @@ def descargar_comuna(comuna: str, destino: Path) -> None:
     print(f"  {comuna}: {n} predios descargados")
 
 
+def descargar_capa(capa: int, destino: Path) -> list[Path]:
+    """Baja la capa regional completa en páginas por objectid; retoma desde las páginas ya guardadas."""
+    destino.mkdir(parents=True, exist_ok=True)
+    if not (destino / "completa").exists():
+        params = {"where": "1=1", "outFields": "*", "outSR": "4326", "f": "geojson"}
+        previas = len(list(destino.glob("*.geojson")))
+        offset = previas * PAGINA_REGION
+        for cuerpo in paginar(URL_CAPA.format(capa=capa), params, PAGINA_REGION, inicio=offset):
+            ruta = destino / f"{offset:07d}.geojson"
+            ruta.with_suffix(".tmp").write_text(json.dumps(cuerpo), encoding="utf-8")
+            ruta.with_suffix(".tmp").rename(ruta)
+            offset += len(cuerpo["features"])
+            print(f"  capa {capa}: {offset} predios descargados")
+        (destino / "completa").touch()
+    return sorted(destino.glob("*.geojson"))
+
+
 def cargar_predios(zonas: dict, refrescar: bool) -> gpd.GeoDataFrame:
     partes = []
     for zona_id, zona in zonas.items():
+        if "ciren_predios" in zona:
+            destino = DATA / "raw" / "ciren" / zona_id
+            if refrescar and destino.exists():
+                shutil.rmtree(destino)
+            for pagina in descargar_capa(zona["ciren_predios"], destino):
+                gdf = gpd.read_file(pagina)
+                gdf["zona"] = zona_id
+                partes.append(gdf)
+            continue
         for comuna in zona["comunas"]:
             crudo = DATA / "raw" / "ciren" / f"{comuna}.geojson"
             if refrescar or not crudo.exists():
@@ -127,24 +163,27 @@ def main() -> None:
     ap.add_argument("--refrescar", action="store_true", help="vuelve a descargar aunque exista la caché")
     args = ap.parse_args()
 
-    zonas = json.loads((ZONAS).read_text(encoding="utf-8"))["zonas"]
-    print("Predios CIREN por comuna:")
+    zonas = json.loads(ZONAS.read_text(encoding="utf-8"))["zonas"]
+    print("Predios CIREN:")
     predios = cargar_predios(zonas, args.refrescar)
 
     procesados = DATA / "processed"
     procesados.mkdir(parents=True, exist_ok=True)
     predios.to_parquet(procesados / "predio.parquet", index=False)
 
-    casos = gpd.read_file(DATA / "casos_validacion.geojson")
-    muestra = armar_muestra(predios, casos)
-    muestra.to_file(procesados / "predio_muestra.geojson", driver="GeoJSON")
+    muestra = None
+    if any("comunas" in z and "ciren_predios" not in z for z in zonas.values()):
+        casos = gpd.read_file(DATA / "casos_validacion.geojson")
+        muestra = armar_muestra(predios, casos)
+        muestra.to_file(procesados / "predio_muestra.geojson", driver="GeoJSON")
 
     print("\nResumen:")
     print(predios.groupby("zona").agg(predios=("predio_id", "size"), rol_valido=("rol_valido", "sum"),
                                       elegibles=("elegible", "sum"),
                                       area_ha=("area_ha", "sum")).round(0).to_string())
-    print(f"\nMuestra: {len(muestra)} predios -> {procesados / 'predio_muestra.geojson'}")
-    print(muestra.groupby(["zona", "caso_cercano"]).size().to_string())
+    if muestra is not None:
+        print(f"\nMuestra: {len(muestra)} predios -> {procesados / 'predio_muestra.geojson'}")
+        print(muestra.groupby(["zona", "caso_cercano"]).size().to_string())
 
 
 if __name__ == "__main__":

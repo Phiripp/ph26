@@ -62,6 +62,7 @@ from shapely.ops import nearest_points
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from comun.rutas import DATA, RAIZ  # noqa: E402
+
 CRS_M = "EPSG:32719"
 RES = 10
 BUF_PIXELES = 50  # m alrededor del predio para buscar tranques

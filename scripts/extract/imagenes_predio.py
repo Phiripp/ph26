@@ -39,6 +39,7 @@ from shapely.geometry import box, mapping
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from comun.rutas import DATA  # noqa: E402
+
 SALIDA = DATA / "processed" / "imagenes"
 STAC = "https://earth-search.aws.element84.com/v1"
 ZOOM = 4

@@ -34,6 +34,7 @@ import pandas as pd
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from comun.rutas import DATA, RAIZ, ZONAS, mostrar  # noqa: E402
+
 RAW = DATA / "raw" / "clima" / "dmc"
 URL_CATALOGO = "https://climatologia.meteochile.gob.cl/application/servicios/getEstacionesRedEma"
 # Ojo: este servicio vive en `serviciosb`, no en `servicios`.
@@ -155,7 +156,7 @@ def main() -> int:
         print("Faltan DMC_USER y DMC_TOKEN (ver .env.example).", file=sys.stderr)
         return 1
 
-    cfg = json.loads((ZONAS).read_text())
+    cfg = json.loads(ZONAS.read_text())
     zonas = cfg["zonas"]
     inicio = pd.Timestamp(cfg["periodo"]["inicio"])
     # `fin` puede ser "ultima_escena_limpia" (no es una fecha): se baja todo lo que la DMC tenga.

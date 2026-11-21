@@ -35,6 +35,7 @@ import pandas as pd
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from comun.rutas import DATA, RAIZ, mostrar  # noqa: E402
+
 SALIDA = DATA / "raw" / "clima" / "dmc" / "2026_acumulado.parquet"
 URL = "https://climatologia.meteochile.gob.cl/application/servicios/getEmaResumenDiario/{codigo}"
 # Ojo: este servicio vive en `serviciosb`, no en `servicios`.

@@ -37,6 +37,7 @@ import pandas as pd
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from comun.rutas import DATA, RAIZ, mostrar  # noqa: E402
+
 RAW = DATA / "raw" / "clima"
 KM_POR_GRADO = 111.32
 MIN_DIAS_ESTACION = 1000

@@ -34,6 +34,7 @@ import requests
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from comun.rutas import DATA, ZONAS, mostrar  # noqa: E402
+
 RAW = DATA / "raw" / "clima" / "openmeteo"
 URL = "https://archive-api.open-meteo.com/v1/archive"
 PASO = 0.1  # grados
@@ -129,7 +130,7 @@ def main() -> int:
     ap.add_argument("--lote", type=int, default=5, help="celdas por llamada")
     args = ap.parse_args()
 
-    cfg = json.loads((ZONAS).read_text())
+    cfg = json.loads(ZONAS.read_text())
     inicio = cfg["periodo"]["inicio"]
     # `fin` puede ser "ultima_escena_limpia" (no es una fecha): el clima llega hasta hace unos días.
     fin = cfg["periodo"]["fin"]

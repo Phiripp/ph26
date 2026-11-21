@@ -4,7 +4,7 @@
    --f-display --f-body --f-mono --ease --gutter, and the .wrap container).
 
    Layering inside header.stage (see styles.css):
-     #map 0 · canvases 1 · scrim/grain 2 · hud-frame 3 · hud-meta 4
+     #map 0 · canvases 1 · scrim/grain 2 · hud-meta 4
      nav / stage-top / stage-bottom 5 · valle-panel 6
      .intro-title 4   (over the map, under nav + bottom HUD)
      .intro-overlay 8 (dark cover, then transparent input blocker + satellite canvas)
@@ -61,11 +61,10 @@
 
 /* While the satellite part plays, the stage chrome is hidden; it fades back in
    with the title. js/intro.js toggles .is-intro on header.stage. */
-.stage .nav,.stage .hud-meta,.stage .stage-bottom,.stage .hud-frame{transition:opacity .7s var(--ease,ease)}
+.stage .nav,.stage .hud-meta,.stage .stage-bottom{transition:opacity .7s var(--ease,ease)}
 .stage.is-intro .nav,
 .stage.is-intro .hud-meta,
-.stage.is-intro .stage-bottom,
-.stage.is-intro .hud-frame{opacity:0;pointer-events:none}
+.stage.is-intro .stage-bottom{opacity:0;pointer-events:none}
 .stage.is-intro .stage-bottom *{pointer-events:none!important}
 /* map chrome during the flight: controls, attribution and (fallback for
    mapCtl.setMarkersVisible) the HTML markers */

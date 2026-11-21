@@ -1021,7 +1021,6 @@ async function boot() {
     console.error('[Caudal] sites:', err);
     showFallback($('map'), 'No se pudieron cargar los sitios. Sirve la carpeta con un servidor local (python3 -m http.server).');
   }
-  getCasos().then(c => { $('hud-count').textContent = c.length || '—'; }).catch(() => {});
 
   // The lagoon scene is not part of the landing: it used to load here (3.7 MB of imagery + a WebGL
   // context) for a view most visits never open.

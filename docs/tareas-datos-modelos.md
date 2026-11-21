@@ -27,7 +27,7 @@ Vista rápida de qué datos están listos en cada zona. Se actualiza al cerrar u
 | Cruce derechos–predios | D5 | ✅ | ✅ |
 | Fiscalizaciones (validación) | D6 | ✅ | ✅ |
 | Especie por predio | D7 | ✅ | ✅ |
-| Cauces y canales | D8 | 🟡 | 🟡 |
+| Cauces y canales | D8 | ✅ | ✅ |
 | Red vial | D9 | ✅ | ✅ |
 | Zonas de prohibición | D10 | ⬜ | ⬜ |
 | Referencia de secano | D11 | ✅ | ✅ |
@@ -45,7 +45,7 @@ Cada tarea entrega un script en `scripts/extract/` y un archivo en `data/process
 | D5 | Cruzar derechos con predios: punto de captación en el predio o a menos de 500 m; si falla, por titular en la comuna. Guardar `metodo_cruce` y `confianza_cruce`. No asignar por coordenada los `gran_derecho` (100 l/s o más: canales y comunidades de aguas) | D3 + D4 | Z1, Z2 | Tomás | D3, D4 | `scripts/extract/cruce_derechos_predios.py` → `derecho_predio.parquet` y `predio_derecho.parquet` (en git; columnas en `data/README.md`) | ✅ |
 | D6 | Filtrar la planilla de fiscalizaciones por extracción no autorizada en cada zona. Positivo: multa o "Constata infracción" / "Acoge". Negativo débil: "No acoge" / "Cierra expediente" | DGA planilla de fiscalización | Z1, Z2 | Tomás | — | `scripts/extract/fiscalizaciones_dga.py` → `fiscalizacion.parquet` (en git; 835 expedientes de Z1 y Z2, 497 de extracción de aguas) | ✅ |
 | D7 | Especie plantada y superficie frutal por predio elegible, cruzando cuarteles por superficie (no por rol) | CIREN Catastro Frutícola 2025 | Z1, Z2 | Tomás | D3 | `scripts/extract/cultivos_ciren.py` → `predio_cultivo.parquet` (en git) | ✅ |
-| D8 | Cauces y canales de riego | DGA red de drenajes (SMA) y CIREN infraestructura de riego | Z1, Z2 | Tomás (canales) / Por asignar (cauces) | — | canales: `scripts/extract/canales_ciren.py` → `raw/ciren_riego/canales.parquet` (✅); cauces: pendiente | 🟡 |
+| D8 | Cauces y canales de riego | DGA red de drenajes (SMA) y CIREN infraestructura de riego | Z1, Z2 | Tomás | — | `canales_ciren.py` → `raw/ciren_riego/canales.parquet`; `cauces_dga.py` → `cauce.parquet` y `predio_cauce.parquet` (cauce, río y canal más cercanos por predio elegible; lo usa M12) | ✅ |
 | D9 | Rutas con OSRM para los N predios top (no la red completa): matriz `/table` y trazado `/route`, verificados con los 10 positivos limpios. La red completa con osmnx queda descartada (Overpass corta la conexión; Z1 es muy grande) | OSRM público (OpenStreetMap) | Z1, Z2 | Tomás | — | decisión y prueba en el spec (Fuentes de datos verificadas); las llamadas las hace M8 | ✅ |
 | D10 | Zonas de prohibición y restricción de los acuíferos | DGA (rest-sit.mop.gob.cl) | Z1, Z2 | Por asignar | — | `restriccion.parquet` | ⬜ |
 | D11 | Polígonos de referencia de secano (matorral y pradera) | CONAF uso de la tierra 2001–2019 | Z1, Z2 | Gabriela | — | `scripts/extract/referencia_secano_conaf.py` → `referencia_secano.parquet` (en git; solo polígonos estables 2001–2019, sin estepa andina) | ✅ |
@@ -101,7 +101,7 @@ Orden de trabajo al 21-11-2026, después del assessment de datos. Se actualiza c
 | 4 | D18 Set de validación limpio | Por asignar | M6 no es creíble sin él |
 | ✅ | D9 Rutas con OSRM | Tomás | Verificado con los casos limpios; la ruta la arma M8 |
 | ✅ | D3 a D7, D16 | Tomás | Predios, derechos (versión 2), fiscalizaciones y especie listos |
-| — | D8 (cauces), D10, D12, D14, D20 | Por asignar | No bloquean el camino crítico |
+| — | D10, D12, D14, D20 | Por asignar | No bloquean el camino crítico |
 
 ## Assessment de datos (21-11-2026)
 

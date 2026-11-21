@@ -45,6 +45,8 @@ Datos de entrada de Caudal. Las zonas, las fuentes y las convenciones están en 
 | `processed/referencia_secano.parquet` | Sí | 3.642 polígonos de matorral y pradera anual estables 2001–2019 (CONAF), sin los huertos del Catastro Frutícola 2025 (más 20 m), geometría simplificada a 10 m: `ref_id`, `zona`, `comuna`, `clase`, `area_ha`, `recortado_fruta`. Referencia de secano para M2 | `scripts/extract/referencia_secano_conaf.py` |
 | `raw/conaf/<COMUNA>.geojson` | No | Respuesta cruda de CONAF (pradera y matorral 2019), una por comuna (caché) | `scripts/extract/referencia_secano_conaf.py` |
 | `raw/ciren_riego/canales.parquet` | No | 532 tramos de canales de riego CNR/CIREN 2020 (capa 1 de infraestructura de riego) | `scripts/extract/canales_ciren.py` |
+| `processed/cauce.parquet` | Sí | 2.855 tramos de cauces de la DGA en Z1 y Z2 (río, estero, quebrada, etc.), con nombre, tipo y subsubcuenca | `scripts/extract/cauces_dga.py` |
+| `processed/predio_cauce.parquet` | Sí | Cauce, río o estero y canal más cercanos a cada predio elegible, con distancias. Para el campo "cauce cercano" del expediente (M12, M13) | `scripts/extract/cauces_dga.py` |
 
 ## Columnas de `predio`
 
@@ -173,6 +175,20 @@ Los polígonos del Catastro Frutícola son cuarteles plantados (mediana 1,45 ha)
 | `rol_coincide` | Algún cuartel trae el mismo rol y comuna que el predio (67 % de los predios con frutales) |
 
 Para M4: el 44 % de los predios con infracción (positivos de D6) no tiene frutales en el catastro (pueden ser hortalizas, praderas o cultivos anuales). El Kc tiene que salir del NDVI; la especie solo ajusta cuando existe.
+
+## Cauces y canales (D8)
+
+Para regenerar: `uv run scripts/extract/canales_ciren.py` y luego `uv run scripts/extract/cauces_dga.py` (necesita `predio.parquet`).
+
+Columnas de `predio_cauce` (un registro por predio elegible):
+
+| Columna | Descripción |
+| --- | --- |
+| `cauce_nombre`, `cauce_tipo`, `cod_subsubcuenca`, `dist_cauce_m` | Cauce con nombre más cercano (río, estero, quebrada o embalse; no línea de costa). Mediana 308 m |
+| `rio_nombre`, `rio_tipo`, `dist_rio_m` | Río o estero más cercano: la fuente que suele nombrar una denuncia. Mediana 533 m |
+| `canal_nombre`, `canal_organizacion`, `canal_fuente`, `dist_canal_m` | Canal de riego CNR/CIREN más cercano, su organización de usuarios y su fuente. Mediana 92 m |
+
+Ejemplo para el expediente de FO-0504-95: río más cercano, Rio Aconcagua, a 1.166 m; canal La Sombra (Comunidad de Aguas del Canal La Sombra, Río Aconcagua 2.ª sección) atraviesa el predio.
 
 ## Lo que hay que saber
 

@@ -46,6 +46,7 @@ Datos de entrada de Caudal. Las zonas, las fuentes y las convenciones están en 
 | `raw/conaf/<COMUNA>.geojson` | No | Respuesta cruda de CONAF (pradera y matorral 2019), una por comuna (caché) | `scripts/extract/referencia_secano_conaf.py` |
 | `raw/ciren_riego/canales.parquet` | No | 532 tramos de canales de riego CNR/CIREN 2020 (capa 1 de infraestructura de riego) | `scripts/extract/canales_ciren.py` |
 | `processed/cauce.parquet` | Sí | 2.855 tramos de cauces de la DGA en Z1 y Z2 (río, estero, quebrada, etc.), con nombre, tipo y subsubcuenca | `scripts/extract/cauces_dga.py` |
+| `processed/consumo_predio.parquet`, `processed/consumo_predio_temporada.parquet` | Sí | Consumo de riego FAO-56 en rango de m³ por predio y mes, y por temporada (M4) | `scripts/models/consumo_fao56.py` |
 | `processed/predio_cauce.parquet` | Sí | Cauce, río o estero y canal más cercanos a cada predio elegible, con distancias. Para el campo "cauce cercano" del expediente (M12, M13) | `scripts/extract/cauces_dga.py` |
 
 ## Columnas de `predio`
@@ -189,6 +190,17 @@ Columnas de `predio_cauce` (un registro por predio elegible):
 | `canal_nombre`, `canal_organizacion`, `canal_fuente`, `dist_canal_m` | Canal de riego CNR/CIREN más cercano, su organización de usuarios y su fuente. Mediana 92 m |
 
 Ejemplo para el expediente de FO-0504-95: río más cercano, Rio Aconcagua, a 1.166 m; canal La Sombra (Comunidad de Aguas del Canal La Sombra, Río Aconcagua 2.ª sección) atraviesa el predio.
+
+## Consumo estimado FAO-56 (M4)
+
+Para regenerar: `uv run scripts/models/consumo_fao56.py` (muestra) o con `--serie data/processed/serie_predio_validacion.parquet --salida ...`; `--serie-referencia` usa la serie de secano (D11) en vez del NDVI de secano fijo de 0,30.
+
+- `consumo_predio.parquet`: por predio y mes de diciembre a marzo: estado del mes (observado, interpolado o faltante), escenas, NDVI, Kc mínimo, central y máximo, ET0, lluvia efectiva y m³ mínimo, central y máximo.
+- `consumo_predio_temporada.parquet`: por predio y temporada: m³ y m³/ha de la temporada y anual extrapolado, con columnas de calidad y `supuestos`.
+- Kc desde el NDVI con tres relaciones publicadas (Campos et al. 2010; Allen y Pereira 2009); la especie solo pone tope al Kc. Suelo desnudo da 0 (control `88-31`).
+- Es **consumo neto** (evapotranspiración que la lluvia no cubre). Para compararlo con derechos (extracción), M5 divide por la eficiencia de aplicación (~0,85 en microaspersión).
+- Palto adulto de FO-0504-95: 7.871 m³/ha al año central (5.816–11.334), dentro de lo publicado para Quillota (7.000–9.000, Gardiazabal et al. 2003).
+- Predios de más de 100 ha: el central cuenta el matorral del cerro como consumo; usar el mínimo.
 
 ## Lo que hay que saber
 

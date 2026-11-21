@@ -226,16 +226,18 @@ Línea base (`data/processed/fiscalizacion.parquet`: planilla de fiscalización 
 | Multas por extracción | 76 multas, 42.609,5 UTM en total (unos $3.087 millones) |
 | Multa mediana | 575,7 UTM (unos $41,7 millones); Z1: 575,7 UTM y Z2: 535 UTM |
 | Valor UTM usado | $72.440 (noviembre de 2026, mindicador.cl) |
+| Costo del agua por camión aljibe (D14) | Central: 4.300 CLP/m³ con IVA; rango: 2.600 a 14.000 CLP/m³. Promedio ponderado de 6 órdenes de compra de la Delegación Presidencial Provincial de Petorca, ene–mar 2026 (41.201 m³, $176,4 millones; Mercado Público, licitación 2131-7-LR25). La entrega casa a casa cuesta de 3 a 5 veces más que la entrega a granel a un APR. Referencia histórica: 5.858 CLP/m³ en 2012–2018 (EURE 2022). Sin precios del Aconcagua |
+| Dotación por persona (D14) | Central: 100 L/persona/día = 36,5 m³ por persona al año (fallo de la Corte Suprema de marzo de 2021 para Petorca, Cabildo y La Ligua); rango: 50 L (Oficio 18.087 de Interior, 2016) a 170 L (consumo con red, SISS) |
 
 Métricas:
 
 1. **Adelanto de detección** (se puede probar con casos conocidos). Para cada caso positivo, se mide cuántos meses antes de la inspección de la DGA el predio entra en la banda alta. Agua evitable = suma del exceso mensual (m³ estimados menos m³ con derecho) entre la primera señal y la inspección. Ejemplo para el pitch: "Caudal marcaba el predio del caso base FO-0504-95 X meses antes de que llegara la DGA; en ese tiempo se extrajeron entre A y B m³".
 2. **Acierto frente a la DGA** (se puede probar, con muestra chica). De los predios fiscalizados que caen en la banda alta de Caudal, qué fracción tuvo infracción. Se compara con el 33 % de la DGA. Advertencia: los predios fiscalizados no son una muestra al azar, y en las zonas hay pocos casos.
 3. **Candidatos no fiscalizados** (estimación). Predios en banda alta sin ninguna fiscalización registrada desde 2018 en un radio de 500 m. Casos esperados = candidatos × acierto de la métrica 2. Si la métrica 2 no tiene suficientes casos, se usa el 33 % de la DGA como piso conservador.
-4. **Agua en juego** (estimación). Suma del exceso anual de los candidatos × acierto, en rango de m³. Se traduce a personas abastecidas en un año con la dotación por persona de los camiones aljibe (valor por verificar, tarea D14).
+4. **Agua en juego** (estimación). Suma del exceso anual de los candidatos × acierto, en rango de m³. Se traduce a personas abastecidas en un año: personas = m³ / 36,5 (rango con 18,25 y 62 m³ por persona al año).
 5. **Dinero** (estimación, dos cifras que no se suman):
    - Multas que no se cursaron = casos esperados × multa mediana de la zona × valor UTM.
-   - Costo de reemplazar esa agua con camiones aljibe = m³ en juego × costo por m³ de camión aljibe (valor por verificar, tarea D14).
+   - Costo de reemplazar esa agua con camiones aljibe = m³ en juego × 4.300 CLP/m³ (rango de 2.600 a 14.000).
 
 Reglas para mostrar las métricas:
 

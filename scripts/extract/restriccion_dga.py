@@ -14,7 +14,8 @@ Salidas (dato público; va a git):
 - data/processed/restriccion.parquet: un polígono por SHAC que toca Z1 o Z2 (`zona` es la primera en que cae; la
   columna `zonas` lista todas), con `tipo_limite` (prohibicion, restriccion o abierto), resolución y fechas.
 - data/processed/predio_restriccion.parquet: por predio elegible, el SHAC donde cae la mayor parte de su
-  superficie, con `tipo_limite`, `frac_en_shac` y `en_prohibicion` (True si el tipo es prohibición).
+  superficie, con `tipo_limite`, `frac_en_shac` y `en_prohibicion` (True si el SHAC dominante es de prohibición) y `toca_prohibicion` (True si el predio
+  intersecta algún SHAC de prohibición, aunque el dominante sea otro).
   Un predio sin ningún SHAC queda con `cod_shac` vacío (no es "abierto": no hay dato).
 
 Uso: uv run scripts/extract/restriccion_dga.py
@@ -81,6 +82,8 @@ def bajar_bbox(bbox: list[float]) -> gpd.GeoDataFrame:
         if "error" in cuerpo:
             sys.exit(f"El servidor de la DGA devolvió un error: {cuerpo['error']}")
         feats = cuerpo.get("features", [])
+        if not feats:
+            return gpd.GeoDataFrame(filas, geometry="geometry", crs="EPSG:4326")
         for f in feats:
             geom = esri_a_shapely(f.get("geometry", {}).get("rings") or [])
             filas.append({**f["attributes"], "geometry": geom})
@@ -130,6 +133,9 @@ def main() -> None:
         on="predio_id", how="left")
     salida["frac_en_shac"] = (salida["m2"] / salida["area_m2"]).clip(upper=1).round(3)
     salida["en_prohibicion"] = salida["tipo_limite"].eq("prohibicion")
+    toca = gpd.sjoin(predios[["predio_id", "geometry"]],
+                     sec_m.loc[sec_m["tipo_limite"] == "prohibicion", ["geometry"]], predicate="intersects")
+    salida["toca_prohibicion"] = salida["predio_id"].isin(toca["predio_id"])
     salida = salida.drop(columns=["m2", "area_m2"])
     salida.to_parquet(DATA / "processed" / "predio_restriccion.parquet", index=False)
 
@@ -137,7 +143,7 @@ def main() -> None:
     print(sectores.groupby(["zona", "tipo_limite"]).size().to_string())
     print(f"\nPredios elegibles: {len(salida)}; sin SHAC: {salida['cod_shac'].isna().sum()}")
     print(salida.groupby(["zona", "tipo_limite"], dropna=False).size().to_string())
-    print(f"En prohibición: {salida['en_prohibicion'].mean():.1%}")
+    print(f"En prohibición: {salida['en_prohibicion'].mean():.1%}; toca prohibición: {salida['toca_prohibicion'].mean():.1%}")
     print(f"\n-> {DATA / 'processed' / 'restriccion.parquet'}\n-> {DATA / 'processed' / 'predio_restriccion.parquet'}")
 
 

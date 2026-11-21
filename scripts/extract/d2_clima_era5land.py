@@ -54,8 +54,10 @@ from comun.clima import PASO, enlazar_estacion  # noqa: E402
 from comun.rutas import DATA, PROC, ZONAS, mostrar  # noqa: E402
 
 ARCO = "https://arco.datastores.ecmwf.int/{id}/arco/reanalysis_era5_land/{grupo}/geoChunked.zarr"
-# Grupo -> (id del Zarr, variables). Los nombres de variable se verifican al abrir: la guía de ECMWF no los da exactos,
-# así que cada una admite el nombre largo del CDS y la sigla de ERA5 (CANDIDATOS).
+# Grupo -> (id del Zarr, variables canónicas). Verificado con los .zmetadata de ECMWF: las variables del Zarr son las
+# siglas de ERA5 (t2m, d2m, tp, sp, u10, v10, ssrd), float32, dims (time, latitude, longitude), grilla global de 0,1°
+# (1801 x 3600) y chunks [33792, 4, 8]: 3,9 años x 0,4° de latitud x 0,8° de longitud. CANDIDATOS acepta además el
+# nombre largo del CDS.
 GRUPOS = {
     "temperatura": ("cadl-arco-geo-007", "sfc-2m-temperature", ["2m_temperature", "2m_dewpoint_temperature"]),
     "presion_lluvia": ("cadl-arco-geo-009", "sfc-pressure-precipitation", ["total_precipitation", "surface_pressure"]),
@@ -63,13 +65,13 @@ GRUPOS = {
     "radiacion": ("cadl-arco-geo-010", "sfc-radiation-heat", ["surface_solar_radiation_downwards"]),
 }
 CANDIDATOS = {
-    "2m_temperature": ["2m_temperature", "t2m"],
-    "2m_dewpoint_temperature": ["2m_dewpoint_temperature", "d2m"],
-    "total_precipitation": ["total_precipitation", "tp"],
-    "surface_pressure": ["surface_pressure", "sp"],
-    "10m_u_component_of_wind": ["10m_u_component_of_wind", "u10"],
-    "10m_v_component_of_wind": ["10m_v_component_of_wind", "v10"],
-    "surface_solar_radiation_downwards": ["surface_solar_radiation_downwards", "ssrd"],
+    "2m_temperature": ["t2m", "2m_temperature"],
+    "2m_dewpoint_temperature": ["d2m", "2m_dewpoint_temperature"],
+    "total_precipitation": ["tp", "total_precipitation"],
+    "surface_pressure": ["sp", "surface_pressure"],
+    "10m_u_component_of_wind": ["u10", "10m_u_component_of_wind"],
+    "10m_v_component_of_wind": ["v10", "10m_v_component_of_wind"],
+    "surface_solar_radiation_downwards": ["ssrd", "surface_solar_radiation_downwards"],
 }
 NOMBRES_EJE = {"lat": ["latitude", "lat"], "lon": ["longitude", "lon"], "tiempo": ["time", "valid_time"]}
 TZ = "America/Santiago"
@@ -206,8 +208,11 @@ def abrir(grupo: str, clave: str):
 
 def indices_celdas(ds, celdas: pd.DataFrame) -> tuple[np.ndarray, np.ndarray]:
     lat, lon = ds[eje(ds, "lat")].to_numpy(), ds[eje(ds, "lon")].to_numpy()
-    ilat = np.abs(lat[:, None] - celdas["celda_lat"].to_numpy()[None, :]).argmin(axis=0)
-    ilon = np.abs(lon[:, None] - celdas["celda_lon"].to_numpy()[None, :]).argmin(axis=0)
+    lon_celdas = celdas["celda_lon"].to_numpy()
+    if lon.max() > 180:  # grilla de 0 a 360 en vez de -180 a 180: no se supone, se mira
+        lon_celdas = lon_celdas % 360
+    ilat = np.abs(lat[:, None] - celdas["celda_lat"].to_numpy()[None, :]).argmin(axis=0)  # sirve con latitud 90 -> -90
+    ilon = np.abs(lon[:, None] - lon_celdas[None, :]).argmin(axis=0)
     return ilat, ilon
 
 

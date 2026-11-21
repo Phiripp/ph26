@@ -31,9 +31,10 @@ Reglas:
   "en ventana"; exigir la racha evita contar la humedad que dejó esa lluvia.
 - Se exigen las dos anomalías: el suelo desnudo tiene NDMI más alto que el matorral seco (control 88-31 en dic-2019
   frente a CONAF: z_humedad +2,5 pero z_verdor -2,0), así que la humedad sola da falsos positivos.
-- Umbrales iniciales: z >= 2 en ambos (con escala robusta, ≈ 2 desviaciones sobre la mediana del secano: percentil
-  ~98 de la referencia). Con la escala mínima de M2 (0,05), equivale a al menos 0,10 de NDVI y de NDMI sobre el
-  secano. --frac-min 0,5: más de la mitad de las fechas válidas con señal. Se calibran en M7 con el set de validación.
+- Umbrales calibrados en M7 (docs/calibracion.md): z_verdor >= 2,5 y z_humedad >= 1,5 (con la escala mínima de M2,
+  0,05, al menos 0,125 de NDVI y 0,075 de NDMI sobre el secano) y --frac-min 0,7 (siete de cada diez fechas válidas
+  con señal). Los iniciales eran 2, 2 y 0,5. En la grilla de M7 el verdor alto y la fracción alta mandan; los días
+  secos (7, 10 o 14) casi no cambian el resultado.
 - Confianza: la peor de estas reglas (motivos en motivos_confianza):
   - baja: menos de --min-fechas-baja (3) fechas válidas; sin_referencia en más de la mitad de las fechas en ventana;
     sin clima en más de la mitad de las fechas; mediana de píxeles válidos < 25 (1 ha a 20 m: el borde pesa demasiado).
@@ -115,10 +116,10 @@ def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     ap.add_argument("--anomalias", default="data/processed/anomalias_predio.parquet")
     ap.add_argument("--salida", default="data/processed/senal_riego.parquet")
-    ap.add_argument("--umbral-verdor", type=float, default=2.0)
-    ap.add_argument("--umbral-humedad", type=float, default=2.0)
+    ap.add_argument("--umbral-verdor", type=float, default=2.5)
+    ap.add_argument("--umbral-humedad", type=float, default=1.5)
     ap.add_argument("--dias-min", type=int, default=10, help="días sin lluvia mínimos en la fecha de la imagen")
-    ap.add_argument("--frac-min", type=float, default=0.5, help="fracción de fechas con señal para senal_riego")
+    ap.add_argument("--frac-min", type=float, default=0.7, help="fracción de fechas con señal para senal_riego")
     ap.add_argument("--min-fechas-baja", type=int, default=3)
     ap.add_argument("--min-fechas-media", type=int, default=6)
     args = ap.parse_args()

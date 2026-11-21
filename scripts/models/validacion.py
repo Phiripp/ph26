@@ -146,6 +146,9 @@ def main() -> None:
     kv = int(pos_d["banda"].isin(NIVELES["alta o media"]).sum())
     y, s = det["y"].to_numpy(), det["puntaje"].to_numpy()
     auc, auc_lo, auc_hi = auc_ic(y, s, rng)
+    pt = f[f["y"] & f["banda_punto"].notna()]
+    kt, bt = int((pt["banda_punto"] == "alta").sum()), pt["azar_punto_alta"].mean()
+    lift_todos, (lt_lo, lt_hi) = kt / len(pt) / bt, [w / bt for w in wilson(kt, len(pt))]
     lineas += [
         f"- **Prioriza mejor que el azar en la banda alta.** De los {n_p} positivos detectables por verdor, el predio "
         f"del punto de la DGA cae en banda alta en {k_a} ({k_a / n_p:.0%}), contra {base_a:.0%} al azar: "
@@ -153,14 +156,19 @@ def main() -> None:
         f"{k_am} ({k_am / n_p:.0%}) contra {base_am:.0%} ({k_am / n_p / base_am:.1f} veces).",
         f"- **Por vecindario el lift es menor.** Con la mejor banda de los predios a 30 m, {kv} de {len(pos_d)} "
         f"positivos quedan en alta o media, pero el azar también sube (varios predios): "
-        f"{kv / len(pos_d) / pos_d['azar_alta o media'].mean():.1f} veces, con intervalo que incluye 1.",
+        f"{kv / len(pos_d) / pos_d['azar_alta o media'].mean():.1f} veces (IC 95 % "
+        f"{wilson(kv, len(pos_d))[0] / pos_d['azar_alta o media'].mean():.1f}–"
+        f"{wilson(kv, len(pos_d))[1] / pos_d['azar_alta o media'].mean():.1f}).",
         f"- **No distingue infractores entre fiscalizados.** AUC {auc:.2f} (IC 95 % {auc_lo:.2f}–{auc_hi:.2f}) entre "
         f"{int(y.sum())} positivos y {int((~y).sum())} negativos detectables. La DGA ya fiscaliza predios regados: "
         f"tienen señal de riego el {det.loc[det['y'], 'senal_riego'].mean():.0%} de los positivos y el "
         f"{det.loc[~det['y'], 'senal_riego'].mean():.0%} de los negativos.",
         f"- **El verdor no ve todo.** {int((~f['detectable'] & f['y']).sum())} de {int(f['y'].sum())} positivos "
         "no son detectables por verdor (NDVI previo bajo 0,30 en el vecindario: suelo desnudo o sequía). Contándolos, "
-        "el lift baja y su intervalo incluye 1.",
+        f"el lift en alta baja a {lift_todos:.1f} veces (IC 95 % {lt_lo:.1f}–{lt_hi:.1f}).",
+        "- **Umbrales calibrados con este mismo set (M7).** Los umbrales de M3 se eligieron en "
+        "[calibracion.md](calibracion.md) con estos 19 positivos, así que el lift es optimista. Con los umbrales "
+        "iniciales (fijados antes de mirar) era 2,6 veces (IC 95 % 1,3–4,4): esa es la cifra sin sesgo de elección.",
         "- **Muestra chica.** Los intervalos son anchos: sirven para decir si hay señal, no para afinar umbrales.",
         "",
         "## Recall frente al azar: predio del punto (principal)",

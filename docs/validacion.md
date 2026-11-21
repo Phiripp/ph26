@@ -4,10 +4,11 @@ Generado por `scripts/models/validacion.py` (no editar a mano). Datos: `fiscaliz
 
 ## Resumen
 
-- **Prioriza mejor que el azar en la banda alta.** De los 19 positivos detectables por verdor, el predio del punto de la DGA cae en banda alta en 6 (32%), contra 12% al azar: **2.6 veces** (IC 95 % 1.3–4.4). En alta o media: 9 (47%) contra 27% (1.8 veces).
-- **Por vecindario el lift es menor.** Con la mejor banda de los predios a 30 m, 11 de 19 positivos quedan en alta o media, pero el azar también sube (varios predios): 1.4 veces, con intervalo que incluye 1.
-- **No distingue infractores entre fiscalizados.** AUC 0.56 (IC 95 % 0.39–0.72) entre 19 positivos y 48 negativos detectables. La DGA ya fiscaliza predios regados: tienen señal de riego el 79% de los positivos y el 69% de los negativos.
-- **El verdor no ve todo.** 14 de 33 positivos no son detectables por verdor (NDVI previo bajo 0,30 en el vecindario: suelo desnudo o sequía). Contándolos, el lift baja y su intervalo incluye 1.
+- **Prioriza mejor que el azar en la banda alta.** De los 19 positivos detectables por verdor, el predio del punto de la DGA cae en banda alta en 7 (37%), contra 10% al azar: **3.7 veces** (IC 95 % 1.9–5.9). En alta o media: 10 (53%) contra 21% (2.5 veces).
+- **Por vecindario el lift es menor.** Con la mejor banda de los predios a 30 m, 12 de 19 positivos quedan en alta o media, pero el azar también sube (varios predios): 1.9 veces (IC 95 % 1.2–2.4).
+- **No distingue infractores entre fiscalizados.** AUC 0.62 (IC 95 % 0.46–0.77) entre 19 positivos y 48 negativos detectables. La DGA ya fiscaliza predios regados: tienen señal de riego el 74% de los positivos y el 60% de los negativos.
+- **El verdor no ve todo.** 14 de 33 positivos no son detectables por verdor (NDVI previo bajo 0,30 en el vecindario: suelo desnudo o sequía). Contándolos, el lift en alta baja a 2.2 veces (IC 95 % 1.1–3.9).
+- **Umbrales calibrados con este mismo set (M7).** Los umbrales de M3 se eligieron en [calibracion.md](calibracion.md) con estos 19 positivos, así que el lift es optimista. Con los umbrales iniciales (fijados antes de mirar) era 2,6 veces (IC 95 % 1,3–4,4): esa es la cifra sin sesgo de elección.
 - **Muestra chica.** Los intervalos son anchos: sirven para decir si hay señal, no para afinar umbrales.
 
 ## Recall frente al azar: predio del punto (principal)
@@ -18,9 +19,9 @@ Banda del predio que contiene el punto de la inspección, en la temporada previa
 
 | Nivel | Positivos encontrados | Recall (IC 95 %) | Azar esperado | Lift (IC 95 %) |
 | --- | --- | --- | --- | --- |
-| alta | 6 de 19 | 32% (15%–54%) | 12% | 2.6× (1.3–4.4) |
-| alta o media | 9 de 19 | 47% (27%–68%) | 27% | 1.8× (1.0–2.6) |
-| cualquier alerta | 10 de 19 | 53% (32%–73%) | 29% | 1.8× (1.1–2.5) |
+| alta | 7 de 19 | 37% (19%–59%) | 10% | 3.7× (1.9–5.9) |
+| alta o media | 10 de 19 | 53% (32%–73%) | 21% | 2.5× (1.5–3.5) |
+| cualquier alerta | 11 de 19 | 58% (36%–77%) | 23% | 2.5× (1.6–3.3) |
 
 ### Positivos detectables del set limpio (6)
 
@@ -28,33 +29,33 @@ Sin otro predio a 30 m, sin etiquetas mixtas ni recurso (D18).
 
 | Nivel | Positivos encontrados | Recall (IC 95 %) | Azar esperado | Lift (IC 95 %) |
 | --- | --- | --- | --- | --- |
-| alta | 2 de 6 | 33% (10%–70%) | 14% | 2.4× (0.7–5.1) |
-| alta o media | 2 de 6 | 33% (10%–70%) | 29% | 1.2× (0.3–2.4) |
-| cualquier alerta | 2 de 6 | 33% (10%–70%) | 32% | 1.1× (0.3–2.2) |
+| alta | 2 de 6 | 33% (10%–70%) | 11% | 3.0× (0.9–6.3) |
+| alta o media | 2 de 6 | 33% (10%–70%) | 22% | 1.5× (0.4–3.2) |
+| cualquier alerta | 2 de 6 | 33% (10%–70%) | 24% | 1.4× (0.4–2.9) |
 
 ### Todos los positivos, detectables o no (33)
 
 | Nivel | Positivos encontrados | Recall (IC 95 %) | Azar esperado | Lift (IC 95 %) |
 | --- | --- | --- | --- | --- |
-| alta | 7 de 33 | 21% (11%–38%) | 12% | 1.8× (0.9–3.2) |
-| alta o media | 11 de 33 | 33% (20%–50%) | 26% | 1.3× (0.8–2.0) |
-| cualquier alerta | 12 de 33 | 36% (22%–53%) | 28% | 1.3× (0.8–1.9) |
+| alta | 7 de 33 | 21% (11%–38%) | 10% | 2.2× (1.1–3.9) |
+| alta o media | 10 de 33 | 30% (17%–47%) | 21% | 1.5× (0.8–2.3) |
+| cualquier alerta | 11 de 33 | 33% (20%–50%) | 23% | 1.5× (0.9–2.2) |
 
 ### Positivos detectables de Z1 (8)
 
 | Nivel | Positivos encontrados | Recall (IC 95 %) | Azar esperado | Lift (IC 95 %) |
 | --- | --- | --- | --- | --- |
-| alta | 3 de 8 | 38% (14%–69%) | 9% | 4.2× (1.5–7.8) |
-| alta o media | 4 de 8 | 50% (22%–78%) | 22% | 2.3× (1.0–3.6) |
-| cualquier alerta | 4 de 8 | 50% (22%–78%) | 24% | 2.1× (0.9–3.3) |
+| alta | 4 de 8 | 50% (22%–78%) | 8% | 6.4× (2.8–10.0) |
+| alta o media | 5 de 8 | 62% (31%–86%) | 18% | 3.4× (1.7–4.7) |
+| cualquier alerta | 5 de 8 | 62% (31%–86%) | 20% | 3.1× (1.5–4.2) |
 
 ### Positivos detectables de Z2 (11)
 
 | Nivel | Positivos encontrados | Recall (IC 95 %) | Azar esperado | Lift (IC 95 %) |
 | --- | --- | --- | --- | --- |
-| alta | 3 de 11 | 27% (10%–57%) | 15% | 1.9× (0.7–3.9) |
-| alta o media | 5 de 11 | 45% (21%–72%) | 30% | 1.5× (0.7–2.4) |
-| cualquier alerta | 6 de 11 | 55% (28%–79%) | 33% | 1.6× (0.8–2.4) |
+| alta | 3 de 11 | 27% (10%–57%) | 12% | 2.3× (0.8–4.8) |
+| alta o media | 5 de 11 | 45% (21%–72%) | 23% | 2.0× (0.9–3.2) |
+| cualquier alerta | 6 de 11 | 55% (28%–79%) | 25% | 2.2× (1.1–3.1) |
 
 ## Recall frente al azar: vecindario (sensibilidad)
 
@@ -64,34 +65,34 @@ Mejor banda entre los predios a 30 m o menos del punto. Azar: probabilidad de qu
 
 | Nivel | Positivos encontrados | Recall (IC 95 %) | Azar esperado | Lift (IC 95 %) |
 | --- | --- | --- | --- | --- |
-| alta | 6 de 19 | 32% (15%–54%) | 20% | 1.6× (0.8–2.7) |
-| alta o media | 11 de 19 | 58% (36%–77%) | 41% | 1.4× (0.9–1.9) |
-| cualquier alerta | 12 de 19 | 63% (41%–81%) | 44% | 1.4× (0.9–1.8) |
+| alta | 7 de 19 | 37% (19%–59%) | 17% | 2.2× (1.1–3.4) |
+| alta o media | 12 de 19 | 63% (41%–81%) | 33% | 1.9× (1.2–2.4) |
+| cualquier alerta | 13 de 19 | 68% (46%–85%) | 36% | 1.9× (1.3–2.3) |
 
 ### Todos los positivos (33)
 
 | Nivel | Positivos encontrados | Recall (IC 95 %) | Azar esperado | Lift (IC 95 %) |
 | --- | --- | --- | --- | --- |
-| alta | 7 de 33 | 21% (11%–38%) | 19% | 1.1× (0.6–2.0) |
-| alta o media | 13 de 33 | 39% (25%–56%) | 39% | 1.0× (0.6–1.4) |
-| cualquier alerta | 14 de 33 | 42% (27%–59%) | 42% | 1.0× (0.6–1.4) |
+| alta | 7 de 33 | 21% (11%–38%) | 16% | 1.3× (0.7–2.4) |
+| alta o media | 12 de 33 | 36% (22%–53%) | 32% | 1.1× (0.7–1.7) |
+| cualquier alerta | 13 de 33 | 39% (25%–56%) | 35% | 1.1× (0.7–1.6) |
 
 ## Entre fiscalizados (límite)
 
 | Comparación | Positivos | Negativos | AUC (IC 95 %) |
 | --- | --- | --- | --- |
-| Detectables, todos los negativos | 19 | 48 | 0.56 (0.40–0.72) |
-| Detectables, solo "No acoge" | 19 | 21 | 0.59 (0.40–0.76) |
-| Todos (detectables o no) | 33 | 74 | 0.53 (0.42–0.64) |
+| Detectables, todos los negativos | 19 | 48 | 0.62 (0.46–0.77) |
+| Detectables, solo "No acoge" | 19 | 21 | 0.65 (0.48–0.82) |
+| Todos (detectables o no) | 33 | 74 | 0.57 (0.46–0.68) |
 
-Acierto entre fiscalizados detectables: 28% en general y 31% entre los que Caudal pone en alta o media (11 de 36).
+Acierto entre fiscalizados detectables: 28% en general y 36% entre los que Caudal pone en alta o media (12 de 33).
 
 ## Bandas de los fiscalizados detectables
 
 | Etiqueta | alta | media | baja | sin_alerta |
 | --- | --- | --- | --- | --- |
-| negativo | 10 | 15 | 1 | 22 |
-| positivo | 6 | 5 | 1 | 7 |
+| negativo | 8 | 13 | 1 | 26 |
+| positivo | 7 | 5 | 1 | 6 |
 
 ## Casos clave
 

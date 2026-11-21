@@ -1,0 +1,61 @@
+{
+  "temporada": "2025-26",
+  "candidatos": 501,
+  "candidatos_por_zona": {
+    "Z1": 242,
+    "Z2": 259
+  },
+  "candidatos_mas_100ha": 34,
+  "acierto_dga": 0.32710280373831774,
+  "acierto_caudal": {
+    "bajo": 0.24809225259746442,
+    "central": 0.4666666666666667,
+    "alto": 0.6988336984894921
+  },
+  "lift_alta": 3.6646111023105297,
+  "auc_fiscalizados": 0.618969298245614,
+  "escenarios": {
+    "conservador": {
+      "candidatos": 158,
+      "acierto": 0.24809225259746442,
+      "casos": 39.19857591039938,
+      "m3_ano": 2132658.560730407,
+      "clp_ano": 5544912257.899058,
+      "personas": 34397.71872145818,
+      "multas_clp": 328225698.51567733
+    },
+    "central": {
+      "candidatos": 467,
+      "acierto": 0.32710280373831774,
+      "casos": 152.7570093457944,
+      "m3_ano": 9335308.59813084,
+      "clp_ano": 40141826971.962616,
+      "personas": 255761.87940084495,
+      "multas_clp": 6371772820.286215
+    },
+    "alto": {
+      "candidatos": 467,
+      "acierto": 0.6988336984894921,
+      "casos": 326.3553371945928,
+      "m3_ano": 43556894.18044649,
+      "clp_ano": 609796518526.2509,
+      "personas": 2386679.13317515,
+      "multas_clp": 22325084194.518295
+    }
+  },
+  "adelanto_mediana_anos": 1.9712525667351128,
+  "adelanto_casos": 8,
+  "supuestos": {
+    "clp_m3": {
+      "bajo": 2600,
+      "central": 4300,
+      "alto": 14000
+    },
+    "m3_persona_ano": {
+      "bajo": 62.0,
+      "central": 36.5,
+      "alto": 18.25
+    },
+    "utm_clp": 72450
+  }
+}

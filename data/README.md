@@ -49,6 +49,8 @@ Datos de entrada de Caudal. Las zonas, las fuentes y las convenciones están en 
 | `processed/consumo_predio.parquet`, `processed/consumo_predio_temporada.parquet` | Sí | Consumo de riego FAO-56 en rango de m³ por predio y mes, y por temporada (M4) | `scripts/models/consumo_fao56.py` |
 | `processed/puntaje.parquet` | Sí | Índice de sospecha (M5) de los 7.911 elegibles en 2025-26: banda, puntaje 0–100, confianza y motivos, consumo bruto, derecho asignado, exceso en rango y derechos ajenos disponibles a 500 m. Lo leen M8, M9, M12 y M13 | `scripts/models/indice_sospecha.py` |
 | `processed/puntaje_validacion.parquet` | Sí | Lo mismo para los 159 predios de los vecindarios de validación, temporadas 2019-20 a 2025-26 (M6) | `scripts/models/indice_sospecha.py --senal ..._validacion --consumo ..._validacion_temporada` |
+| `processed/impacto.json` | Sí | Cifras de impacto (M9) para el frontend: candidatos, acierto, escenarios conservador, central y alto (casos, m³, CLP, personas, multas) y adelanto. Detalle en [docs/impacto.md](../docs/impacto.md) | `scripts/models/impacto.py` |
+| `processed/calibracion_grilla.csv` | Sí | Grilla de calibración de M3 (81 combinaciones) con recall, lift y AUC de cada una (M7). Detalle en [docs/calibracion.md](../docs/calibracion.md) | `scripts/models/calibracion.py` |
 | `processed/validacion_casos.geojson` | Sí | 107 expedientes de extracción de aguas evaluados en M6: etiqueta, temporada previa, `detectable`, banda y puntaje (del vecindario), con color por etiqueta. GitHub lo muestra como mapa | `scripts/models/validacion.py` (también escribe `docs/validacion.md`) |
 | `processed/ruta_z1.*`, `processed/ruta_z2.*` | Sí | Rutas de inspección con los 40 predios de mayor puntaje de M5 por zona (M8) | `scripts/models/ruta_inspeccion.py --puntajes data/processed/puntaje.parquet` |
 | `processed/ruta_ejemplo_z1.*`, `processed/ruta_ejemplo_z2.*` | Sí | Rutas de inspección de ejemplo (JSON, GeoJSON, GPX) con los casos de validación (M8) | `scripts/models/ruta_inspeccion.py --demo` |
@@ -224,7 +226,7 @@ Para regenerar: `uv run scripts/models/consumo_fao56.py` (muestra) o con `--seri
 Para regenerar: `uv run scripts/models/ruta_inspeccion.py --zona Z1 --puntajes data/processed/puntaje.parquet` (o `--demo`, que usa los positivos limpios y los casos de validación con puntaje 1). Desde el backend: `from scripts.models.ruta_inspeccion import ruta`.
 
 - Prize-collecting TSP con OR-Tools sobre la matriz de tiempos de OSRM: sale y vuelve a la plaza de La Ligua (Z1) o de Quillota (Z2), jornada de 8 h, 30 min por visita, 40 predios de mayor puntaje como máximo.
-- Con M5 (`ruta_z1`, `ruta_z2`): Z1 visita 10 de 40 predios (08:30 a 16:25, 143 km); Z2, 12 de 40 (08:30 a 16:28, 82 km).
+- Con M5 (`ruta_z1`, `ruta_z2`): Z1 visita 10 de 40 predios (08:30 a 16:25, 143 km); Z2, 12 de 40 (08:30 a 16:29, 91 km).
 - Salidas `ruta_ejemplo_z1` y `ruta_ejemplo_z2`: `.json` (orden, horas, km, punto de acceso al camino, enlace a Google Maps, predios fuera y motivo), `.geojson` y `.gpx` (válido contra el esquema GPX 1.1).
 - Ejemplo Z1: 7 de 8 predios entre 08:30 y 15:20, 141 km. Ejemplo Z2: 6 de 6 entre 08:30 y 13:31, 110 km.
 - Caché de OSRM en `data/raw/osrm/` (no va a git). La demo sirve rutas precalculadas: el servidor público a veces tarda minutos.
@@ -241,10 +243,15 @@ Para regenerar: `uv run scripts/models/indice_sospecha.py` (elegibles 2025-26 �
 - `m3_derecho_ajeno_disponible_500m`: derechos de riego de otros roles a 500 m o menos, por la fracción que su rol no usa según M4, repartidos en partes iguales entre los predios elegibles a 500 m del punto. Un pozo compartido sin asignar cuenta entero antes de repartirse.
 - `puntaje`: base de la banda (75, 50, 25 o 0) + 25 × `frac_senal` × peso de la confianza (1; 0,7; 0,4) × percentil del exceso central **por hectárea** en la zona (intensidad, no tamaño: los positivos tienden a ser predios más chicos). `rank_zona` ordena por banda y puntaje.
 - `fiscalizado_dga`: el predio está en el vecindario de una fiscalización por extracción de aguas (cualquier resultado; no dice si hubo infracción).
-- 2025-26: alta 908 (11 %), media 1.118 (14 %), baja 210, sin alerta 5.675. Casos: FD-0501-181 puesto 41 de Z1 y FO-0504-95 puesto 74 de Z2, ambos en banda alta. FO-0504-157 queda sin alerta, porque sus derechos superan su consumo.
-- Validación (M6, [docs/validacion.md](../docs/validacion.md)): el predio del punto de la DGA cae en banda alta en 6 de 19 positivos detectables (32 %), contra 12 % al azar: 2,6 veces (IC 95 % 1,3–4,4). Entre fiscalizados el AUC es 0,56 (0,39–0,72). Una lectura anterior de 2,8 y 2,3 veces estaba inflada (comparaba la mejor banda del vecindario con un solo predio).
+- 2025-26 (con los umbrales de M7): alta 759 (9,6 %), media 856 (10,8 %), baja 169, sin alerta 6.127. Casos: FD-0501-181 puesto 41 de Z1 y FO-0504-95 puesto 69 de Z2, ambos en banda alta. FO-0504-157 queda sin alerta, porque sus derechos superan su consumo.
+- Validación (M6, [docs/validacion.md](../docs/validacion.md)): con los umbrales calibrados (M7), el predio del punto de la DGA cae en banda alta en 7 de 19 positivos detectables (37 %), contra 10 % al azar: 3,7 veces (IC 95 % 1,9–5,9), optimista porque los umbrales se eligieron con ese set. Con los umbrales iniciales era 2,6 veces (1,3–4,4). Entre fiscalizados el AUC es 0,62 (0,46–0,77). Una lectura anterior de 2,8 y 2,3 veces estaba inflada (comparaba la mejor banda del vecindario con un solo predio).
 - Prueba de variantes (21-11-2026): anual o mensual × orden por volumen, por intensidad o por intensidad descontando derechos ajenos. Mensual + intensidad dio el mayor AUC (0,558 contra 0,532 del índice original; mejor en el 88 % de los remuestreos, no significativo) con el mismo recall; es la que queda. Con solo los negativos "No acoge" (21) el AUC es 0,59. Se reproduce con `--exceso anual|mensual --orden volumen|intensidad|intensidad_ajenos`.
 - Limitación para M9: 64 predios de más de 100 ha suman 77 de los 122 millones de m³/año de exceso mínimo de las bandas alta y media. M9 debe reportarlos aparte.
+
+## Calibración (M7) e impacto (M9)
+
+- M7 ([docs/calibracion.md](../docs/calibracion.md)): grilla de 81 combinaciones de M3 (`uv run scripts/models/calibracion.py`, unos 3 min). Regla fijada antes de correr: cota inferior de Wilson del lift en banda alta, suavizada con las combinaciones vecinas. Quedan z_verdor ≥ 2,5, z_humedad ≥ 1,5, frac_min 0,7 y 10 días secos. El verdor alto y la fracción alta mandan; los días secos casi no cambian nada. 2,5 es el borde de la grilla.
+- M9 ([docs/impacto.md](../docs/impacto.md), `impacto.json` para el frontend): candidatos en banda alta sin fiscalización a 500 m desde 2018, casos esperados con acierto bajo (Wilson de Caudal), central (33 % de la DGA) y alto, m³, CLP, personas y multas; adelanto en casos conocidos. Regenerar con `uv run scripts/models/impacto.py` después de M5.
 
 ## Anomalías y detector de riego (M2, M3)
 
@@ -256,7 +263,7 @@ uv run scripts/models/detector_riego.py [--umbral-verdor 2 --umbral-humedad 2 --
 ```
 
 - `anomalias_predio.parquet` (M2): por predio y fecha, `z_verdor` y `z_humedad` frente a los 30 polígonos de secano más cercanos (10 km o menos) con dato válido ese día. Escala robusta: max(1,4826 × MAD; 0,05). Con menos de 8 referencias, z queda vacío (`sin_referencia`).
-- `senal_riego.parquet` (M3): por predio y temporada, `frac_senal` (fechas con ambas anomalías ≥ 2 dentro de una ventana seca de M1 y con 10 o más días sin lluvia), `senal_riego` (frac_senal ≥ 0,5), medianas de z, `confianza` y `motivos_confianza`.
+- `senal_riego.parquet` (M3): por predio y temporada, `frac_senal` (fechas con z_verdor ≥ 2,5 y z_humedad ≥ 1,5 dentro de una ventana seca de M1 y con 10 o más días sin lluvia; calibrado en M7, antes 2 y 2), `senal_riego` (frac_senal ≥ 0,7; antes 0,5), medianas de z, `confianza` y `motivos_confianza`.
 - Se exigen las dos anomalías: el suelo desnudo puede tener NDMI más alto que el matorral seco (falso positivo si solo se mira la humedad).
 - Lo generado hoy usa la **muestra y una referencia provisional** (los predios oscuros de la misma muestra; columna `referencia = provisional`): sirve para ver el formato, no para calibrar. Con la referencia CONAF real de diciembre de 2019, el secano da NDVI 0,16 con MAD ≈ 0,02, así que el piso de escala 0,05 manda: z ≥ 2 equivale a 0,10 de NDVI y de NDMI sobre el secano. Esa escala y los umbrales se calibran en M7.
 - El detector marca riego, no ilegalidad: con z ≥ 2, el 42 % de los predios de los vecindarios de validación tendría señal en diciembre de 2019. M5 cruza la señal con el consumo (M4) y los derechos.

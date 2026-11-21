@@ -19,7 +19,7 @@
  "n_candidatos": 40,
  "n_visitados": 10,
  "puntaje_visitado": 957.07,
- "puntaje_candidatos": 3782.31,
+ "puntaje_candidatos": 3788.22,
  "paradas": [
   {
    "orden": 1,
@@ -256,6 +256,22 @@
    "min_ida": 46.2
   },
   {
+   "predio_id": 5305382,
+   "puntaje": 95.62,
+   "lon": -71.35659956737015,
+   "lat": -32.27049531104251,
+   "motivo": "no_cabe_en_jornada",
+   "min_ida": 41.3
+  },
+  {
+   "predio_id": 5311215,
+   "puntaje": 95.55,
+   "lon": -71.31020168161655,
+   "lat": -32.564256236095474,
+   "motivo": "no_cabe_en_jornada",
+   "min_ida": 24.4
+  },
+  {
    "predio_id": 5320570,
    "puntaje": 95.23,
    "lon": -71.08886900565992,
@@ -270,14 +286,6 @@
    "lat": -32.34294496123522,
    "motivo": "no_cabe_en_jornada",
    "min_ida": 63.7
-  },
-  {
-   "predio_id": 5311215,
-   "puntaje": 92.82,
-   "lon": -71.31020168161655,
-   "lat": -32.564256236095474,
-   "motivo": "no_cabe_en_jornada",
-   "min_ida": 24.4
   },
   {
    "predio_id": 5344067,
@@ -302,14 +310,6 @@
    "lat": -32.36303306098803,
    "motivo": "no_cabe_en_jornada",
    "min_ida": 60.2
-  },
-  {
-   "predio_id": 5305382,
-   "puntaje": 92.44,
-   "lon": -71.35659956737015,
-   "lat": -32.27049531104251,
-   "motivo": "no_cabe_en_jornada",
-   "min_ida": 41.3
   },
   {
    "predio_id": 5344061,

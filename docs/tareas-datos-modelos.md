@@ -20,7 +20,7 @@ Vista rápida de qué datos están listos en cada zona. Se actualiza al cerrar u
 
 | Dato | Tarea | Z1 Petorca | Z2 Aconcagua bajo |
 | --- | --- | --- | --- |
-| Series Sentinel-2 por predio | D1 | 🟡 muestra lista | 🟡 muestra lista |
+| Series Sentinel-2 por predio | D1 | 🟡 ranking y validación listos; falta referencia de secano | 🟡 ranking y validación listos; falta referencia de secano |
 | Clima (lluvia y ET0) | D2 | ✅ | ✅ |
 | Predios | D3 | ✅ | ✅ |
 | Derechos normalizados | D4 | ✅ | ✅ |
@@ -98,11 +98,12 @@ Orden de trabajo al 21-11-2026, con la serie Sentinel-2 corregida (D15). Se actu
 | 1a | D1 corrida de validación: 159 predios, diciembre a marzo de 2019-20 a 2025-26 (`--validacion`) | Tomás | ✅ `serie_predio_validacion.parquet` | Desbloquea D18 `detectable`, D19 y M6 |
 | 1b | D1 corrida de ranking: 7.911 elegibles, 2025-26 (`--elegibles`) | Tomás | ✅ `serie_predio_elegibles_2025-26.parquet`: 7.911 predios, 97 escenas, mediana de 18 fechas válidas por predio | Universo del ranking de la demo; es la corrida más larga |
 | 1c | D1 corrida de referencia de secano, mismas temporadas (`--referencia`) | Tomás | ⬜ | M2 necesita la referencia para las anomalías |
-| 2 | M2 a M4: anomalías, detector de riego, consumo FAO-56 | Tomás | ⬜ | Camino crítico; el código puede partir con la serie de la muestra (sin offset, en git: temporada 2025-26 y periodos prioritarios de Z1 y Z2) |
-| 3 | D18 `detectable`, D19 caso de la demo, primera versión de M6 | Tomás | ⬜ | Cuando termine 1a |
-| 4 | M5 ranking, M8 ruta, M9 impacto | Tomás | ⬜ | Cuando estén 1b, 1c y 2 |
-| ✅ | D3 a D10, D15, D16, D17 | Tomás, Gabriela | ✅ | Datos base, cruce versión 2, cauces, rutas OSRM y fix de Sentinel-2 |
-| — | D12, D14, D20 | Por asignar | ⬜ | No bloquean el camino crítico |
+| 2 | M2 a M4: anomalías, detector de riego, consumo FAO-56 | Tomás | 🟡 en curso | Camino crítico; M2 espera la referencia de secano (1c) para las anomalías |
+| 3 | D19 caso de la demo, primera versión de M6 | Tomás | ⬜ | D18 `detectable` ya está listo; falta decidir el caso con la serie corregida |
+| 4 | M5 ranking, M9 impacto (M8 ruta ya está ✅) | Tomás | ⬜ | Cuando estén 1c y 2 |
+| 5 | M10 puntos de interés, M12 contexto del predio, D13 recálculo de la demo | Gabriela | ⬜ | Flujos por polígono; dependen de D1, D8 y M2 a M5 |
+| ✅ | D3 a D11, D14 a D18, M1, M8 | Tomás, Gabriela | ✅ | Datos base, cruce versión 2, cauces, restricciones, clima, set de validación limpio, ventanas secas y ruta |
+| — | D12, D20 | Por asignar | ⬜ | No bloquean el camino crítico |
 
 ## Assessment de datos (21-11-2026)
 

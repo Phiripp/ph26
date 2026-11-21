@@ -39,12 +39,22 @@ function el(tag, cls, text) {
   return n;
 }
 
+const LOGO_URL = 'assets/logo.svg';
+
 function buildDom(cfg) {
   const root = el('div', 'intro-title');
   root.setAttribute('data-intro-title', '');
 
   const wrap = el('div', 'wrap it-wrap');
   const block = el('div', 'it-block');
+
+  // logo (decorative here: the name right below is the accessible text)
+  const logo = el('img', 'it-logo');
+  logo.src = LOGO_URL;
+  logo.alt = '';
+  logo.decoding = 'async';
+  logo.addEventListener('error', () => logo.remove(), { once: true });
+  block.append(logo);
 
   // kicker
   if (cfg.kicker) {

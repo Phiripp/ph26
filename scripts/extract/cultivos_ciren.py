@@ -67,12 +67,13 @@ def main() -> None:
         descargar(zonas, crudo)
 
     cuarteles = gpd.read_parquet(crudo).to_crs(CRS_METROS)
-    for c in ("especie_01", "especie_02", "especie_03", "especie_04", "rolpredi", "desccomu"):
-        cuarteles[c] = cuarteles[c].fillna("").str.strip()
+    # Las capas regionales traen de 1 a 4 columnas de especie (Los Ríos y Los Lagos solo especie_01): se usan las que haya.
+    especies = sorted(c for c in cuarteles.columns if c.startswith("especie_"))
+    for c in (*especies, "rolpredi", "desccomu"):
+        cuarteles[c] = cuarteles[c].fillna("").astype(str).str.strip()
     # Un cuartel con varias especies se reparte en partes iguales entre ellas.
     largo = cuarteles.melt(id_vars=["objectid", "rolpredi", "desccomu", "geometry"],
-                           value_vars=["especie_01", "especie_02", "especie_03", "especie_04"],
-                           value_name="especie").query("especie != ''")
+                           value_vars=especies, value_name="especie").query("especie != ''")
     largo["n_especies"] = largo.groupby("objectid")["especie"].transform("size")
     largo = gpd.GeoDataFrame(largo, geometry="geometry", crs=CRS_METROS)
 

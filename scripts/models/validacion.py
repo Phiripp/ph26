@@ -73,13 +73,14 @@ def auc_ic(y: np.ndarray, s: np.ndarray, rng: np.random.Generator) -> tuple[floa
     return a, np.percentile(bs, 2.5), np.percentile(bs, 97.5)
 
 
-def casos() -> gpd.GeoDataFrame:
+def casos(validacion: Path = PROC / "puntaje_validacion.parquet",
+          universo: Path = PROC / "puntaje.parquet") -> gpd.GeoDataFrame:
     f = gpd.read_parquet(PROC / "fiscalizacion.parquet")
     f = f[f["extraccion"].fillna(False).astype(bool) & f["etiqueta"].isin(["positivo", "negativo"])
           & (f["set_validacion"] != "fuera") & f["temporada_previa"].notna()].copy()
-    pv = pd.read_parquet(PROC / "puntaje_validacion.parquet")
+    pv = pd.read_parquet(validacion)
     pvi = pv.set_index(["predio_id", "temporada"])
-    u = pd.read_parquet(PROC / "puntaje.parquet")
+    u = pd.read_parquet(universo)
     share = {(z, nivel): u.loc[u["zona"] == z, "banda"].isin(bandas).mean()
              for z in u["zona"].unique() for nivel, bandas in NIVELES.items()}
 

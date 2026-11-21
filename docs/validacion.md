@@ -8,7 +8,7 @@ Generado por `scripts/models/validacion.py` (no editar a mano). Datos: `fiscaliz
 - **Por vecindario el lift es menor.** Con la mejor banda de los predios a 30 m, 12 de 19 positivos quedan en alta o media, pero el azar también sube (varios predios): 1.9 veces (IC 95 % 1.2–2.4).
 - **No distingue infractores entre fiscalizados.** AUC 0.62 (IC 95 % 0.46–0.77) entre 19 positivos y 48 negativos detectables. La DGA ya fiscaliza predios regados: tienen señal de riego el 74% de los positivos y el 60% de los negativos.
 - **El verdor no ve todo.** 14 de 33 positivos no son detectables por verdor (NDVI previo bajo 0,30 en el vecindario: suelo desnudo o sequía). Contándolos, el lift en alta baja a 2.2 veces (IC 95 % 1.1–3.9).
-- **Umbrales calibrados con este mismo set (M7).** Los umbrales de M3 se eligieron en [calibracion.md](calibracion.md) con estos 19 positivos, así que el lift es optimista. Con los umbrales iniciales (fijados antes de mirar) era 2,6 veces (IC 95 % 1,3–4,4): esa es la cifra sin sesgo de elección.
+- **Umbrales calibrados con este mismo set (M7).** Los umbrales de M3 se eligieron en [calibracion.md](calibracion.md) con estos positivos, así que el lift es optimista. Con los umbrales iniciales (fijados antes de mirar) era 2.6 veces (IC 95 % 1.3–4.4): esa es la cifra sin sesgo de elección.
 - **Muestra chica.** Los intervalos son anchos: sirven para decir si hay señal, no para afinar umbrales.
 
 ## Recall frente al azar: predio del punto (principal)

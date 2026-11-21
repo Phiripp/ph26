@@ -14,6 +14,7 @@
 <link rel="stylesheet" href="css/styles.css">
 <link rel="stylesheet" href="css/panels.css">
 <link rel="stylesheet" href="css/intro.css">
+<link rel="stylesheet" href="css/impacto.css">
 <script type="importmap">
 {"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.min.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"}}
 </script>
@@ -41,6 +42,9 @@
   <div class="nav">
     <div class="wrap">
       <a class="brand" href="#top"><svg viewBox="0 0 64 64" aria-hidden="true"><defs><mask id="brand-gap" maskUnits="userSpaceOnUse" x="0" y="0" width="64" height="64"><rect width="64" height="64" fill="#fff"/><path d="M3 38A29 9 0 0 0 61 38" transform="rotate(-20 32 38)" fill="none" stroke="#000" stroke-width="8"/></mask></defs><path d="M3 38A29 9 0 0 1 61 38" transform="rotate(-20 32 38)" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round"/><g mask="url(#brand-gap)"><path fill="currentColor" transform="translate(32 34) scale(.76) translate(-32 -34)" d="M32 3C26 15 11 27 11 40a21 21 0 0 0 42 0C53 27 38 15 32 3Z"/></g><path d="M3 38A29 9 0 0 0 61 38" transform="rotate(-20 32 38)" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round"/><circle cx="59.25" cy="28.08" r="4" fill="#ffa940"/></svg>CAUDAL</a>
+      <nav aria-label="Principal">
+        <a href="#impacto">Impacto</a>
+      </nav>
     </div>
   </div>
 
@@ -61,7 +65,7 @@
   <aside class="valle-panel hud" id="valle-panel" aria-label="Priorización de la zona" hidden>
     <button class="vp-grip" id="vp-grip" type="button" aria-expanded="false" aria-controls="valle-panel"><span aria-hidden="true"></span><b id="vp-grip-l">Priorización</b></button>
     <div class="vp-head">
-      <p class="vp-kicker" id="vp-kicker">Zona · priorización provisional</p>
+      <p class="vp-kicker" id="vp-kicker">Zona · priorización</p>
       <div class="vp-tabs" role="tablist" aria-label="Vistas de la zona">
         <button class="vp-tab" role="tab" id="vt-predios" aria-controls="vp-predios" aria-selected="true" type="button">Predios <span class="vp-n" id="vt-predios-n"></span></button>
         <button class="vp-tab" role="tab" id="vt-casos" aria-controls="vp-casos" aria-selected="false" type="button" tabindex="-1">Casos <span class="vp-n" id="vt-casos-n"></span></button>

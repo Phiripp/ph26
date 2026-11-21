@@ -1,5 +1,6 @@
 // Caudal · zone data loader (Z1 Petorca, Z2 Aconcagua bajo) + shared formatting helpers.
-// Principle: "el sistema prioriza, no acusa" — IDs/rol only, ranges only, bands provisional until M5.
+// Principle: "el sistema prioriza, no acusa" — IDs/rol only, ranges only. Data: M5 export of
+// scripts/build_m5_web.py (data/processed/puntaje.parquet and friends; see docs/spec-demo.md).
 
 const ROOT = 'data/zonas/';
 const cache = new Map();
@@ -30,6 +31,35 @@ export const loadFiscalizaciones = () => once('fisc', () => getJSON(ROOT + 'fisc
  * case series. Lets the landing page skip the full zone data. null when the file is not there.
  */
 export const loadResumen = () => once('resumen', () => optJSON(ROOT + 'resumen.json'));
+/**
+ * Impact figures (M9): data/processed/impacto.json plus a `pitch` block with the F6 figures and their sources
+ * (scripts/build_m5_web.py -> impacto_web). null when the file is not there.
+ */
+export const loadImpacto = () => once('impacto', () => optJSON(ROOT + 'impacto.json'));
+/**
+ * Points of interest (M10, poi.parquet) of a zone: {predio_id: [{tipo, lon, lat, razon, confianza}]}, at most 8 each.
+ * Separate file (~600 KB) so the zone view does not wait for it. Never rejects ({} on failure).
+ */
+export const loadPoi = id => once('poi:' + zonaKey(id), async () => {
+  const z = await loadZona(id);
+  const j = await optJSON(z.base + 'poi.json');
+  z.poi = j?.predios || {};
+  return z.poi;
+});
+/** POI of one predio (array, maybe empty). */
+export const poiOf = async (zonaId, predioId) => ((await loadPoi(zonaId)) || {})[String(predioId)] || [];
+
+/** On-screen text for each M5 `motivos` token (docs/spec-demo.md). Tokens without text are not shown. */
+export const MOTIVO_TEXT = {
+  sin_derechos_propios_ubicados: 'Sin derechos de agua ubicados en el predio',
+  derechos_ajenos_cubren_exceso: 'Hay derechos de vecinos a 500 m que podrían cubrir el consumo',
+  canal_300m: 'Canal a menos de 300 m: puede regar con acciones de canal',
+  predio_grande: 'Predio de más de 100 ha: la señal se diluye',
+  pocos_pixeles: 'Predio chico: pocas mediciones por imagen',
+  cruce_derechos_media: 'La ubicación del derecho es incierta',
+  cruce_derechos_baja: 'La ubicación del derecho es incierta',
+};
+export const motivosText = list => [...new Set((list || []).map(m => MOTIVO_TEXT[m]).filter(Boolean))];
 
 /* ---------- per-predio series, loaded by block on demand ---------- */
 /** Block of a predio id. Same hash as scripts/build_zonas_web.py (bloque_de): h = h*31 + code, 32 bits. */
@@ -40,12 +70,27 @@ export function serieBlock(id, nBlocks) {
   return h % nBlocks;
 }
 const blockFile = n => `b${String(n).padStart(2, '0')}.json`;
-/** {ndvi:[…], ndmi:[…]} aligned to `meses` -> [{fecha, ndvi, ndmi}] (months without any value are skipped). */
-function rowsOf(cols, meses) {
+const SERIE_EXTRA = ['ref_ndvi', 'ref_ndmi', 'en_ventana_seca', 'senal'];
+/**
+ * Block columns -> [{fecha, ndvi, ndmi, ref_ndvi, ref_ndmi, en_ventana_seca, senal}].
+ * Indexed format (build_m5_web.py): cols.i = positions in the date axis, one value per position in each column.
+ * Old aligned format: one value per axis date (dates without any value are skipped).
+ * en_ventana_seca / senal come as 0/1 and are returned as booleans.
+ */
+function rowsOf(cols, fechas) {
   const out = [];
-  for (let i = 0; i < meses.length; i++) {
-    const ndvi = cols.ndvi?.[i] ?? null, ndmi = cols.ndmi?.[i] ?? null;
-    if (ndvi != null || ndmi != null) out.push({ fecha: meses[i], ndvi, ndmi });
+  const row = (fecha, k) => {
+    const r = { fecha, ndvi: cols.ndvi?.[k] ?? null, ndmi: cols.ndmi?.[k] ?? null };
+    for (const f of SERIE_EXTRA) if (cols[f]) r[f] = f === 'en_ventana_seca' || f === 'senal' ? !!cols[f][k] : cols[f][k] ?? null;
+    return r;
+  };
+  if (Array.isArray(cols.i)) {
+    cols.i.forEach((i, k) => { if (fechas[i]) out.push(row(fechas[i], k)); });
+    return out;
+  }
+  for (let i = 0; i < fechas.length; i++) {
+    const r = row(fechas[i], i);
+    if (r.ndvi != null || r.ndmi != null) out.push(r);
   }
   return out;
 }
@@ -56,11 +101,12 @@ function rowsOf(cols, meses) {
  */
 async function loadSeriesStore(base) {
   const index = await optJSON(base + 'series/index.json');
-  if (index && Array.isArray(index.meses) && index.bloques > 0) {
+  const fechas = index?.fechas || index?.meses;
+  if (Array.isArray(fechas) && index.bloques > 0) {
     return {
       predios: {},
       referencia_secano: index.referencia_secano || { serie: [] },
-      lazy: { base: base + 'series/', meses: index.meses, bloques: index.bloques, loaded: new Map(), failed: new Set() },
+      lazy: { base: base + 'series/', meses: fechas, bloques: index.bloques, loaded: new Map(), failed: new Set() },
     };
   }
   const full = await optJSON(base + 'series.json');
@@ -99,36 +145,24 @@ export function loadZona(id) {
     if (!zona) throw new Error(`[Caudal] zona desconocida: ${id}`);
     let base = zona.data || `${ROOT}${key}/`;
     if (!base.endsWith('/')) base += '/';
-    const [geo, scores, series, clima, ruta] = await Promise.all([
+    const [geo, scores, series, clima, ruta, historial] = await Promise.all([
       getJSON(base + 'predios.geojson'),
-      // lite = only the fields used here; the full scores.json (with per-season history) is the fallback
-      optJSON(base + 'scores.lite.json').then(j => j || optJSON(base + 'scores.json')),
+      optJSON(base + 'scores.lite.json'),
       loadSeriesStore(base),
       optJSON(base + 'clima.json'),
       optJSON(base + 'ruta.json'),
+      optJSON(base + 'historial.json'),
     ]);
     const sc = scores?.predios || {};
     const predios = (geo.features || []).map(f => {
       const p = f.properties || {};
       const pid = String(p.id ?? p.predio_id);
-      const s = sc[pid] || {};
-      const props = {
-        ...p,
-        id: pid,
-        m3_derecho: p.m3_derecho_rol ?? p.m3_derecho ?? null,
-        m3_estimado_min: s.m3_estimado_min ?? null,
-        m3_estimado_max: s.m3_estimado_max ?? null,
-        indice: s.indice ?? null,
-        banda: BANDS.includes(s.banda) ? s.banda : 'sin_dato',
-        confianza: s.confianza ?? null,
-        confianza_motivos: s.confianza_motivos || [],
-        ndvi_seca: s.ndvi_seca ?? null,
-        ndvi_ref: s.ndvi_ref ?? null,
-        provisional: scores?.provisional !== false,
-      };
+      const props = { ...p, id: pid, ...scoreProps(sc[pid], p) };
       if (!props.centroid) props.centroid = centroidOf(f.geometry);
       return { ...f, properties: props };
     });
+    // M5 order: rank_zona (band, then score); predios without rank go last
+    predios.sort((a, b) => (a.properties.rank ?? Infinity) - (b.properties.rank ?? Infinity));
     const byId = new Map(predios.map(f => [f.properties.id, f]));
     const casos = casosAll.filter(c => zonaKey(c.zona) === key || zonaKey(c.zona) === zonaKey(zona.codigo));
     // case → predio link (either side may carry it)
@@ -141,17 +175,66 @@ export function loadZona(id) {
       const pid = [...casoByPredio].find(([, e]) => e === c.expediente)?.[0];
       if (pid) c.predio_id = pid;
     }
-    const counts = { alta: 0, media: 0, baja: 0, sin_alerta: 0, sin_dato: 0 };
-    for (const f of predios) counts[f.properties.banda]++;
+    // counts of the exported predios (alta + media + cases, neighbourhoods and route stops)...
+    const countsExportados = { alta: 0, media: 0, baja: 0, sin_alerta: 0, sin_dato: 0 };
+    for (const f of predios) countsExportados[f.properties.banda]++;
+    // ...and of every predio analysed in the zone (resumen.json; baja and sin_alerta go only as counts)
+    const resumen = await loadResumen().catch(() => null);
+    const rz = resumen?.zonas?.[key];
+    const counts = rz?.counts ? { ...countsExportados, ...rz.counts } : countsExportados;
     return {
-      id: key, zona, base, predios, byId, casos, casoByPredio, counts,
-      scoresMeta: scores ? { provisional: scores.provisional !== false, metodo: scores.metodo, temporada: scores.temporada } : null,
+      id: key, zona, base, predios, byId, casos, casoByPredio, counts, countsExportados,
+      totalPredios: rz?.predios ?? predios.length,
+      scoresMeta: scores ? { provisional: scores.provisional === true, metodo: scores.metodo, temporada: scores.temporada, generado: scores.generado } : null,
       series,
       clima: clima || { ventanas_secas: [] },
       ruta,
       gpxUrl: base + 'ruta.gpx',
+      // per-season band of the case predios (puntaje_validacion.parquet): {predio_id: [{temporada, banda, puntaje, m3_exceso_*}]}
+      historial: historial || null,
+      // POI arrive later through loadPoi(id) (filled in place); {} until then
+      poi: {},
     };
   });
+}
+
+/**
+ * scores.lite.json entry (M5, build_m5_web.py) -> the property names the panels read, plus the new fields.
+ *   consumo_m3 [min, central, max] -> m3_estimado_min / m3_estimado_central / m3_estimado_max
+ *   derecho_m3 -> m3_derecho_rol (and m3_derecho)      exceso_m3 -> exceso_m3 + m3_exceso_min/central/max
+ *   puntaje (0–100) -> puntaje, indice (0–1, same order)   motivos -> motivos + confianza_motivos (text)
+ */
+function scoreProps(s, p) {
+  if (!s) return { banda: 'sin_dato', indice: null, m3_estimado_min: null, m3_estimado_max: null, confianza: null, confianza_motivos: [], provisional: false, m3_derecho: p.m3_derecho_rol ?? p.m3_derecho ?? null };
+  const [cmin, ccen, cmax] = Array.isArray(s.consumo_m3) ? s.consumo_m3 : [s.m3_estimado_min, null, s.m3_estimado_max];
+  const ex = Array.isArray(s.exceso_m3) ? s.exceso_m3 : [null, null, null];
+  const der = s.derecho_m3 ?? p.m3_derecho_rol ?? p.m3_derecho ?? null;
+  const motivos = Array.isArray(s.motivos) ? s.motivos : [];
+  return {
+    rank: s.rank ?? null,
+    banda: BANDS.includes(s.banda) ? s.banda : 'sin_dato',
+    puntaje: s.puntaje ?? null,
+    indice: s.puntaje != null ? s.puntaje / 100 : s.indice ?? null,
+    confianza: s.confianza ?? null,
+    motivos,
+    confianza_motivos: s.confianza_motivos || motivosText(motivos),
+    frac_senal: s.frac_senal ?? null,
+    n_fechas: s.n_fechas ?? null,
+    m3_estimado_min: cmin ?? null,
+    m3_estimado_central: ccen ?? null,
+    m3_estimado_max: cmax ?? null,
+    m3_derecho_rol: der,
+    m3_derecho: der,
+    m3_derecho_ajeno_500m: s.derecho_ajeno_m3 ?? null,
+    exceso_m3: ex,
+    m3_exceso_min: ex[0] ?? null,
+    m3_exceso_central: ex[1] ?? null,
+    m3_exceso_max: ex[2] ?? null,
+    estado_derechos: s.estado_derechos ?? p.estado_derechos ?? null,
+    dist_canal_m: s.canal_m ?? p.dist_canal_m ?? null,
+    fiscalizado_500m: s.fiscalizado_500m ?? null,
+    provisional: false,
+  };
 }
 
 function centroidOf(g) {
@@ -241,7 +324,8 @@ function monthsOf(w) {
   for (let y = y0, m = m0; y < y1 || (y === y1 && m <= m1); m === 12 ? (y++, m = 1) : m++) out.add(`${y}-${String(m).padStart(2, '0')}`);
   return out;
 }
-const mean = (arr, k, ms) => { const v = arr.filter(r => ms.has(r.fecha) && r[k] != null).map(r => r[k]); return v.length ? v.reduce((a, b) => a + b, 0) / v.length : null; };
+// rows may be monthly ('2024-01') or per scene ('2024-01-17'): match on the month
+const mean = (arr, k, ms) => { const v = arr.filter(r => ms.has(String(r.fecha).slice(0, 7)) && r[k] != null).map(r => r[k]); return v.length ? v.reduce((a, b) => a + b, 0) / v.length : null; };
 
 /**
  * Most telling dry window for a predio: the one where it is greenest relative to the secano reference.

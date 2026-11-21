@@ -438,7 +438,7 @@ function setupZonaPanel({ getValle, onFocusChange }) {
       if (st.rutaRendered) return;
       st.rutaCtl = P.renderRuta(panes.ruta, d, {
         onPlay: () => playRoute(),
-        onStop: pid => { if (pid) { st.selectedId = String(pid); valleCall('selectPredio', String(pid)); } },
+        onStop: pid => { if (pid) selectPredio(String(pid)); },   // F5: tapping a stop opens the predio ficha
         onGPX: () => {},
       }) || null;
       st.rutaRendered = true;
@@ -520,7 +520,7 @@ function setupZonaPanel({ getValle, onFocusChange }) {
       const id = zkey(meta?.id);
       if (st.zona !== id) { st.zona = id; dataP = null; reset(); }
       const name = `${meta?.codigo || id.toUpperCase()} · ${meta?.nombre || ''}`;
-      $('vp-kicker').textContent = `${name} · priorización provisional`;
+      $('vp-kicker').textContent = `${name} · priorización`;
       $('vp-grip-l').textContent = `Priorización · ${meta?.nombre || id.toUpperCase()}`;
       panel.setAttribute('aria-label', `Priorización de la zona ${name}`);
       $('vt-predios-n').textContent = n.predios ? `· ${n.predios}` : '';
@@ -1164,10 +1164,14 @@ async function boot() {
     if (ZONA_IDS.includes(k)) return { kind: 'zona', zona: k };
     if (/^caso-/i.test(h)) return { kind: 'caso', expediente: decodeURIComponent(h.slice(5)) };
     if (k === LAGOON_ID) return { kind: 'lagoon' };
+    if (k === 'impacto') return { kind: 'impacto' };
     return null;
   }
   function go(t, opts) {
     hideTitle();
+    // #impacto: panel a pantalla completa sobre el mapa (js/impacto.js); otro destino lo cierra
+    if (t.kind === 'impacto') return import('./impacto.js').then(m => m.openImpacto()).catch(err => console.error('[Caudal] impacto:', err));
+    import('./impacto.js').then(m => m.closeImpacto({ keepHash: true })).catch(() => {});
     if (t.kind === 'zona') return stage.goZona(t.zona, opts);
     if (t.kind === 'caso') return stage.goCaso(t.expediente, opts);
     if (t.kind === 'lagoon') return stage.goLagoon(opts);

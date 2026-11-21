@@ -73,6 +73,38 @@ def auc_ic(y: np.ndarray, s: np.ndarray, rng: np.random.Generator) -> tuple[floa
     return a, np.percentile(bs, 2.5), np.percentile(bs, 97.5)
 
 
+UMBRALES_INICIALES = {"umbral_verdor": 2.0, "umbral_humedad": 2.0, "frac_min": 0.5, "dias_min": 10}  # antes de M7
+
+
+def lift_sin_calibrar() -> dict | None:
+    """Lift en banda alta con los umbrales de M3 fijados antes de calibrar: es la cifra sin sesgo de elección.
+    Se lee de la grilla de M7 (calibracion_grilla.csv); None si la grilla no existe."""
+    f = PROC / "calibracion_grilla.csv"
+    if not f.exists():
+        return None
+    g = pd.read_csv(f)
+    r = g[np.logical_and.reduce([np.isclose(g[c], v) for c, v in UMBRALES_INICIALES.items()])]
+    if r.empty:
+        return None
+    r = r.iloc[0]
+    n = int(r["n_pos_abs"])
+    k = int(round(r["recall_alta_abs"] * n))
+    azar = r["recall_alta_abs"] / r["lift_alta_abs"]
+    lo, hi = wilson(k, n)
+    return {"valor": float(r["lift_alta_abs"]), "ic_bajo": lo / azar, "ic_alto": hi / azar, "positivos": k, "de": n,
+            "umbrales": UMBRALES_INICIALES}
+
+
+def nota_calibracion() -> list[str]:
+    x = lift_sin_calibrar()
+    if x is None:
+        return []
+    return ["- **Umbrales calibrados con este mismo set (M7).** Los umbrales de M3 se eligieron en "
+            "[calibracion.md](calibracion.md) con estos positivos, así que el lift es optimista. Con los umbrales "
+            f"iniciales (fijados antes de mirar) era {x['valor']:.1f} veces (IC 95 % {x['ic_bajo']:.1f}–{x['ic_alto']:.1f}): "
+            "esa es la cifra sin sesgo de elección."]
+
+
 def casos(validacion: Path = PROC / "puntaje_validacion.parquet",
           universo: Path = PROC / "puntaje.parquet") -> gpd.GeoDataFrame:
     f = gpd.read_parquet(PROC / "fiscalizacion.parquet")
@@ -166,9 +198,7 @@ def main() -> None:
         f"- **El verdor no ve todo.** {int((~f['detectable'] & f['y']).sum())} de {int(f['y'].sum())} positivos "
         "no son detectables por verdor (NDVI previo bajo 0,30 en el vecindario: suelo desnudo o sequía). Contándolos, "
         f"el lift en alta baja a {lift_todos:.1f} veces (IC 95 % {lt_lo:.1f}–{lt_hi:.1f}).",
-        "- **Umbrales calibrados con este mismo set (M7).** Los umbrales de M3 se eligieron en "
-        "[calibracion.md](calibracion.md) con estos 19 positivos, así que el lift es optimista. Con los umbrales "
-        "iniciales (fijados antes de mirar) era 2,6 veces (IC 95 % 1,3–4,4): esa es la cifra sin sesgo de elección.",
+        *nota_calibracion(),
         "- **Muestra chica.** Los intervalos son anchos: sirven para decir si hay señal, no para afinar umbrales.",
         "",
         "## Recall frente al azar: predio del punto (principal)",

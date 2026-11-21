@@ -115,7 +115,7 @@ export function renderRanking(el, data, { onSelect, selectedId } = {}) {
     lists.push({ key: 'rest', items: rest, withPill: true });
     h += `<details class="pn-group pn-g-rest pn-more"${open ? ' open' : ''}><summary class="pn-gh"><span class="pn-dot pn-sin_alerta"></span>Otros predios<span class="pn-count">${rest.length}</span></summary><ul class="pn-list" data-list="rest"></ul></details>`;
   }
-  h += `<p class="pn-foot">Consumo estimado ${esc(temporadaOf(data))} en mil m³ (rango). Bandas provisionales hasta el modelo M5.</p>`;
+  h += `<p class="pn-foot">Consumo estimado ${esc(temporadaOf(data))} en mil m³ (rango). Bandas del modelo M5.</p>`;
   el._rank?.lists.forEach(l => l.dispose()); // observers of the previous render of this element
   el.innerHTML = h;
   el._rank = {
@@ -157,7 +157,7 @@ export function renderFicha(el, feature, data, { onExpediente, onBack, onCaso } 
   el.innerHTML = `
     <button type="button" class="pn-back" data-act="back">← Ranking</button>
     <header class="pn-fh">
-      <h3 class="pn-title">${esc(p.rol ? `Rol ${p.rol}` : `Predio ${p.id}`)} ${pill(p.banda)}${p.banda !== 'sin_dato' ? '<em class="pn-prov" title="Banda provisional hasta el modelo M5">provisional</em>' : ''}</h3>
+      <h3 class="pn-title">${esc(p.rol ? `Rol ${p.rol}` : `Predio ${p.id}`)} ${pill(p.banda)}</h3>
       <p class="pn-sub">${sub.map(esc).join(' · ')}</p>
     </header>
     ${caso ? `<button type="button" class="pn-caselink" data-act="caso"><span class="pn-caso">Caso</span><b>${esc(caso.expediente)}</b><span>sancionado por la DGA · ${fmtNum(caso.multa_utm, 1)} UTM</span><i aria-hidden="true">→</i></button>` : ''}

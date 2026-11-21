@@ -57,5 +57,54 @@
       "alto": 18.25
     },
     "utm_clp": 72450
-  }
+  },
+  "lift_alta_sin_calibrar": {
+    "valor": 2.5975,
+    "ic_bajo": 1.2637249583281596,
+    "ic_alto": 4.440753596271995,
+    "positivos": 6,
+    "de": 19,
+    "umbrales": {
+      "umbral_verdor": 2.0,
+      "umbral_humedad": 2.0,
+      "frac_min": 0.5,
+      "dias_min": 10
+    }
+  },
+  "capacidad": {
+    "fiscalizaciones_por_ano": 33.333333333333336,
+    "candidatos_hasta_100ha": 467,
+    "anos": 14.01
+  },
+  "equivalencias": {
+    "m3_persona_ano": {
+      "valor": 36.5,
+      "nota": "100 litros por persona al día",
+      "fuente": "Corte Suprema, 2021 (dotación mínima para Petorca)",
+      "url": "https://www.24horas.cl/regiones/valparaiso/corte-suprema-determina-100-litros-de-agua-por-habitantes-de-petorca-4708851"
+    },
+    "lata_monster_ml": {
+      "valor": 473,
+      "nota": "lata de Monster Energy",
+      "fuente": "ficha del producto",
+      "url": "https://andina.micoca-cola.cl/monster-energy-green-473-ml/p"
+    },
+    "torre_costanera_m3": {
+      "valor": 449925.0,
+      "nota": "estimación propia: 107.125 m² construidos x 4,2 m por piso; ninguna fuente publica el volumen",
+      "fuente": "WikiArquitectura (superficie y alturas de piso)",
+      "url": "https://es.wikiarquitectura.com/edificio/gran-torre-santiago-torre-gran-costanera/"
+    }
+  },
+  "torres_costanera_ano": {
+    "conservador": 4.740031251276117,
+    "central": 20.74858831612122
+  },
+  "generado": "2026-11-21T18:15:07",
+  "fuentes": [
+    "data/processed/puntaje.parquet",
+    "data/processed/puntaje_validacion.parquet",
+    "data/processed/fiscalizacion.parquet",
+    "data/processed/calibracion_grilla.csv"
+  ]
 }

@@ -9,3 +9,6 @@ __pycache__/
 .venv/
 .DS_Store
 .env
+
+# Frontend demo: caché de descargas de los scripts (se regenera)
+frontend-demo/scripts/.cache/

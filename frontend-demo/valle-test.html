@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="es-CL">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Valle de Petorca · prueba</title>
+<meta name="theme-color" content="#05080b">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,400..900&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<script type="importmap">
+{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"}}
+</script>
+<style>
+  :root { --bg:#05080b; --fg:#e8eef0; --mute:#8a9ba1; --cyan:#45d6ee; --amber:#ffa940; --red:#ff5b3d; --line:rgba(232,238,240,.14); }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; background: var(--bg); color: var(--fg); font: 14px/1.4 'IBM Plex Sans', system-ui, sans-serif; }
+  #stage { position: fixed; inset: 0; overflow: hidden;
+    background: radial-gradient(ellipse at 50% 40%, #0b1217 0%, #05080b 70%); }
+  #valle-canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+  .panel { position: fixed; z-index: 10; left: 16px; bottom: 16px; width: min(340px, calc(100vw - 32px));
+    padding: 12px 14px; background: rgba(5,8,11,.86); border: 1px solid var(--line); border-radius: 6px;
+    font: 500 12px/1.4 'IBM Plex Mono', ui-monospace, monospace; }
+  .panel h1 { margin: 0 0 8px; font: 700 13px/1.2 'Archivo', sans-serif; letter-spacing: .08em; text-transform: uppercase; color: var(--cyan); }
+  .row { display: flex; align-items: center; gap: 8px; margin: 6px 0; }
+  .row label { width: 64px; color: var(--mute); }
+  .row input[type=range] { flex: 1; accent-color: var(--cyan); }
+  .row output { width: 42px; text-align: right; }
+  button { font: inherit; color: var(--bg); background: var(--cyan); border: 0; border-radius: 4px; padding: 6px 10px; cursor: pointer; }
+  button.ghost { background: none; color: var(--fg); border: 1px solid var(--line); }
+  #sel { margin-top: 8px; color: var(--mute); min-height: 2.8em; white-space: pre-line; }
+  .legend { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 8px; color: var(--mute); }
+  .legend i { display: inline-block; width: 10px; height: 10px; margin-right: 4px; vertical-align: -1px; border: 1.5px solid; }
+  #err { position: fixed; top: 16px; left: 16px; right: 16px; z-index: 11; color: var(--red); font-family: 'IBM Plex Mono', monospace; }
+</style>
+</head>
+<body>
+<div id="stage"><canvas id="valle-canvas" aria-label="Vista 3D del valle de Petorca con predios priorizados y ruta de inspección"></canvas></div>
+
+<div class="panel" role="region" aria-label="Panel de prueba">
+  <h1>Valle de Petorca · debug</h1>
+  <div class="row"><label for="prog">Ruta</label><input id="prog" type="range" min="0" max="1" step="0.001" value="0"><output id="progv">0%</output></div>
+  <div class="row"><label for="year">Año</label><input id="year" type="range" min="2018" max="2024" step="0.01" value="2024"><output id="yearv">2024</output></div>
+  <div class="row">
+    <button id="play" type="button">Recorrer ruta</button>
+    <button id="toggle" type="button" class="ghost" aria-pressed="true">Ocultar ruta</button>
+    <button id="back" type="button" class="ghost">Salir</button>
+  </div>
+  <div class="legend" aria-hidden="true">
+    <span><i style="border-color:#ff5b3d;background:rgba(255,91,61,.4)"></i>alta</span>
+    <span><i style="border-color:#ffa940;background:rgba(255,169,64,.35)"></i>media</span>
+    <span><i style="border-color:#d6c86e;background:rgba(214,200,110,.22)"></i>baja</span>
+    <span><i style="border-color:#c4ced4"></i>sin alerta</span>
+  </div>
+  <div class="row"><label for="inset">Panel der.</label><input id="inset" type="range" min="0" max="480" step="10" value="0"><output id="insetv">0</output></div>
+  <div id="stop" aria-live="polite" style="color:var(--cyan);min-height:1.4em"></div>
+  <div id="sel" aria-live="polite">Haz clic en un predio.</div>
+</div>
+<div id="err" role="alert"></div>
+
+<script type="module">
+  import { initValle } from './js/valle.js';
+  const $ = (id) => document.getElementById(id);
+  const fmt = (n) => Math.round(n).toLocaleString('es-CL');
+  try {
+    const valle = await initValle({
+      canvas: $('valle-canvas'),
+      onRouteStop(orden, parada) { $('stop').textContent = `parada ${orden} alcanzada · ${parada.predio_id} · ${parada.llegada || ''}`; },
+      onRouteProgress(t) { $('prog').value = t; $('progv').textContent = Math.round(t * 100) + '%'; },
+      onSelectPredio(p) {
+        $('sel').textContent = p
+          ? `${p.id} · banda ${p.banda} · confianza ${p.confianza}\nconsumo est.: ${fmt(p.m3_estimado_min)}–${fmt(p.m3_estimado_max)} m³`
+          : 'Haz clic en un predio.';
+      },
+    });
+    window.valle = valle;
+    await valle.enter({ duration: 2200 });
+    const prog = $('prog');
+    prog.addEventListener('input', () => { valle.setRouteProgress(+prog.value); $('progv').textContent = Math.round(prog.value * 100) + '%'; });
+    $('inset').addEventListener('input', (e) => { valle.setInsets({ right: +e.target.value }); $('insetv').textContent = e.target.value; });
+    console.log('[valle-test] bbox', valle.bbox);
+    $('year').addEventListener('input', (e) => { valle.setYear(+e.target.value); $('yearv').textContent = (+e.target.value).toFixed(1); });
+    $('play').addEventListener('click', async () => {
+      $('stop').textContent = 'recorriendo…';
+      await valle.playRoute({ duration: 9000 });
+    });
+    $('toggle').addEventListener('click', (e) => {
+      const on = e.currentTarget.getAttribute('aria-pressed') !== 'true';
+      e.currentTarget.setAttribute('aria-pressed', String(on));
+      e.currentTarget.textContent = on ? 'Ocultar ruta' : 'Mostrar ruta';
+      valle.showRoute(on);
+    });
+    $('back').addEventListener('click', async (e) => {
+      if (e.currentTarget.textContent === 'Salir') { await valle.exit(); e.currentTarget.textContent = 'Entrar'; }
+      else { await valle.enter(); e.currentTarget.textContent = 'Salir'; }
+    });
+  } catch (err) {
+    console.error(err);
+    $('err').textContent = err.message;
+  }
+</script>
+</body>
+</html>

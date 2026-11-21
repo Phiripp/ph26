@@ -1,0 +1,79 @@
+{
+  "name": "Laguna de Aculeo",
+  "bbox": {
+    "west": -70.99,
+    "south": -33.888,
+    "east": -70.838,
+    "north": -33.798
+  },
+  "size": {
+    "w": 1770,
+    "h": 1263
+  },
+  "years": [
+    2018,
+    2019,
+    2020,
+    2021,
+    2022,
+    2023,
+    2024
+  ],
+  "baselineYear": 2018,
+  "dem": {
+    "file": "dem.png",
+    "encoding": "terrarium",
+    "w": 512,
+    "h": 365,
+    "minM": 333.0,
+    "maxM": 1429.2
+  },
+  "water": {
+    "2018": {
+      "km2": 4.52,
+      "maskFile": "mask-2018.png",
+      "km2Clean": 4.38
+    },
+    "2019": {
+      "km2": 0.2,
+      "maskFile": "mask-2019.png",
+      "km2Clean": 0.11
+    },
+    "2020": {
+      "km2": 0.05,
+      "maskFile": "mask-2020.png",
+      "km2Clean": 0.0
+    },
+    "2021": {
+      "km2": 1.75,
+      "maskFile": "mask-2021.png",
+      "km2Clean": 1.11
+    },
+    "2022": {
+      "km2": 0.22,
+      "maskFile": "mask-2022.png",
+      "km2Clean": 0.07
+    },
+    "2023": {
+      "km2": 0.51,
+      "maskFile": "mask-2023.png",
+      "km2Clean": 0.24
+    },
+    "2024": {
+      "km2": 4.32,
+      "maskFile": "mask-2024.png",
+      "km2Clean": 4.47
+    }
+  },
+  "synthetic": false,
+  "attribution": "Sentinel-2 cloudless - https://s2maps.eu by EOX IT Services GmbH (contains modified Copernicus Sentinel data). Elevación: AWS Terrain Tiles (Mapzen/Terrarium; SRTM, NASA y otros).",
+  "waterSdf": {
+    "2018": "water-2018.png",
+    "2019": "water-2019.png",
+    "2020": "water-2020.png",
+    "2021": "water-2021.png",
+    "2022": "water-2022.png",
+    "2023": "water-2023.png",
+    "2024": "water-2024.png"
+  }
+}

@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="es-CL">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Caudal · panels test</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,400..800&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/styles.css">
+<link rel="stylesheet" href="css/panels.css">
+<style>
+  body{padding:16px}
+  .grid{display:grid;grid-template-columns:repeat(4,minmax(0,400px));gap:16px;align-items:start}
+  .col{height:calc(100vh - 80px);overflow:auto;border:1px solid var(--rule);background:rgba(5,8,11,.9);padding:14px}
+  h1{font:500 12px var(--f-mono);color:var(--dim);margin:0 0 12px;text-transform:uppercase;letter-spacing:.1em}
+  .chart-demo{margin-top:16px}
+</style>
+</head>
+<body>
+<h1>panels-test · ranking | ficha | expediente | ruta</h1>
+<div class="grid">
+  <div class="col pn" id="rank"></div>
+  <div class="col pn" id="ficha"></div>
+  <div class="col pn" id="exp"></div>
+  <div class="col pn" id="ruta"></div>
+</div>
+<figure class="chart hud chart-demo"><figcaption><span>old caption</span></figcaption><div class="chart-scroll"><svg id="chart" viewBox="0 0 960 300"></svg></div></figure>
+<p class="callout" id="callout"></p>
+<script type="module">
+import { loadPetorca } from './js/petorca-data.js';
+import { renderRanking, renderFicha } from './js/ficha.js';
+import { renderExpediente } from './js/expediente.js';
+import { renderRuta } from './js/ruta-panel.js';
+import { renderChart } from './js/chart.js';
+const $ = id => document.getElementById(id);
+const data = await loadPetorca();
+const top = data.predios.filter(f => f.properties.banda === 'alta').sort((a, b) => b.properties.indice - a.properties.indice)[0];
+const show = id => {
+  const f = data.byId.get(id);
+  renderFicha($('ficha'), f, data, { onExpediente: i => renderExpediente($('exp'), data.byId.get(i), data, { onBack: () => {} }), onBack: () => {} });
+  renderExpediente($('exp'), f, data, { onBack: () => {} });
+};
+renderRanking($('rank'), data, { onSelect: show, selectedId: top.properties.id });
+show(top.properties.id);
+let ruta;
+ruta = renderRuta($('ruta'), data, {
+  onPlay: () => new Promise(res => {
+    let o = 0; const n = data.ruta.paradas.length;
+    const tick = () => { o++; ruta.setActiveStop(o); ruta.setProgress(o / n); if (o < n) setTimeout(tick, 200); else res(); };
+    tick();
+  }),
+  onStop: id => show(id),
+});
+window.ruta = ruta;
+await renderChart($('chart'), $('callout'));
+window.ready = true;
+</script>
+</body>
+</html>

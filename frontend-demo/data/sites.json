@@ -1,0 +1,16 @@
+{
+  "note": "Cifras ilustrativas para el prototipo de interfaz, salvo Aculeo (superficie medida con MNDWI sobre Sentinel-2 cloudless de EOX, 2018–2024). Reemplazar por detecciones reales.",
+  "sites": [
+    {"id": "aculeo", "name": "Laguna de Aculeo", "type": "Laguna", "region": "Región Metropolitana", "lat": -33.843, "lon": -70.914, "loss": 99, "since": "2019", "affected": "4,5 km² (2018)", "note": "Se secó casi por completo en 2019–2020; recuperación parcial en 2024"},
+    {"id": "penuelas", "name": "Lago Peñuelas", "type": "Embalse", "region": "Valparaíso", "lat": -33.15, "lon": -71.53, "loss": 94, "since": "mar 2015", "affected": "9,8 km²"},
+    {"id": "petorca", "name": "Valle de Petorca", "type": "Valle", "region": "Valparaíso", "lat": -32.24, "lon": -70.93, "loss": 91, "since": "ago 2012", "affected": "38 km de cauce", "valle": "petorca", "predios": 34, "note": "Priorización de inspección: 34 predios (Sentinel-2 + Open-Meteo)"},
+    {"id": "copiapo", "name": "Río Copiapó", "type": "Río", "region": "Atacama", "lat": -27.37, "lon": -70.33, "loss": 88, "since": "feb 2011", "affected": "52 km de cauce"},
+    {"id": "ligua", "name": "Río La Ligua", "type": "Río", "region": "Valparaíso", "lat": -32.45, "lon": -71.05, "loss": 76, "since": "oct 2013", "affected": "21 km de cauce"},
+    {"id": "paloma", "name": "Embalse La Paloma", "type": "Embalse", "region": "Coquimbo", "lat": -30.68, "lon": -71.03, "loss": 63, "since": "jun 2019", "affected": "14,2 km²"},
+    {"id": "batuco", "name": "Humedal de Batuco", "type": "Humedal", "region": "Región Metropolitana", "lat": -33.23, "lon": -70.82, "loss": 58, "since": "ene 2020", "affected": "3,1 km²"},
+    {"id": "laja", "name": "Laguna del Laja", "type": "Laguna", "region": "Biobío", "lat": -37.35, "lon": -71.32, "loss": 52, "since": "abr 2016", "affected": "41 km²"},
+    {"id": "loa", "name": "Río Loa", "type": "Río", "region": "Antofagasta", "lat": -22.45, "lon": -68.93, "loss": 41, "since": "sep 2017", "affected": "17 km de cauce"},
+    {"id": "aconcagua", "name": "Posible desvío de cauce", "type": "Desvío", "region": "Valle del Aconcagua", "lat": -32.8, "lon": -70.65, "loss": 34, "since": "dic 2025", "affected": "1,2 km de cauce"},
+    {"id": "atacama", "name": "Lagunas del Salar de Atacama", "type": "Humedal", "region": "Antofagasta", "lat": -23.45, "lon": -68.2, "loss": 29, "since": "jul 2021", "affected": "2,4 km²"}
+  ]
+}

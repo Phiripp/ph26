@@ -58,8 +58,8 @@ from rasterio.transform import Affine
 from rasterio.warp import transform_bounds
 from rasterio.windows import from_bounds
 
-RAIZ = Path(__file__).resolve().parents[2]
-DATA = RAIZ / "data"
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from comun.rutas import DATA, ZONAS  # noqa: E402
 STAC = "https://earth-search.aws.element84.com/v1"
 RES = 20  # metros; B11 y SCL son nativas de 20 m
 SCL_VALIDO = [4, 5, 6, 7]
@@ -239,7 +239,7 @@ def main():
     ap.add_argument("--salida", default=str(DATA / "processed/serie_predio.parquet"))
     args = ap.parse_args()
 
-    zonas = json.loads((DATA / "zonas.json").read_text())
+    zonas = json.loads((ZONAS).read_text())
     resultados, fallidas = [], []
     for zid in args.zona or ["Z1", "Z2"]:
         z = zonas["zonas"][zid]

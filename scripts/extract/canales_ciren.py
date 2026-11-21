@@ -22,8 +22,8 @@ from pathlib import Path
 import geopandas as gpd
 import pandas as pd
 
-RAIZ = Path(__file__).resolve().parents[2]
-DATA = RAIZ / "data"
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from comun.rutas import DATA, ZONAS  # noqa: E402
 URL = "https://esri.ciren.cl/server/rest/services/IDEMINAGRI/INFRAESTRUCTURA_RIEGO/MapServer/1/query"
 PAGINA = 2000
 CAMPOS = ["objectid", "codcan", "nomcan", "tipo_canal", "fuentehid", "origen", "oua", "oua_tipo", "jv", "n_acciones"]
@@ -49,7 +49,7 @@ def bajar_bbox(bbox: list[float]) -> gpd.GeoDataFrame:
 
 
 def main() -> None:
-    zonas = json.loads((DATA / "zonas.json").read_text(encoding="utf-8"))["zonas"]
+    zonas = json.loads((ZONAS).read_text(encoding="utf-8"))["zonas"]
     canales = pd.concat([bajar_bbox(z["bbox"]) for z in zonas.values()], ignore_index=True)
     canales = gpd.GeoDataFrame(canales.drop_duplicates("objectid"), crs="EPSG:4326")
     destino = DATA / "raw" / "ciren_riego" / "canales.parquet"

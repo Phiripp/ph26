@@ -39,8 +39,8 @@ import truststore
 
 truststore.inject_into_ssl()  # dga.mop.gob.cl: ver derechos_dga.py
 
-RAIZ = Path(__file__).resolve().parents[2]
-DATA = RAIZ / "data"
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from comun.rutas import DATA, ZONAS  # noqa: E402
 PAGINA = "https://dga.mop.gob.cl/tramites/denunciar/fiscalizacion/"
 UA = {"User-Agent": "Mozilla/5.0 (caudal-hackathon/0.1)"}
 CRS_METROS = "EPSG:32719"
@@ -226,7 +226,7 @@ def main() -> None:
     gdf.loc[lon.isna(), "geometry"] = None
 
     # Predio y zona.
-    zonas = json.loads((DATA / "zonas.json").read_text(encoding="utf-8"))["zonas"]
+    zonas = json.loads((ZONAS).read_text(encoding="utf-8"))["zonas"]
     comuna_zona = {c: z for z, d in zonas.items() for c in d["comunas"]}
     predios = gpd.read_parquet(DATA / "processed" / "predio.parquet")
     predios = predios[predios["rol_valido"]].to_crs(CRS_METROS)[["predio_id", "zona", "elegible", "area_ha", "geometry"]]

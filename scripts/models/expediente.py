@@ -46,8 +46,8 @@ import numpy as np  # noqa: E402
 import pandas as pd  # noqa: E402
 from jinja2 import Environment, FileSystemLoader, select_autoescape  # noqa: E402
 
-RAIZ = Path(__file__).resolve().parents[2]
-PROC = RAIZ / "data" / "processed"
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from comun.rutas import PROC, RAIZ, mostrar  # noqa: E402
 PLANTILLAS = Path(__file__).resolve().parent / "plantillas"
 CRS_M = 32719
 STAC = "https://earth-search.aws.element84.com/v1"
@@ -641,7 +641,7 @@ def main() -> int:
 
     reg = Path(args.salida) / "registro.csv"
     pdf = (out / "expediente.pdf").resolve()
-    ruta_pdf = str(pdf.relative_to(RAIZ)) if pdf.is_relative_to(RAIZ) else str(pdf)
+    ruta_pdf = str(mostrar(pdf))
     fila = pd.DataFrame([{"id": eid, "predio_id": pid, "rol": f"{comuna}:{pg.rol.iloc[0]}", "temporada": t, "confianza": r.confianza,
                           "banda_m5": m5.banda if m5 is not None else "", "puntaje_m5": m5.puntaje if m5 is not None else None,
                           "version": VERSION, "hash_insumos": huella, "ruta_pdf": ruta_pdf,

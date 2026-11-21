@@ -32,8 +32,8 @@ import geopandas as gpd
 import pandas as pd
 import requests
 
-RAIZ = Path(__file__).resolve().parents[2]
-DATA = RAIZ / "data"
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from comun.rutas import DATA, ZONAS, mostrar  # noqa: E402
 RAW = DATA / "raw" / "clima" / "openmeteo"
 URL = "https://archive-api.open-meteo.com/v1/archive"
 PASO = 0.1  # grados
@@ -58,7 +58,7 @@ def leer_predios() -> gpd.GeoDataFrame:
         gdf = gpd.read_file(origen)
     if "rol_valido" in gdf:
         gdf = gdf[gdf["rol_valido"]]
-    print(f"{len(gdf)} predios válidos desde {origen.relative_to(RAIZ)}")
+    print(f"{len(gdf)} predios válidos desde {mostrar(origen)}")
     return gdf
 
 
@@ -129,7 +129,7 @@ def main() -> int:
     ap.add_argument("--lote", type=int, default=5, help="celdas por llamada")
     args = ap.parse_args()
 
-    cfg = json.loads((DATA / "zonas.json").read_text())
+    cfg = json.loads((ZONAS).read_text())
     inicio = cfg["periodo"]["inicio"]
     # `fin` puede ser "ultima_escena_limpia" (no es una fecha): el clima llega hasta hace unos días.
     fin = cfg["periodo"]["fin"]
@@ -168,9 +168,9 @@ def main() -> int:
     predios[["predio_id", "zona", "celda_id", "estacion_id", "distancia_estacion_km"]].to_parquet(salida_pc, index=False)
 
     huecos = diario[["lluvia_mm", "et0_mm"]].isna().sum()
-    print(f"\n{salida_raw.relative_to(RAIZ)}: {len(diario)} filas, {diario['fecha'].min().date()} a {diario['fecha'].max().date()}")
+    print(f"\n{mostrar(salida_raw)}: {len(diario)} filas, {diario['fecha'].min().date()} a {diario['fecha'].max().date()}")
     print(f"huecos: lluvia {huecos['lluvia_mm']}, et0 {huecos['et0_mm']}")
-    print(f"{salida_pc.relative_to(RAIZ)}: {len(predios)} predios")
+    print(f"{mostrar(salida_pc)}: {len(predios)} predios")
     return 0
 
 

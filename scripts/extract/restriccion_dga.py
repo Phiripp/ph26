@@ -31,8 +31,8 @@ import geopandas as gpd
 import pandas as pd
 from shapely.geometry import MultiPolygon, Polygon
 
-RAIZ = Path(__file__).resolve().parents[2]
-DATA = RAIZ / "data"
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from comun.rutas import DATA, ZONAS  # noqa: E402
 URL = ("https://rest-sit.mop.gob.cl/arcgis/rest/services/DGA/"
        "Areas_de_Restriccion_y_Zonas_de_Prohibicion/MapServer/0/query")
 CAMPOS = ["OBJECTID", "COD_SHAC", "NOM_ACUIF", "SHAC", "TIPO_LIMIT", "RES_DGA", "F_RES_DGA", "F_PUB_DO",
@@ -99,7 +99,7 @@ def fecha(ms) -> pd.Timestamp:
 def main() -> None:
     if not (DATA / "processed" / "predio.parquet").exists():
         sys.exit("Falta data/processed/predio.parquet: corre antes predios_ciren.py")
-    zonas = json.loads((DATA / "zonas.json").read_text(encoding="utf-8"))["zonas"]
+    zonas = json.loads((ZONAS).read_text(encoding="utf-8"))["zonas"]
     partes = []
     for z, info in zonas.items():
         g = bajar_bbox(info["bbox"]).assign(zona=z)

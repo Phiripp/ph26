@@ -41,8 +41,8 @@ from pathlib import Path
 import geopandas as gpd
 import pandas as pd
 
-RAIZ = Path(__file__).resolve().parents[2]
-DATA = RAIZ / "data"
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from comun.rutas import DATA, ZONAS, mostrar  # noqa: E402
 RAW = DATA / "raw" / "conaf"
 URL = "https://esri.ciren.cl/server/rest/services/IDEMINAGRI/USO_DE_LA_TIERRA_CUT_CONAF/MapServer/5/query"
 PAGINA = 2000  # maxRecordCount del servicio
@@ -145,7 +145,7 @@ def main() -> int:
     ap.add_argument("--simplificar-m", type=float, default=10.0, help="tolerancia de simplificación en metros")
     args = ap.parse_args()
 
-    zonas = json.loads((DATA / "zonas.json").read_text())["zonas"]
+    zonas = json.loads((ZONAS).read_text())["zonas"]
     partes = []
     for zona, cfg in zonas.items():
         for comuna in cfg["comunas"]:
@@ -188,7 +188,7 @@ def main() -> int:
     salida.parent.mkdir(parents=True, exist_ok=True)
     gdf.to_parquet(salida, index=False)
 
-    print(f"\n{salida.relative_to(RAIZ)}: {len(gdf)} polígonos, {salida.stat().st_size / 1e6:.1f} MB")
+    print(f"\n{mostrar(salida)}: {len(gdf)} polígonos, {salida.stat().st_size / 1e6:.1f} MB")
     print(f"recortados por huertos: {int(gdf['recortado_fruta'].sum())} polígonos")
     resumen = gdf.groupby(["zona", "estable", "clase"]).agg(poligonos=("ref_id", "size"), ha=("area_ha", "sum")).round(0)
     print(resumen.to_string())

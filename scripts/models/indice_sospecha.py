@@ -80,8 +80,8 @@ import geopandas as gpd
 import numpy as np
 import pandas as pd
 
-RAIZ = Path(__file__).resolve().parents[2]
-PROC = RAIZ / "data" / "processed"
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from comun.rutas import PROC, RAIZ  # noqa: E402
 CRS_METROS = "EPSG:32719"
 NIVELES = ["baja", "media", "alta"]
 EFICIENCIA = {"min": 0.90, "central": 0.85, "max": 0.75}

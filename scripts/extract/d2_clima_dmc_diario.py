@@ -33,8 +33,8 @@ from pathlib import Path
 
 import pandas as pd
 
-RAIZ = Path(__file__).resolve().parents[2]
-DATA = RAIZ / "data"
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from comun.rutas import DATA, RAIZ, mostrar  # noqa: E402
 SALIDA = DATA / "raw" / "clima" / "dmc" / "2026_acumulado.parquet"
 URL = "https://climatologia.meteochile.gob.cl/application/servicios/getEmaResumenDiario/{codigo}"
 # Ojo: este servicio vive en `serviciosb`, no en `servicios`.
@@ -148,8 +148,8 @@ def main() -> int:
 
     if mensuales:
         pd.DataFrame(mensuales).sort_values(["punto_id", "mes"]).to_parquet(SALIDA_MENSUAL, index=False)
-        print(f"{SALIDA_MENSUAL.relative_to(RAIZ)}: {len(mensuales)} filas")
-    print(f"{SALIDA.relative_to(RAIZ)}: {len(df)} filas, {df['punto_id'].nunique()} estaciones, "
+        print(f"{mostrar(SALIDA_MENSUAL)}: {len(mensuales)} filas")
+    print(f"{mostrar(SALIDA)}: {len(df)} filas, {df['punto_id'].nunique()} estaciones, "
           f"{df['fecha'].min().date()} a {df['fecha'].max().date()}")
     print(f"días parciales: {int(df['dia_parcial'].sum())}; estaciones con falla: {fallidas or 'ninguna'}")
     return 0

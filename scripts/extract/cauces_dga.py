@@ -28,8 +28,8 @@ import geopandas as gpd
 import pandas as pd
 from shapely.geometry import MultiLineString
 
-RAIZ = Path(__file__).resolve().parents[2]
-DATA = RAIZ / "data"
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from comun.rutas import DATA, ZONAS  # noqa: E402
 URL = "https://ideserver.sma.gob.cl/arcgis/rest/services/IDE/Recursos_hidricos_glaciares/MapServer/2/query"
 PAGINA = 1000
 CRS_METROS = "EPSG:32719"
@@ -72,7 +72,7 @@ def mas_cercano(predios: gpd.GeoDataFrame, capa: gpd.GeoDataFrame, prefijo: str,
 def main() -> None:
     if not (DATA / "processed" / "predio.parquet").exists():
         sys.exit("Falta data/processed/predio.parquet: corre antes predios_ciren.py")
-    zonas = json.loads((DATA / "zonas.json").read_text(encoding="utf-8"))["zonas"]
+    zonas = json.loads((ZONAS).read_text(encoding="utf-8"))["zonas"]
     cauces = pd.concat([bajar_bbox(z["bbox"]) for z in zonas.values()], ignore_index=True)
     cauces = gpd.GeoDataFrame(cauces.drop_duplicates("OBJECTID"), crs="EPSG:4326")
     cauces = cauces[cauces.geometry.notna()].rename(columns=str.lower)

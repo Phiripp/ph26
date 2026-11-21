@@ -22,8 +22,8 @@ from pathlib import Path
 import geopandas as gpd
 import pandas as pd
 
-RAIZ = Path(__file__).resolve().parents[2]
-DATA = RAIZ / "data"
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from comun.rutas import DATA, ZONAS  # noqa: E402
 URL = "https://esri.ciren.cl/server/rest/services/IDEMINAGRI/PROPIEDADES_RURALES/MapServer/4/query"
 LIMITE_SERVICIO = 10_000
 CRS_METROS = "EPSG:32719"
@@ -127,7 +127,7 @@ def main() -> None:
     ap.add_argument("--refrescar", action="store_true", help="vuelve a descargar aunque exista la caché")
     args = ap.parse_args()
 
-    zonas = json.loads((DATA / "zonas.json").read_text(encoding="utf-8"))["zonas"]
+    zonas = json.loads((ZONAS).read_text(encoding="utf-8"))["zonas"]
     print("Predios CIREN por comuna:")
     predios = cargar_predios(zonas, args.refrescar)
 

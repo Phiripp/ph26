@@ -38,8 +38,8 @@ from pyproj import Transformer
 # dga.mop.gob.cl envía una cadena GlobalSign que el bundle de Python no valida; el almacén del sistema sí.
 truststore.inject_into_ssl()
 
-RAIZ = Path(__file__).resolve().parents[2]
-DATA = RAIZ / "data"
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from comun.rutas import DATA, ZONAS  # noqa: E402
 PAGINA = "https://dga.mop.gob.cl/derechos-de-agua/derechos-registrados/"
 ARCHIVO = "Derechos_Concedidos_V_Region.xls"
 UA = {"User-Agent": "Mozilla/5.0 (caudal-hackathon/0.1)"}
@@ -254,7 +254,7 @@ def main() -> None:
     xls = DATA / "raw" / "dga" / ARCHIVO
     if args.refrescar or not xls.exists():
         descargar(xls)
-    zonas = json.loads((DATA / "zonas.json").read_text(encoding="utf-8"))["zonas"]
+    zonas = json.loads((ZONAS).read_text(encoding="utf-8"))["zonas"]
     comunas = {c: z for z, d in zonas.items() for c in d["comunas"]}
 
     df = leer(xls, comunas)

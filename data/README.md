@@ -14,7 +14,7 @@ Datos de entrada de Caudal. Las zonas, las fuentes y las convenciones están en 
 
    Tarda menos de un minuto y genera `processed/predio.parquet`. No va a git (ver [Licencia](#licencia-y-datos-personales)).
 4. Para revisar las series, los casos de validación están en [`casos_validacion.geojson`](casos_validacion.geojson). Empieza por estos dos:
-   - **FO-0504-95** (`papel = antecedente_satelital`, Hijuelas, predio `61-6`, inspección el 23-11-2021): es el **caso base** para mostrar una multa efectuada. La DGA dice que lo detectó con satélite; su serie de 2021 debería mostrar riego en ventana seca. Sus imágenes ya están en `processed/imagenes/FO-0504-95/`.
+   - **FO-0504-95** (`papel = antecedente_satelital`, Hijuelas, predio `61-6`, inspección el 23-11-2021): es el **caso base** para mostrar una multa efectuada. La DGA dice que lo detectó con satélite; su serie de 2021 debería mostrar riego en ventana seca.
    - **FD-0501-181** (`papel = demo_principal` en el archivo, Cabildo, predio `202-35`, 17,2 ha con 16,1 ha de palto y chirimoyo, sin derechos propios; inspección el 02-04-2024): pasa a caso de validación. Su serie es frágil (NDVI estable, sin inicio de riego visible según D19).
    - La **demo en vivo** será otro caso: un predio con datos hasta el último mes para armar la denuncia y enviarla. Se elige después de tener toda la data de base (D19); todavía no está en este directorio.
 5. Periodos: el análisis cubre desde enero de 2020 hasta la última escena limpia. Los periodos prioritarios de cada zona están en `zonas.json`. Para la demo en vivo, el ranking usa la temporada seca 2025-26 (diciembre de 2025 a marzo de 2026), y la ficha muestra además la escena limpia más reciente.

@@ -77,6 +77,15 @@
   <tr><td>Confianza</td><td>Señal satelital: <b>{{ r.confianza }}</b>{% if r.motivos_txt %} ({{ r.motivos_txt }}){% endif %}{% if m5 %}<br>Índice con derechos: <b>{{ m5.confianza }}</b>{% if m5.motivos_txt %} ({{ m5.motivos_txt }}){% endif %}{% endif %}</td></tr>
   {% if h.antecedentes %}<tr><td>Fiscalizaciones previas (DGA)</td><td>{{ h.antecedentes }}</td></tr>{% endif %}
 </table>
+{% if x %}
+<h3>Por qué este predio está en alerta</h3>
+<ul>
+  {% for z in x.razones %}<li><b>{{ z.titulo }}.</b> {{ z.texto }} <span class="fuente">Fuente: {{ z.fuente }}{% if z.dato_al %}, datos al {{ z.dato_al }}{% endif %}.</span></li>
+  {% endfor %}
+</ul>
+<p><b>Qué tan seguros estamos:</b> confianza {{ x.confianza }}{% if x.confianza_motivos %}. {{ x.confianza_motivos | join(". ") }}{% endif %}.<br>
+<b>Qué no sabemos:</b> {{ x.limites | join(" ") }}</p>
+{% endif %}
 <p class="fuente">Lo que este documento no afirma: que exista una infracción, que el agua se haya extraído sin derecho ni el volumen exacto.
 La DGA decide si la denuncia es admisible y si corresponde fiscalizar.</p>
 

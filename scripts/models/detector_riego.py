@@ -60,6 +60,8 @@ import pandas as pd
 RAIZ = Path(__file__).resolve().parents[2]
 PROC = RAIZ / "data" / "processed"
 NIVELES = ["baja", "media", "alta"]
+# Umbrales por defecto, calibrados en M7 (docs/calibracion.md). Los importan el expediente, la explicación y la API.
+UMBRAL_VERDOR, UMBRAL_HUMEDAD, DIAS_MIN, FRAC_MIN = 2.5, 1.5, 10, 0.7
 
 
 def ruta(p: str) -> Path:
@@ -86,6 +88,16 @@ def en_ventana(a: pd.DataFrame) -> pd.DataFrame:
     w = w[(w.fecha >= w.inicio) & (w.fecha <= w.fin)].drop_duplicates(["predio_id", "fecha"])
     a = a.merge(w[["predio_id", "fecha", "ventana_id"]], on=["predio_id", "fecha"], how="left")
     return a.merge(d, on=["celda_id", "fecha"], how="left")
+
+
+def marcar_senal(a: pd.DataFrame, umbral_verdor: float = UMBRAL_VERDOR, umbral_humedad: float = UMBRAL_HUMEDAD,
+                 dias_min: int = DIAS_MIN) -> pd.DataFrame:
+    """Marca cada fecha (salida de en_ventana): en_ventana (ventana seca con la racha mínima), valida (además
+    despejada y con referencia) y senal (además sobre los dos umbrales). Es la regla del docstring."""
+    a["en_ventana"] = a.ventana_id.notna() & (a.dias_sin_lluvia >= dias_min)
+    a["valida"] = a.en_ventana & (a.estado == "ok")
+    a["senal"] = a.valida & (a.z_verdor >= umbral_verdor) & (a.z_humedad >= umbral_humedad)
+    return a
 
 
 def confianza(r: pd.Series, args) -> tuple[str, str]:
@@ -116,10 +128,10 @@ def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     ap.add_argument("--anomalias", default="data/processed/anomalias_predio.parquet")
     ap.add_argument("--salida", default="data/processed/senal_riego.parquet")
-    ap.add_argument("--umbral-verdor", type=float, default=2.5)
-    ap.add_argument("--umbral-humedad", type=float, default=1.5)
-    ap.add_argument("--dias-min", type=int, default=10, help="días sin lluvia mínimos en la fecha de la imagen")
-    ap.add_argument("--frac-min", type=float, default=0.7, help="fracción de fechas con señal para senal_riego")
+    ap.add_argument("--umbral-verdor", type=float, default=UMBRAL_VERDOR)
+    ap.add_argument("--umbral-humedad", type=float, default=UMBRAL_HUMEDAD)
+    ap.add_argument("--dias-min", type=int, default=DIAS_MIN, help="días sin lluvia mínimos en la fecha de la imagen")
+    ap.add_argument("--frac-min", type=float, default=FRAC_MIN, help="fracción de fechas con señal para senal_riego")
     ap.add_argument("--min-fechas-baja", type=int, default=3)
     ap.add_argument("--min-fechas-media", type=int, default=6)
     args = ap.parse_args()
@@ -129,9 +141,7 @@ def main() -> int:
     sin_celda = a.celda_id.isna().sum()
     if sin_celda:
         print(f"aviso: {sin_celda} filas sin celda de clima (quedan fuera de ventana)")
-    a["en_ventana"] = a.ventana_id.notna() & (a.dias_sin_lluvia >= args.dias_min)
-    a["valida"] = a.en_ventana & (a.estado == "ok")
-    a["senal"] = a.valida & (a.z_verdor >= args.umbral_verdor) & (a.z_humedad >= args.umbral_humedad)
+    a = marcar_senal(a, args.umbral_verdor, args.umbral_humedad, args.dias_min)
     a["nublado_v"] = a.en_ventana & (a.estado == "nublado")
     a["sinref_v"] = a.en_ventana & (a.estado == "sin_referencia")
     a["sin_clima"] = a.dias_sin_lluvia.isna()

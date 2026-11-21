@@ -1,0 +1,413 @@
+{
+ "inicio": {
+  "lon": -71.2316,
+  "lat": -32.4494,
+  "acceso_lon": -71.23115,
+  "acceso_lat": -32.449414,
+  "camino": "Pedro Polanco",
+  "nombre": "Plaza de Armas de La Ligua"
+ },
+ "hora_inicio": "08:30",
+ "hora_termino": "16:12",
+ "jornada_h": 8,
+ "min_por_visita": 30,
+ "total_min": 462.6,
+ "manejo_min": 222.7,
+ "visita_min": 240.0,
+ "total_km": 195.4,
+ "km_trazado": 205.9,
+ "n_candidatos": 40,
+ "n_visitados": 8,
+ "puntaje_visitado": 782.35,
+ "puntaje_candidatos": 3770.02,
+ "paradas": [
+  {
+   "orden": 1,
+   "predio_id": 5311502,
+   "puntaje": 97.34,
+   "lon": -71.30663138343391,
+   "lat": -32.57195030665431,
+   "acceso_lon": -71.305737,
+   "acceso_lat": -32.571968,
+   "dist_camino_m": 84,
+   "camino": "Ruta E-464",
+   "min_desde_anterior": 20.6,
+   "km_desde_anterior": 20.1,
+   "llegada": "08:50",
+   "salida": "09:20",
+   "enlace_navegacion": "https://www.google.com/maps/dir/?api=1&destination=-32.571968,-71.305737&travelmode=driving"
+  },
+  {
+   "orden": 2,
+   "predio_id": 5310942,
+   "puntaje": 98.59,
+   "lon": -71.40175116321426,
+   "lat": -32.61154374871125,
+   "acceso_lon": -71.399078,
+   "acceso_lat": -32.611774,
+   "dist_camino_m": 252,
+   "camino": "Ruta E-462",
+   "min_desde_anterior": 15.1,
+   "km_desde_anterior": 11.9,
+   "llegada": "09:35",
+   "salida": "10:05",
+   "enlace_navegacion": "https://www.google.com/maps/dir/?api=1&destination=-32.611774,-71.399078&travelmode=driving"
+  },
+  {
+   "orden": 3,
+   "predio_id": 5344476,
+   "puntaje": 99.15,
+   "lon": -70.99464098474903,
+   "lat": -32.48347438216736,
+   "acceso_lon": -70.988872,
+   "acceso_lat": -32.48057,
+   "dist_camino_m": 631,
+   "camino": "Camino La Mora",
+   "min_desde_anterior": 67.4,
+   "km_desde_anterior": 63.3,
+   "llegada": "11:13",
+   "salida": "11:43",
+   "enlace_navegacion": "https://www.google.com/maps/dir/?api=1&destination=-32.480570,-70.988872&travelmode=driving"
+  },
+  {
+   "orden": 4,
+   "predio_id": 5344565,
+   "puntaje": 96.24,
+   "lon": -70.91544038532602,
+   "lat": -32.42815786201197,
+   "acceso_lon": -70.916319,
+   "acceso_lat": -32.429428,
+   "dist_camino_m": 163,
+   "camino": "",
+   "min_desde_anterior": 20.9,
+   "km_desde_anterior": 15.8,
+   "llegada": "12:04",
+   "salida": "12:34",
+   "enlace_navegacion": "https://www.google.com/maps/dir/?api=1&destination=-32.429428,-70.916319&travelmode=driving"
+  },
+  {
+   "orden": 5,
+   "predio_id": 5344414,
+   "puntaje": 95.62,
+   "lon": -70.96797241027775,
+   "lat": -32.43310375037494,
+   "acceso_lon": -70.967029,
+   "acceso_lat": -32.433481,
+   "dist_camino_m": 98,
+   "camino": "",
+   "min_desde_anterior": 10.5,
+   "km_desde_anterior": 7.2,
+   "llegada": "12:44",
+   "salida": "13:14",
+   "enlace_navegacion": "https://www.google.com/maps/dir/?api=1&destination=-32.433481,-70.967029&travelmode=driving"
+  },
+  {
+   "orden": 6,
+   "predio_id": 5320544,
+   "puntaje": 98.46,
+   "lon": -71.08190836352092,
+   "lat": -32.3083312389882,
+   "acceso_lon": -71.079258,
+   "acceso_lat": -32.306194,
+   "dist_camino_m": 344,
+   "camino": "Ruta E-325",
+   "min_desde_anterior": 30.7,
+   "km_desde_anterior": 30.2,
+   "llegada": "13:45",
+   "salida": "14:15",
+   "enlace_navegacion": "https://www.google.com/maps/dir/?api=1&destination=-32.306194,-71.079258&travelmode=driving"
+  },
+  {
+   "orden": 7,
+   "predio_id": 5320570,
+   "puntaje": 98.78,
+   "lon": -71.08886900565992,
+   "lat": -32.335162585029494,
+   "acceso_lon": -71.088793,
+   "acceso_lat": -32.335225,
+   "dist_camino_m": 10,
+   "camino": "",
+   "min_desde_anterior": 13.8,
+   "km_desde_anterior": 9.0,
+   "llegada": "14:29",
+   "salida": "14:59",
+   "enlace_navegacion": "https://www.google.com/maps/dir/?api=1&destination=-32.335225,-71.088793&travelmode=driving"
+  },
+  {
+   "orden": 8,
+   "predio_id": 5344105,
+   "puntaje": 98.17,
+   "lon": -71.07614079533117,
+   "lat": -32.41910491555274,
+   "acceso_lon": -71.076926,
+   "acceso_lat": -32.418374,
+   "dist_camino_m": 110,
+   "camino": "",
+   "min_desde_anterior": 19.9,
+   "km_desde_anterior": 15.6,
+   "llegada": "15:19",
+   "salida": "15:49",
+   "enlace_navegacion": "https://www.google.com/maps/dir/?api=1&destination=-32.418374,-71.076926&travelmode=driving"
+  }
+ ],
+ "fuera": [
+  {
+   "predio_id": 5345477,
+   "puntaje": 96.84,
+   "lon": -70.79904392722973,
+   "lat": -32.34294496123522,
+   "motivo": "no_cabe_en_jornada",
+   "min_ida": 63.7
+  },
+  {
+   "predio_id": 5344843,
+   "puntaje": 96.63,
+   "lon": -70.8512200664766,
+   "lat": -32.382616261911565,
+   "motivo": "no_cabe_en_jornada",
+   "min_ida": 53.0
+  },
+  {
+   "predio_id": 5305833,
+   "puntaje": 96.17,
+   "lon": -71.18554064273228,
+   "lat": -32.515831172473916,
+   "motivo": "no_cabe_en_jornada",
+   "min_ida": 61.2
+  },
+  {
+   "predio_id": 5320289,
+   "puntaje": 95.94,
+   "lon": -70.77987373771745,
+   "lat": -32.2346174467539,
+   "motivo": "no_cabe_en_jornada",
+   "min_ida": 83.7
+  },
+  {
+   "predio_id": 5311007,
+   "puntaje": 95.78,
+   "lon": -71.4227356891684,
+   "lat": -32.59704161180261,
+   "motivo": "no_cabe_en_jornada",
+   "min_ida": 48.6
+  },
+  {
+   "predio_id": 5305405,
+   "puntaje": 94.95,
+   "lon": -71.34338708353687,
+   "lat": -32.24367400655654,
+   "motivo": "no_cabe_en_jornada",
+   "min_ida": 46.1
+  },
+  {
+   "predio_id": 5305660,
+   "puntaje": 94.89,
+   "lon": -71.30054382355485,
+   "lat": -32.30707447960154,
+   "motivo": "no_cabe_en_jornada",
+   "min_ida": 31.1
+  },
+  {
+   "predio_id": 5305382,
+   "puntaje": 94.6,
+   "lon": -71.35659956737015,
+   "lat": -32.27049531104251,
+   "motivo": "no_cabe_en_jornada",
+   "min_ida": 41.3
+  },
+  {
+   "predio_id": 5305384,
+   "puntaje": 94.37,
+   "lon": -71.35065275643096,
+   "lat": -32.23042347139935,
+   "motivo": "no_cabe_en_jornada",
+   "min_ida": 49.2
+  },
+  {
+   "predio_id": 5306816,
+   "puntaje": 94.03,
+   "lon": -71.37113401377218,
+   "lat": -32.420702635510544,
+   "motivo": "no_cabe_en_jornada",
+   "min_ida": 21.4
+  },
+  {
+   "predio_id": 5305461,
+   "puntaje": 93.73,
+   "lon": -71.34532152664232,
+   "lat": -32.24659965608586,
+   "motivo": "no_cabe_en_jornada",
+   "min_ida": 46.2
+  },
+  {
+   "predio_id": 5305395,
+   "puntaje": 93.69,
+   "lon": -71.34742378628619,
+   "lat": -32.237306480713684,
+   "motivo": "no_cabe_en_jornada",
+   "min_ida": 48.4
+  },
+  {
+   "predio_id": 5303191,
+   "puntaje": 92.46,
+   "lon": -71.39457652277468,
+   "lat": -32.20280475921298,
+   "motivo": "no_cabe_en_jornada",
+   "min_ida": 73.9
+  },
+  {
+   "predio_id": 5310979,
+   "puntaje": 92.43,
+   "lon": -71.38706433462518,
+   "lat": -32.58960206444554,
+   "motivo": "no_cabe_en_jornada",
+   "min_ida": 50.7
+  },
+  {
+   "predio_id": 5305443,
+   "puntaje": 92.42,
+   "lon": -71.4383374723435,
+   "lat": -32.20069000833897,
+   "motivo": "no_cabe_en_jornada",
+   "min_ida": 48.3
+  },
+  {
+   "predio_id": 5303192,
+   "puntaje": 92.39,
+   "lon": -71.39699074083258,
+   "lat": -32.24438712434919,
+   "motivo": "no_cabe_en_jornada",
+   "min_ida": 83.2
+  },
+  {
+   "predio_id": 5311008,
+   "puntaje": 92.37,
+   "lon": -71.41582460871945,
+   "lat": -32.56153505331971,
+   "motivo": "no_cabe_en_jornada",
+   "min_ida": 58.9
+  },
+  {
+   "predio_id": 5305412,
+   "puntaje": 92.36,
+   "lon": -71.32270640082018,
+   "lat": -32.22029081823869,
+   "motivo": "no_cabe_en_jornada",
+   "min_ida": 52.5
+  },
+  {
+   "predio_id": 5310978,
+   "puntaje": 92.35,
+   "lon": -71.38829566343283,
+   "lat": -32.56637774943901,
+   "motivo": "no_cabe_en_jornada",
+   "min_ida": 69.0
+  },
+  {
+   "predio_id": 5310970,
+   "puntaje": 92.32,
+   "lon": -71.40105180493671,
+   "lat": -32.5629003391471,
+   "motivo": "no_cabe_en_jornada",
+   "min_ida": 68.2
+  },
+  {
+   "predio_id": 5305399,
+   "puntaje": 92.31,
+   "lon": -71.36398151953262,
+   "lat": -32.22200029349615,
+   "motivo": "no_cabe_en_jornada",
+   "min_ida": 51.8
+  },
+  {
+   "predio_id": 5305467,
+   "puntaje": 92.3,
+   "lon": -71.34179044668775,
+   "lat": -32.225208887639404,
+   "motivo": "no_cabe_en_jornada",
+   "min_ida": 49.5
+  },
+  {
+   "predio_id": 5303262,
+   "puntaje": 92.29,
+   "lon": -71.46398687343478,
+   "lat": -32.33265381198541,
+   "motivo": "no_cabe_en_jornada",
+   "min_ida": 26.5
+  },
+  {
+   "predio_id": 5305366,
+   "puntaje": 92.29,
+   "lon": -71.42813152890514,
+   "lat": -32.25589104470336,
+   "motivo": "no_cabe_en_jornada",
+   "min_ida": 91.8
+  },
+  {
+   "predio_id": 5311019,
+   "puntaje": 92.28,
+   "lon": -71.4436607780016,
+   "lat": -32.54591471367861,
+   "motivo": "no_cabe_en_jornada",
+   "min_ida": 40.1
+  },
+  {
+   "predio_id": 5303195,
+   "puntaje": 92.25,
+   "lon": -71.31532152447572,
+   "lat": -32.242578475106555,
+   "motivo": "no_cabe_en_jornada",
+   "min_ida": 53.0
+  },
+  {
+   "predio_id": 5305458,
+   "puntaje": 92.25,
+   "lon": -71.38396721587827,
+   "lat": -32.21914149466073,
+   "motivo": "no_cabe_en_jornada",
+   "min_ida": 51.8
+  },
+  {
+   "predio_id": 5305368,
+   "puntaje": 92.24,
+   "lon": -71.41364280476236,
+   "lat": -32.2503065468255,
+   "motivo": "no_cabe_en_jornada",
+   "min_ida": 89.0
+  },
+  {
+   "predio_id": 5305371,
+   "puntaje": 92.24,
+   "lon": -71.37822459070075,
+   "lat": -32.25326775462556,
+   "motivo": "no_cabe_en_jornada",
+   "min_ida": 65.6
+  },
+  {
+   "predio_id": 5311036,
+   "puntaje": 92.21,
+   "lon": -71.36842204941122,
+   "lat": -32.57530696573783,
+   "motivo": "no_cabe_en_jornada",
+   "min_ida": 61.5
+  },
+  {
+   "predio_id": 5320375,
+   "puntaje": 92.17,
+   "lon": -70.80286134833273,
+   "lat": -32.21544642669127,
+   "motivo": "no_cabe_en_jornada",
+   "min_ida": 74.4
+  },
+  {
+   "predio_id": 5320013,
+   "puntaje": 92.12,
+   "lon": -70.82601329574064,
+   "lat": -32.19210692886058,
+   "motivo": "no_cabe_en_jornada",
+   "min_ida": 94.1
+  }
+ ],
+ "fuente": "OSRM público (router.project-osrm.org, OpenStreetMap, perfil auto); orden con OR-Tools",
+ "zona": "Z1"
+}

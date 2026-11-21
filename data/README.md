@@ -47,6 +47,9 @@ Datos de entrada de Caudal. Las zonas, las fuentes y las convenciones están en 
 | `raw/ciren_riego/canales.parquet` | No | 532 tramos de canales de riego CNR/CIREN 2020 (capa 1 de infraestructura de riego) | `scripts/extract/canales_ciren.py` |
 | `processed/cauce.parquet` | Sí | 2.855 tramos de cauces de la DGA en Z1 y Z2 (río, estero, quebrada, etc.), con nombre, tipo y subsubcuenca | `scripts/extract/cauces_dga.py` |
 | `processed/consumo_predio.parquet`, `processed/consumo_predio_temporada.parquet` | Sí | Consumo de riego FAO-56 en rango de m³ por predio y mes, y por temporada (M4) | `scripts/models/consumo_fao56.py` |
+| `processed/puntaje.parquet` | Sí | Índice de sospecha (M5) de los 7.911 elegibles en 2025-26: banda, puntaje 0–100, confianza y motivos, consumo bruto, derecho asignado, exceso en rango y derechos ajenos disponibles a 500 m. Lo leen M8, M9, M12 y M13 | `scripts/models/indice_sospecha.py` |
+| `processed/puntaje_validacion.parquet` | Sí | Lo mismo para los 159 predios de los vecindarios de validación, temporadas 2019-20 a 2025-26 (M6) | `scripts/models/indice_sospecha.py --senal ..._validacion --consumo ..._validacion_temporada` |
+| `processed/ruta_z1.*`, `processed/ruta_z2.*` | Sí | Rutas de inspección con los 40 predios de mayor puntaje de M5 por zona (M8) | `scripts/models/ruta_inspeccion.py --puntajes data/processed/puntaje.parquet` |
 | `processed/ruta_ejemplo_z1.*`, `processed/ruta_ejemplo_z2.*` | Sí | Rutas de inspección de ejemplo (JSON, GeoJSON, GPX) con los casos de validación (M8) | `scripts/models/ruta_inspeccion.py --demo` |
 | `processed/anomalias_predio.parquet`, `processed/senal_riego.parquet` | Sí | Anomalías de verdor y humedad por predio y fecha (M2) y señal de riego por predio y temporada (M3) | `scripts/models/anomalias.py`, `scripts/models/detector_riego.py` |
 | `processed/serie_predio_elegibles_2025-26.parquet` | Sí | Serie Sentinel-2 corregida (D15) de los 7.911 predios elegibles, diciembre de 2025 a marzo de 2026: 158.053 filas, 97 escenas. Universo del ranking. En predios que cruzan el borde entre tiles (19HBE/19HCE, 19HBD/19HCD), cada fecha usa el tile con más píxeles válidos y puede cubrir solo parte del predio | `scripts/extract/serie_sentinel2.py --elegibles --temporadas 2025-26:2025-26 --nubes-max 40` |
@@ -218,10 +221,25 @@ Para regenerar: `uv run scripts/models/consumo_fao56.py` (muestra) o con `--seri
 Para regenerar: `uv run scripts/models/ruta_inspeccion.py --zona Z1 --puntajes data/processed/puntaje.parquet` (o `--demo`, que usa los positivos limpios y los casos de validación con puntaje 1). Desde el backend: `from scripts.models.ruta_inspeccion import ruta`.
 
 - Prize-collecting TSP con OR-Tools sobre la matriz de tiempos de OSRM: sale y vuelve a la plaza de La Ligua (Z1) o de Quillota (Z2), jornada de 8 h, 30 min por visita, 40 predios de mayor puntaje como máximo.
+- Con M5 (`ruta_z1`, `ruta_z2`): Z1 visita 8 de 40 predios (08:30 a 16:12, 195 km); Z2, 12 de 40 (08:30 a 16:28, 100 km).
 - Salidas `ruta_ejemplo_z1` y `ruta_ejemplo_z2`: `.json` (orden, horas, km, punto de acceso al camino, enlace a Google Maps, predios fuera y motivo), `.geojson` y `.gpx` (válido contra el esquema GPX 1.1).
 - Ejemplo Z1: 7 de 8 predios entre 08:30 y 15:20, 141 km. Ejemplo Z2: 6 de 6 entre 08:30 y 13:31, 110 km.
 - Caché de OSRM en `data/raw/osrm/` (no va a git). La demo sirve rutas precalculadas: el servidor público a veces tarda minutos.
 - Limitaciones: el perfil auto de OSRM no usa caminos de tierra; el último tramo hasta el predio (58–397 m, hasta 1,4 km en predios grandes) no se suma al tiempo. Los tiempos son optimistas.
+
+## Índice de sospecha (M5)
+
+Para regenerar: `uv run scripts/models/indice_sospecha.py` (elegibles 2025-26 → `puntaje.parquet`). Para la validación: `--senal data/processed/senal_riego_validacion.parquet --consumo data/processed/consumo_predio_validacion_temporada.parquet --salida data/processed/puntaje_validacion.parquet`. Necesita `predio.parquet` (local).
+
+- La sospecha sale de la señal satelital (M3); los derechos dimensionan el exceso. Exceso = consumo bruto (M4 / eficiencia 0,90, 0,85 o 0,75) − derecho asignado (`m3_anual_derecho_rol` de la temporada × `area_ha` / `area_rol_ha`), en mínimo, central y máximo. En predios de más de 100 ha el central es el mínimo.
+- `banda`: `alta` (señal y exceso mínimo > 0), `media` (exceso central > 0), `baja` (exceso máximo > 0), `sin_alerta`. Con confianza baja la banda baja un nivel.
+- `confianza`: la peor entre la de M3, la del cruce de derechos, `media` sin derechos propios ubicados, `baja` si los derechos ajenos disponibles a 500 m cubren el exceso central, y `media` si M4 no tiene la temporada completa. `motivos` dice por qué. `canal_300m` es solo un motivo: lo tiene el 81 % de los predios positivos y el 76 % de los que tienen señal, así que no discrimina.
+- `m3_derecho_ajeno_disponible_500m`: derechos de riego de otros roles a 500 m o menos, por la fracción que su rol no usa según M4, repartidos en partes iguales entre los predios elegibles a 500 m del punto. Un pozo compartido sin asignar cuenta entero antes de repartirse.
+- `puntaje`: base de la banda (75, 50, 25 o 0) + 25 × `frac_senal` × peso de la confianza (1; 0,7; 0,4) × percentil del exceso central en la zona. `rank_zona` ordena por banda y puntaje.
+- `fiscalizado_dga`: el predio está en el vecindario de una fiscalización por extracción de aguas (cualquier resultado; no dice si hubo infracción).
+- 2025-26: alta 896 (11 %), media 1.073 (14 %), baja 185, sin alerta 5.757. Casos: FD-0501-181 puesto 71 de Z1 y FO-0504-95 puesto 147 de Z2, ambos en banda alta. FO-0504-157 queda sin alerta, porque sus derechos superan su consumo.
+- Primera lectura de la validación (temporada previa a la inspección, vecindario): 11 de 19 positivos detectables (58 %) caen en alta o media, contra el 25 % del universo (2,3 veces el azar); en alta, 32 % contra 11 % (2,8 veces). Entre fiscalizados el AUC es 0,53: la DGA ya elige predios regados. M6 lo formaliza.
+- Limitación para M9: 64 predios de más de 100 ha suman 77 de los 122 millones de m³/año de exceso mínimo de las bandas alta y media. M9 debe reportarlos aparte.
 
 ## Anomalías y detector de riego (M2, M3)
 

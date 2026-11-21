@@ -1,0 +1,7 @@
+{
+  "_nota": "Qué abre el guion de la demo (docs/pitch-demo.md). Se cambia aquí, no en el código. La API lo sirve en /api/demo.",
+  "zona": "Z2",
+  "caso": "FO-0504-95",
+  "candidato": 5301984,
+  "alternativa": {"zona": "Z1", "caso": "FD-0501-181", "candidato": 5344181}
+}

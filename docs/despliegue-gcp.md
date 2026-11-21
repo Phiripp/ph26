@@ -74,6 +74,17 @@ gcloud run services update-traffic caudal-web --to-revisions=REVISION=100  # vol
 
 En la consola: <https://console.cloud.google.com/run/detail/southamerica-west1/caudal-web?project=ph-26-caudal>
 
+## La API (`caudal-api`)
+
+La API no se despliega con `--source`: su imagen lleva los datos de `data/processed/` y `predio.parquet`, que no está en git. Lo hace un script, con Docker corriendo:
+
+```bash
+scripts/cloud/api/desplegar.sh
+EXPEDIENTE=1 scripts/cloud/api/probar.sh https://caudal-api-....run.app
+```
+
+Detalles en [api/README.md](../api/README.md#desplegar-gabi). Primero se despliega `caudal-api` y después `caudal-web`.
+
 ## Problemas comunes
 
 | Mensaje | Causa y solución |

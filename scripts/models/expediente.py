@@ -21,7 +21,12 @@ es Esri World Imagery Wayback (solo mapa base, con su fecha de captura y atribuc
 Sentinel-2 de Earth Search, con escena y fecha. Sin red, usar --sin-imagenes.
 
 Salida: data/processed/expedientes/<id>/ con expediente.pdf, expediente.html y las figuras, más una fila en
-data/processed/expedientes/registro.csv (id, predio_id, rol, temporada, confianza, versión, hash de insumos, ruta, fecha).
+data/processed/expedientes/registro.csv (id, predio_id, rol, temporada, confianza, versión, hash de insumos, ruta, fecha,
+con_imagenes).
+
+El resumen incluye el bloque "Por qué este predio está en alerta" de explicacion.py: el mismo texto de la ficha web.
+La API (api/expedientes.py) llama a `generar` y usa `huella_insumos` para devolver un expediente ya generado con los
+mismos insumos en vez de repetirlo.
 
 Uso:
   uv run scripts/models/expediente.py --rol HIJUELAS:61-6               # caso base FO-0504-95
@@ -47,7 +52,10 @@ import pandas as pd  # noqa: E402
 from jinja2 import Environment, FileSystemLoader, select_autoescape  # noqa: E402
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+sys.path.insert(0, str(Path(__file__).resolve().parent))
 from comun.rutas import PROC, RAIZ, mostrar  # noqa: E402
+from detector_riego import DIAS_MIN, UMBRAL_HUMEDAD, UMBRAL_VERDOR  # noqa: E402  (umbrales de M3, calibrados en M7)
+from explicacion import explicacion  # noqa: E402
 
 PLANTILLAS = Path(__file__).resolve().parent / "plantillas"
 CRS_M = 32719
@@ -70,7 +78,11 @@ BANDA = {"alta": "alta", "media": "media", "baja": "baja", "sin_alerta": "sin al
 TIPO_POI = {"captacion": "Captación (expediente DGA)", "zona_riego": "Zona con verdor y humedad", "posible_tranque": "Posible tranque",
             "pozo_derecho": "Pozo con derecho", "bocatoma": "Bocatoma", "cauce": "Cauce natural", "canal": "Canal"}
 ESTADO_DER = {"sin_derechos_cerca": "ninguno a 500 m", "derechos_cerca_de_otro_rol": "solo en otros roles", "con_derechos": "con derechos"}
-Z_UMBRAL, DIAS_MIN = 2.0, 10  # los de M3
+TIEMPO_RED_S = 15  # espera máxima por solicitud a Earth Search y Esri: si no responden, el expediente sale sin imágenes
+
+
+class ErrorExpediente(Exception):
+    """El expediente no se puede generar: el predio no existe o no tiene datos para la temporada."""
 
 
 # ---------- formato chileno ----------
@@ -148,13 +160,17 @@ def predio_geom(pid: int | None, rol: str | None) -> gpd.GeoDataFrame:
             g = g[(g.comuna.str.upper() == com.strip().upper()) & (g.rol.astype(str) == r.strip())]
         if len(g):
             return g.iloc[[0]].reset_index(drop=True)
-    sys.exit(f"No encontré el predio ({pid or rol}) en predio.parquet ni en predio_muestra.geojson")
+    raise ErrorExpediente(f"No encontré el predio ({pid or rol}) en predio.parquet ni en predio_muestra.geojson")
 
 
 def version_de(p: Path) -> str:
-    r = subprocess.run(["git", "log", "-1", "--format=%h %ad", "--date=short", "--", str(p)], cwd=RAIZ,
-                       capture_output=True, text=True)
-    return r.stdout.strip() or f"local sha256 {sha(p)[:10]}"
+    """Commit y fecha del archivo; sin git (imagen de la API) o sin historial (predio.parquet), su sha256."""
+    try:
+        r = subprocess.run(["git", "log", "-1", "--format=%h %ad", "--date=short", "--", str(p)], cwd=RAIZ,
+                           capture_output=True, text=True).stdout.strip()
+    except OSError:
+        r = ""
+    return r or f"sha256 {sha(p)[:10]}"
 
 
 def sha(p: Path) -> str:
@@ -189,7 +205,8 @@ def chip_s2(escena_id: str, bounds, items: dict) -> np.ndarray | None:
     if it is None or "visual" not in it.assets:
         return None
     try:
-        with rasterio.Env(AWS_NO_SIGN_REQUEST="YES", GDAL_DISABLE_READDIR_ON_OPEN="EMPTY_DIR"):
+        with rasterio.Env(AWS_NO_SIGN_REQUEST="YES", GDAL_DISABLE_READDIR_ON_OPEN="EMPTY_DIR",
+                          GDAL_HTTP_TIMEOUT=TIEMPO_RED_S, GDAL_HTTP_CONNECTTIMEOUT=TIEMPO_RED_S, GDAL_HTTP_MAX_RETRY=0):
             with rasterio.open(it.assets["visual"].href) as ds:
                 if ds.crs.to_epsg() != CRS_M:
                     return None
@@ -200,7 +217,7 @@ def chip_s2(escena_id: str, bounds, items: dict) -> np.ndarray | None:
         return None
 
 
-def _http(url: str, timeout=20) -> bytes:
+def _http(url: str, timeout=TIEMPO_RED_S) -> bytes:
     from urllib.request import Request, urlopen
     with urlopen(Request(url, headers={"User-Agent": "caudal-expediente"}), timeout=timeout) as r:  # sigue los 301 de Wayback
         return r.read()
@@ -454,6 +471,44 @@ def hechos(p, r, a_t, cons, der, cauce, cultivo, fisc, todas, m5=None) -> tuple[
     return par, corto
 
 
+# ---------- insumos ----------
+FIJOS = [("Derechos por predio (D5)", "DGA, derechos registrados", "predio_derecho"),
+         ("Cauce y canal cercanos (D8)", "DGA red de drenajes; CNR y CIREN canales", "predio_cauce"),
+         ("Puntos de interés (M10)", "Caudal", "poi"), ("Frutales (D7)", "CIREN Catastro Frutícola 2025", "predio_cultivo"),
+         ("Fiscalizaciones (D6)", "DGA, planilla de fiscalización", "fiscalizacion"),
+         ("Ventanas secas (M1)", "Open-Meteo y estaciones", "ventana_seca"), ("Cauces (D8)", "DGA red de drenajes", "cauce")]
+
+
+def insumos_de(f_senal: list[Path], f_anom: list[Path], f_cons: list[Path], f_m5: Path | None) -> tuple[list[dict], str]:
+    """Fuentes del anexo A6 y huella de los insumos: sha256 de los archivos leídos para el predio, en orden."""
+    insumos = {"Señal de riego (M3)": f_senal, "Anomalías (M2)": f_anom, "Consumo (M4)": f_cons}
+    if f_m5 is not None:
+        insumos["Índice de sospecha (M5)"] = [f_m5]
+    fuentes, rutas = [], []
+    for dato, ps in insumos.items():  # una fila por dato, con todas las series donde se buscó el predio
+        if ps:
+            fuentes.append({"dato": dato, "fuente": {"M4": "Sentinel-2 y Open-Meteo", "M5": "M3, M4 y derechos DGA"}.get(dato[-3:-1],
+                                                                                                 "Sentinel-2 L2A y secano CONAF (D11)"),
+                            "archivo": ", ".join(p.name for p in ps), "version": ", ".join(sorted({version_de(p) for p in ps}))})
+            rutas += ps
+    for dato, fuente, nombre in FIJOS:
+        p = PROC / f"{nombre}.parquet"
+        fuentes.append({"dato": dato, "fuente": fuente, "archivo": p.name, "version": version_de(p)})
+        rutas.append(p)
+    gp = PROC / "predio.parquet" if (PROC / "predio.parquet").exists() else PROC / "predio_muestra.geojson"
+    fuentes.append({"dato": "Polígono del predio (D3)", "fuente": "CIREN Propiedades Rurales", "archivo": gp.name, "version": version_de(gp)})
+    rutas.append(gp)
+    return fuentes, hashlib.sha256("".join(sha(p) for p in rutas).encode()).hexdigest()[:12]
+
+
+def huella_insumos(pid: int, t: str) -> str:
+    """Huella de los insumos del predio en la temporada t, sin generar nada: es la `hash_insumos` del registro."""
+    _, f_senal = del_predio("senal_riego", pid, "temporada")
+    _, f_anom = del_predio("anomalias_predio", pid, "fecha")
+    _, f_cons = del_predio("consumo_predio", pid, "temporada", "_temporada")
+    return insumos_de(f_senal, f_anom, f_cons, puntaje_m5(pid, t)[2])[1]
+
+
 # ---------- principal ----------
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
@@ -466,8 +521,25 @@ def main() -> int:
     ap.add_argument("--sin-imagenes", action="store_true", help="no bajar imágenes (croquis sin fondo, sin anexo A3)")
     ap.add_argument("--salida", default=str(PROC / "expedientes"))
     args = ap.parse_args()
+    try:
+        e = generar(args.predio_id, args.rol, args.temporada, args.fondo, args.sin_imagenes, args.salida)
+    except ErrorExpediente as err:
+        sys.exit(str(err))
+    print(f"{e['id']}: {e['rol']}, temporada {e['temporada']}, confianza {e['confianza_senal']}, "
+          f"M5 {('banda ' + e['banda'] + ' ' + num(e['puntaje'])) if e['banda'] else 'sin puntaje'}, {e['n_poi']} POI, "
+          f"{'con' if e['con_imagenes'] else 'sin'} imagen -> {e['pdf']} ({e['segundos']:.1f} s)")
+    return 0
+
+
+def generar(predio_id: int | None = None, rol: str | None = None, temporada: str | None = None, fondo: str = "wayback",
+            sin_imagenes: bool = False, salida: str | Path = PROC / "expedientes", avisar=lambda paso: None) -> dict:
+    """Genera el expediente y devuelve su ficha (id, pdf, huella de insumos, si lleva imágenes). `avisar(texto)` se
+    llama al empezar cada paso: la API lo usa para mostrar el avance real."""
+    args = argparse.Namespace(predio_id=predio_id, rol=rol, temporada=temporada, fondo=fondo, sin_imagenes=sin_imagenes,
+                              salida=str(salida))
     t0 = time.time()
 
+    avisar("Leyendo las series satelitales del predio")
     pg = predio_geom(args.predio_id, args.rol)
     pid = int(pg.predio_id.iloc[0])
     pm = pg.to_crs(CRS_M)
@@ -479,16 +551,17 @@ def main() -> int:
     anom, f_anom = del_predio("anomalias_predio", pid, "fecha")
     cons_t, f_cons = del_predio("consumo_predio", pid, "temporada", "_temporada")
     if senal.empty or anom.empty:
-        sys.exit(f"El predio {pid} no tiene salidas de M2/M3 en ninguna serie ({', '.join(FAMILIAS)}): corre D1 y M2-M3 para él")
+        raise ErrorExpediente(f"El predio {pid} no tiene salidas de M2/M3 en ninguna serie ({', '.join(FAMILIAS)}): corre D1 y M2-M3 para él")
     t = args.temporada or senal[senal.n_fechas_validas > 0].temporada.max()
     if t not in set(senal.temporada):
-        sys.exit(f"Sin datos de M3 para la temporada {t}; hay: {', '.join(senal.temporada)}")
+        raise ErrorExpediente(f"Sin datos de M3 para la temporada {t}; hay: {', '.join(senal.temporada)}")
     r = senal[senal.temporada == t].iloc[0]
 
     v = ventanas(pid, anom.fecha)
     anom = anom.merge(v, on="fecha", how="left")
     anom["en_ventana"] = anom.en_ventana.fillna(False).astype(bool) & (anom.dias_sin_lluvia >= DIAS_MIN)
-    anom["senal"] = anom.en_ventana & (anom.estado == "ok") & (anom.z_verdor >= Z_UMBRAL) & (anom.z_humedad >= Z_UMBRAL)
+    anom["valida"] = anom.en_ventana & (anom.estado == "ok")
+    anom["senal"] = anom.valida & (anom.z_verdor >= UMBRAL_VERDOR) & (anom.z_humedad >= UMBRAL_HUMEDAD)
     a_t = anom[anom.temporada == t]
 
     der_all = leer("predio_derecho")
@@ -521,10 +594,11 @@ def main() -> int:
                 pares.append((tt, e.iloc[0]))
     items = {}
     if not args.sin_imagenes:
+        avisar("Buscando las imágenes satelitales del predio")
         try:
             from pystac_client import Client
             ids = sorted({x for x in [escena_croquis] + [e.escena_id for _, e in pares] if x})
-            items = {i.id: i for i in Client.open(STAC).search(collections=["sentinel-2-l2a"], ids=ids).items()}
+            items = {i.id: i for i in Client.open(STAC, timeout=TIEMPO_RED_S).search(collections=["sentinel-2-l2a"], ids=ids).items()}
         except Exception as e:
             print(f"  aviso: sin acceso a Earth Search ({e}); el expediente sale sin imágenes", file=sys.stderr)
     fondo, fondo_txt = None, None
@@ -543,6 +617,7 @@ def main() -> int:
         if fondo is not None:
             fondo_txt = f"Sentinel-2 color natural, escena {escena_croquis}."
 
+    avisar("Dibujando el croquis y las series")
     cauces = gpd.read_parquet(PROC / "cauce.parquet").to_crs(CRS_M)
     caja = gpd.GeoSeries.from_xy([bounds[0], bounds[2]], [bounds[1], bounds[3]], crs=CRS_M).total_bounds
     cauces = cauces.cx[caja[0]:caja[2], caja[1]:caja[3]]
@@ -556,6 +631,7 @@ def main() -> int:
             fig_chip(geom, bounds, ch, out / nombre)
             imagenes.append({"src": nombre, "titulo": f"Temporada {tt}: {fecha(e.fecha)}, NDVI {num(e.ndvi, 2)} (escena {e.escena_id})"})
 
+    avisar("Redactando los hechos con el consumo y los derechos")
     m5, n_zona, f_m5 = puntaje_m5(pid, t)
     parrafos, corto = hechos(pg.iloc[0], r, a_t, cons, der, cauce, cultivo, fisc, senal, m5)
     if m5 is not None:
@@ -608,32 +684,13 @@ def main() -> int:
             "der_entorno": redondo(d.m3_anual_derecho_entorno_500m) if d is not None else "s/d",
             "estado": ESTADO_DER.get(d.estado_derechos, str(d.estado_derechos)) if d is not None else "s/d"})
 
-    insumos = {"Señal de riego (M3)": f_senal, "Anomalías (M2)": f_anom, "Consumo (M4)": f_cons}
-    if f_m5 is not None:
-        insumos["Índice de sospecha (M5)"] = [f_m5]
-    fijos = [("Derechos por predio (D5)", "DGA, derechos registrados", "predio_derecho"),
-             ("Cauce y canal cercanos (D8)", "DGA red de drenajes; CNR y CIREN canales", "predio_cauce"),
-             ("Puntos de interés (M10)", "Caudal", "poi"), ("Frutales (D7)", "CIREN Catastro Frutícola 2025", "predio_cultivo"),
-             ("Fiscalizaciones (D6)", "DGA, planilla de fiscalización", "fiscalizacion"),
-             ("Ventanas secas (M1)", "Open-Meteo y estaciones", "ventana_seca"), ("Cauces (D8)", "DGA red de drenajes", "cauce")]
-    fuentes, rutas = [], []
-    for dato, ps in insumos.items():  # una fila por dato, con todas las series donde se buscó el predio
-        if ps:
-            fuentes.append({"dato": dato, "fuente": {"M4": "Sentinel-2 y Open-Meteo", "M5": "M3, M4 y derechos DGA"}.get(dato[-3:-1],
-                                                                                                 "Sentinel-2 L2A y secano CONAF (D11)"),
-                            "archivo": ", ".join(p.name for p in ps), "version": ", ".join(sorted({version_de(p) for p in ps}))})
-            rutas += ps
-    for dato, fuente, nombre in fijos:
-        p = PROC / f"{nombre}.parquet"
-        fuentes.append({"dato": dato, "fuente": fuente, "archivo": p.name, "version": version_de(p)})
-        rutas.append(p)
-    gp = PROC / "predio.parquet" if (PROC / "predio.parquet").exists() else PROC / "predio_muestra.geojson"
-    fuentes.append({"dato": "Polígono del predio (D3)", "fuente": "CIREN Propiedades Rurales", "archivo": gp.name, "version": version_de(gp)})
-    rutas.append(gp)
-    huella = hashlib.sha256("".join(sha(p) for p in rutas).encode()).hexdigest()[:12]
+    if m5 is not None:  # el mismo texto de la ficha web (explicacion.py)
+        ctx["x"] = explicacion(m5, r, a_t.to_dict("records"), {"corte_derechos": der.corte if der is not None else None})
+    fuentes, huella = insumos_de(f_senal, f_anom, f_cons, f_m5)
     ctx["e"]["hash"] = huella
     ctx["fuentes"] = fuentes
 
+    avisar("Armando el PDF")
     env = Environment(loader=FileSystemLoader(PLANTILLAS), autoescape=select_autoescape(["html", "j2"]))
     html = env.get_template("expediente.html.j2").render(**ctx)
     (out / "expediente.html").write_text(html, encoding="utf-8")
@@ -643,18 +700,19 @@ def main() -> int:
     reg = Path(args.salida) / "registro.csv"
     pdf = (out / "expediente.pdf").resolve()
     ruta_pdf = str(mostrar(pdf))
+    con_imagenes = fondo is not None or bool(imagenes)
+    creado = datetime.now().astimezone().isoformat(timespec="seconds")
     fila = pd.DataFrame([{"id": eid, "predio_id": pid, "rol": f"{comuna}:{pg.rol.iloc[0]}", "temporada": t, "confianza": r.confianza,
                           "banda_m5": m5.banda if m5 is not None else "", "puntaje_m5": m5.puntaje if m5 is not None else None,
                           "version": VERSION, "hash_insumos": huella, "ruta_pdf": ruta_pdf,
-                          "fecha_creacion": datetime.now().isoformat(timespec="seconds")}])
+                          "fecha_creacion": creado, "con_imagenes": con_imagenes}])
     if reg.exists():  # se reescribe entero: si cambian las columnas, las filas antiguas quedan vacías en las nuevas
         fila = pd.concat([pd.read_csv(reg), fila], ignore_index=True)
     fila.to_csv(reg, index=False)
-    print(f"{eid}: {comuna}:{pg.rol.iloc[0]}, temporada {t}, confianza {r.confianza}, "
-          f"M5 {('banda ' + m5.banda + ' ' + num(m5.puntaje)) if m5 is not None else 'sin puntaje'}, {len(poi)} POI, "
-          f"{'con' if fondo is not None else 'sin'} imagen -> {out / 'expediente.pdf'} ({time.time() - t0:.1f} s)")
-    return 0
-
+    return {"id": eid, "predio_id": pid, "rol": f"{comuna}:{pg.rol.iloc[0]}", "temporada": t, "confianza_senal": r.confianza,
+            "banda": m5.banda if m5 is not None else None, "puntaje": float(m5.puntaje) if m5 is not None else None,
+            "confianza": m5.confianza if m5 is not None else None, "n_poi": len(poi), "con_imagenes": con_imagenes,
+            "hash_insumos": huella, "pdf": out / "expediente.pdf", "creado": creado, "segundos": time.time() - t0}
 
 if __name__ == "__main__":
     sys.exit(main())

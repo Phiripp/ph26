@@ -1164,14 +1164,10 @@ async function boot() {
     if (ZONA_IDS.includes(k)) return { kind: 'zona', zona: k };
     if (/^caso-/i.test(h)) return { kind: 'caso', expediente: decodeURIComponent(h.slice(5)) };
     if (k === LAGOON_ID) return { kind: 'lagoon' };
-    if (k === 'impacto') return { kind: 'impacto' };
     return null;
   }
   function go(t, opts) {
     hideTitle();
-    // #impacto: panel a pantalla completa sobre el mapa (js/impacto.js); otro destino lo cierra
-    if (t.kind === 'impacto') return import('./impacto.js').then(m => m.openImpacto()).catch(err => console.error('[Caudal] impacto:', err));
-    import('./impacto.js').then(m => m.closeImpacto({ keepHash: true })).catch(() => {});
     if (t.kind === 'zona') return stage.goZona(t.zona, opts);
     if (t.kind === 'caso') return stage.goCaso(t.expediente, opts);
     if (t.kind === 'lagoon') return stage.goLagoon(opts);

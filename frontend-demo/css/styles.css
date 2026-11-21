@@ -20,8 +20,9 @@
 }
 *{box-sizing:border-box}
 [hidden]{display:none!important}
-html{scroll-behavior:smooth;-webkit-text-size-adjust:100%}
-body{margin:0;background:var(--void);color:var(--ink);font-family:var(--f-body);font-size:16px;line-height:1.55;-webkit-font-smoothing:antialiased;overflow-x:hidden}
+/* single-screen app: the document never scrolls (panels scroll on their own) */
+html{height:100%;overflow:hidden;-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--void);color:var(--ink);font-family:var(--f-body);font-size:16px;line-height:1.55;-webkit-font-smoothing:antialiased;height:100%;overflow:hidden}
 a{color:inherit;text-decoration:none}
 ::selection{background:var(--water);color:var(--void)}
 .wrap{max-width:1240px;margin-inline:auto;padding-left:var(--gutter);padding-right:max(16px,env(safe-area-inset-right,0px))}
@@ -43,7 +44,7 @@ a{color:inherit;text-decoration:none}
 @keyframes blink{to{visibility:hidden}}
 
 /* ---------- stage (map hero + lagoon mode) ---------- */
-.stage{position:relative;height:100svh;min-height:560px;overflow:hidden;background:var(--void);isolation:isolate}
+.stage{position:relative;height:100svh;overflow:hidden;background:var(--void);isolation:isolate}
 #map{position:absolute;inset:0;z-index:0;background:radial-gradient(ellipse at 50% 45%,var(--deep) 0%,var(--void) 70%);transition:filter .9s var(--ease),opacity .5s var(--ease)}
 /* intro: the map stays hidden until main.js has moved it to the far-out globe camera (no flash of the home view) */
 .stage.intro-pending #map{opacity:0;transition:none}
@@ -307,9 +308,6 @@ figure.chart{margin:28px 0 0;border:1px solid var(--rule);background:linear-grad
 .vp-error{color:var(--loss)}
 .stage[data-mode="zona"] .stage-scrim{background:linear-gradient(180deg,rgba(5,8,11,.78) 0%,rgba(5,8,11,0) 18%)}
 
-footer{border-top:1px solid var(--rule)}
-footer .wrap{padding-block:30px;display:flex;justify-content:space-between;gap:12px 32px;flex-wrap:wrap;font:12px var(--f-mono);color:var(--dim)}
-footer .wrap span:last-child{max-width:70ch}
 
 /* ---------- reveal (content stays visible without JS) ---------- */
 .reveal-ready .reveal:not(.in){opacity:0;transform:translateY(18px)}

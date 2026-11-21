@@ -30,7 +30,7 @@ Datos de entrada de Caudal. Las zonas, las fuentes y las convenciones están en 
 | `raw/ciren/<COMUNA>.geojson` | No | Respuesta cruda de CIREN, una por comuna (caché) | `scripts/extract/predios_ciren.py` |
 | `processed/derecho.parquet` | Sí | 9.138 derechos de agua de Z1 y Z2, normalizados, sin nombres; punto de captación en EPSG:4326 | `scripts/extract/derechos_dga.py` |
 | `processed/derecho_predio.parquet` | Sí | A qué predio se asigna cada derecho: `predio_id`, `metodo_cruce`, `confianza_cruce`, `dist_predio_m` | `scripts/extract/cruce_derechos_predios.py` |
-| `processed/predio_derecho.parquet` | Sí | Resumen por predio con rol válido (18.244): m³ con derecho, derechos del entorno y `estado_derechos`. Lo leen M5 y M12 | `scripts/extract/cruce_derechos_predios.py` |
+| `processed/predio_derecho.parquet` | Sí | Un registro por predio con rol válido y temporada seca (18.244 × 7): m³ con derecho del polígono y del rol, derechos del entorno, distancia a canal y `estado_derechos`. Lo leen M5 y M12 | `scripts/extract/cruce_derechos_predios.py` |
 | `processed/fiscalizacion.parquet` | Sí | 835 expedientes de fiscalización de la DGA en Z1 y Z2 (497 de extracción de aguas), con etiqueta y predio. Sin nombres | `scripts/extract/fiscalizaciones_dga.py` |
 | `raw/dga/planilla_fiscalizacion.xlsx` | No | Planilla de seguimiento de fiscalización de la DGA (se regenera) | `scripts/extract/fiscalizaciones_dga.py` |
 | `processed/predio_cultivo.parquet` | Sí | Especie frutal y superficie plantada por predio elegible (Catastro Frutícola CIREN 2025), sin geometría | `scripts/extract/cultivos_ciren.py` |
@@ -43,6 +43,7 @@ Datos de entrada de Caudal. Las zonas, las fuentes y las convenciones están en 
 | `processed/clima_validacion.csv` | Sí | Contraste de la lluvia corregida contra la estación de referencia, por celda | `scripts/extract/d2_clima_unir.py` |
 | `processed/referencia_secano.parquet` | Sí | 3.642 polígonos de matorral y pradera anual estables 2001–2019 (CONAF), sin los huertos del Catastro Frutícola 2025 (más 20 m), geometría simplificada a 10 m: `ref_id`, `zona`, `comuna`, `clase`, `area_ha`, `recortado_fruta`. Referencia de secano para M2 | `scripts/extract/referencia_secano_conaf.py` |
 | `raw/conaf/<COMUNA>.geojson` | No | Respuesta cruda de CONAF (pradera y matorral 2019), una por comuna (caché) | `scripts/extract/referencia_secano_conaf.py` |
+| `raw/ciren_riego/canales.parquet` | No | 532 tramos de canales de riego CNR/CIREN 2020 (capa 1 de infraestructura de riego) | `scripts/extract/canales_ciren.py` |
 
 ## Columnas de `predio`
 
@@ -72,44 +73,57 @@ Para regenerar: `uv run scripts/extract/derechos_dga.py` (usa el Excel local; `-
 | `consuntivo`, `eventual`, `provisional` | Tipo y ejercicio del derecho |
 | `unidad_origen`, `caudal_origen` | Como vienen en el Excel |
 | `caudal_ls`, `m3_anual`, `m3_mes` | Normalizados; `m3_mes` = `m3_anual` / 12. Vacíos si la unidad es "Acciones" o "%" |
-| `sumable` | Consuntivo, no eventual y con cifra. Solo estos cuentan como derecho de un predio |
+| `m3_anual_continuo`, `volumen_origen`, `volumen_aplicado` | `m3_anual` usa la columna "Volumen" del Excel (tope anual autorizado) cuando está entre el 5 % y el 105 % del volumen continuo: 3.910 derechos, la mayoría con un tope del 20 % o del 100 %. Si no, `m3_anual` = `m3_anual_continuo` |
+| `caudal_negativo` | 31 filas con caudal negativo (cesiones o errores de carga; una de −41.666 l/s). No se suman |
+| `duplicado_de` | 56 derechos no VPC que repiten un VPC (mismo titular, comuna y caudal, a 600 m o menos): `derecho_id` del VPC. No se suman |
+| `pozo_compartido` | 1.444 derechos en un punto (celda de 20 m) con 3 o más titulares distintos: pozos comunitarios. No se asignan a un predio |
+| `sumable` | Consuntivo, no eventual, con cifra positiva y no duplicado. Solo estos cuentan como derecho |
 | `gran_derecho` | 100 l/s o más: casi siempre un canal o una comunidad de aguas, no un predio |
 | `utm_norte`, `utm_este`, `huso_origen`, `datum_origen` | Coordenada original |
 | `coord_estado` | `ok` (7.663), `sin_coordenada` (1.314), `datum_supuesto` (111), `huso_corregido` (37), `fuera_de_region` (13) |
 | `geometry` | Punto de captación en EPSG:4326; vacío si no hay coordenada válida |
 
-## Cruce de derechos con predios (D5)
+## Cruce de derechos con predios (D5, versión 2)
 
-Para regenerar: `uv run scripts/extract/cruce_derechos_predios.py` (necesita `predio.parquet`, `derecho.parquet` y, para el cruce por titular, `raw/dga/derecho_titulares.parquet`).
+Para regenerar: `uv run scripts/extract/canales_ciren.py` (una vez) y `uv run scripts/extract/cruce_derechos_predios.py` (necesita `predio.parquet`, `derecho.parquet` y, para el cruce por titular, `raw/dga/derecho_titulares.parquet`).
 
-`metodo_cruce` de cada derecho, en orden de prioridad:
+La versión 2 corrige los gaps del assessment de datos del 21-11-2026: derechos inflados por pozos compartidos, derechos en otro polígono del mismo rol, derechos otorgados después de los hechos y agua de canal.
+
+`metodo_cruce` de cada derecho (`derecho_predio.parquet`):
 
 | Método | Derechos | Confianza |
 | --- | --- | --- |
-| `punto_en_predio`: el punto de captación cae dentro del predio | 6.061 | alta |
-| `cercania`: predio válido más cercano a 500 m o menos | 1.656 | media hasta 100 m, baja después |
-| `titular`: el mismo titular tiene otros derechos ubicados en un solo predio de la comuna | 181 | baja |
+| `punto_en_predio`: el punto de captación cae dentro del predio | 4.897 | alta |
+| `cercania`: predio válido más cercano a 500 m o menos | 1.326 | media hasta 100 m, baja después |
+| `titular`: el mismo titular tiene otros derechos ubicados en un solo predio de la comuna | 180 | baja |
+| `pozo_compartido_sin_asignar`: 3 o más titulares en el mismo punto | 1.444 | — |
 | `gran_derecho_sin_asignar`: 100 l/s o más | 45 | — |
-| `sin_predio_a_500m` / `sin_coordenada` | 49 / 1.146 | — |
+| `duplicado_vpc` | 56 | — |
+| `sin_predio_a_500m` / `sin_coordenada` | 47 / 1.143 | — |
 
-La confianza baja un nivel si la coordenada tiene un supuesto o si el derecho es superficial (la bocatoma no está en el predio que riega). En total queda asignado el 86 % de los derechos y el 47 % del volumen sumable; el resto son grandes derechos y derechos sin coordenada.
+La confianza baja un nivel si la coordenada tiene un supuesto o si el derecho es superficial. Queda asignado el 38 % del volumen sumable; el resto son grandes derechos, pozos compartidos y derechos sin coordenada.
 
-Columnas de `predio_derecho`:
+Columnas de `predio_derecho` (un registro por predio y temporada):
 
 | Columna | Descripción |
 | --- | --- |
-| `predio_id`, `zona`, `comuna`, `area_ha` | Del predio; para la geometría, unir con `predio.parquet` por `predio_id` |
-| `n_derechos`, `n_derechos_sumables` | Derechos asignados al predio |
-| `m3_anual_derecho`, `m3_mes_derecho`, `m3_anual_derecho_subterraneo` | Volumen con derecho; solo sumables |
-| `m3_anual_derecho_entorno_500m` | Derechos sumables con punto a 500 m o menos del predio, propios o de vecinos (sin grandes derechos) |
-| `estado_derechos` | `con_derechos` (2.864), `sin_derechos_cerca` (3.042: ningún punto de derecho a 500 m) o `derechos_cerca_de_otro_predio` (12.338) |
-| `confianza_cruce` | La peor de sus derechos. "Sin derechos" nunca es alta (el 14 % de los derechos no tiene coordenada); `derechos_cerca_de_otro_predio` es baja |
+| `predio_id`, `temporada`, `corte` | Temporada seca `2019-20` a `2025-26`. Solo cuentan los derechos otorgados antes de `corte` (1 de diciembre) |
+| `zona`, `comuna`, `rol_id`, `area_ha`, `area_rol_ha`, `n_poligonos_rol`, `elegible` | `rol_id` = comuna:rol. Un rol puede tener varios polígonos |
+| `n_derechos_predio`, `m3_anual_derecho_predio` | Derechos asignados a este polígono |
+| `n_derechos_rol`, `m3_anual_derecho_rol`, `m3_anual_derecho_rol_subterraneo`, `m3_ha_derecho_rol` | Derechos de todo el rol. **Usar estos para comparar con el consumo**: el pozo puede estar en otro polígono del mismo rol |
+| `m3_anual_derecho_entorno_500m` | Derechos sumables con punto a 500 m o menos (incluye pozos compartidos, no grandes derechos) |
+| `pozo_compartido_500m` | Hay un pozo compartido a 500 m o menos |
+| `dist_canal_m`, `canal_300m` | Distancia al canal de riego más cercano (hasta 5 km) |
+| `estado_derechos` | `con_derechos` (el rol tiene derechos), `derechos_cerca_de_otro_rol` o `sin_derechos_cerca` |
+| `confianza_cruce` | La peor de los derechos del rol. Sin derechos: media; con derechos cerca de otro rol: baja |
 
-Tres cosas para M5 y M6:
+Temporada 2025-26, predios elegibles: 2.512 `con_derechos`, 4.455 `derechos_cerca_de_otro_rol` y 944 `sin_derechos_cerca`. La mediana de derechos de los predios con derechos es de 7.058 m³/ha al año (antes del arreglo, 16.364).
 
-- **Lotes de pozo:** un pozo puede estar inscrito en un lote chico y regar el predio vecino. Hay predios de 0,1 ha con más de 1 millón de m³ al año. Si `m3_anual_derecho` es bajo pero `m3_anual_derecho_entorno_500m` es alto, el predio no es sospechoso con confianza alta: puede regar con el pozo del vecino.
-- **No todos los positivos tienen exceso sobre derechos:** FO-0504-157 tiene 1,0 millones de m³ al año en 29,8 ha y fue multado igual (probablemente por un pozo no inscrito). El índice consumo-contra-derechos detecta mejor los casos sin derechos, como FO-0504-95 (`sin_derechos_cerca`). La validación no debe esperar que todos los positivos queden arriba.
-- **FO-0501-462 dejó de ser el caso de la demo:** tiene un derecho de 2 l/s (63.072 m³ al año) en 6,1 ha (unos 10.300 m³ por hectárea, cerca de lo que consume un frutal) y su predio no tiene frutales en el catastro. El caso de la demo ahora es FD-0501-181: 16,1 ha de palto sin derechos propios.
+Lo que hay que saber para M5 y M6:
+
+- **Los derechos solos no distinguen infractores.** Entre los 143 predios elegibles fiscalizados desde 2020 (38 positivos), con la temporada de la inspección, el AUC es de 0,53 para el déficit (8.000 m³/ha frutal menos derechos), 0,54 para m³/ha con derecho y 0,49 para los derechos del entorno. La señal que distingue tiene que venir del satélite (riego en ventana seca); los derechos sirven para dimensionar el exceso y para el expediente. Los fiscalizados no son una muestra al azar: la DGA ya los había elegido por sospechosos.
+- **El canal no sirve para bajar la confianza:** el 68 % de los predios elegibles tiene un canal a 300 m o menos, y los 5 casos clave tienen `dist_canal_m = 0`. Se deja como dato. En Z1 los ríos La Ligua y Petorca pasan buena parte del año secos, así que el canal aporta poca agua; en Z2 el Aconcagua sí la trae.
+- **Casos clave** (temporada de la inspección): FD-0501-181 y FD-0504-257 no tienen derechos en el rol y sí derechos a 500 m (505.000 y 1,47 millones de m³): `derechos_cerca_de_otro_rol`. FO-0504-95: `sin_derechos_cerca`. FD-0501-191 ahora tiene 273.000 m³ en su rol (antes aparecía sin derechos). FO-0501-462: 12.614 m³ en el rol, porque el volumen autorizado es el 20 % del caudal.
 
 ## Fiscalizaciones (D6)
 
@@ -146,7 +160,6 @@ Para M4: el 44 % de los predios con infracción (positivos de D6) no tiene fruta
 
 ## Lo que hay que saber
 
-- Derechos: hay 7.295 derechos sumables, menores de 100 l/s y con punto, para cruzar con predios (D5); el 92 % son subterráneos.
 - Derechos, prueba con casos: el pozo de FO-0504-95 (multado por "2 pozos sin derechos") no tiene ningún derecho a menos de 500 m; el más cercano está a 1.280 m. El de FO-0501-462 tiene 11 derechos a menos de 500 m, así que ahí la infracción sería extraer más de lo autorizado.
 
 - Filtra `elegible = True` antes de calcular series: deja fuera cauces, caminos y polígonos sin rol, y también parcelas y lotes de pozo de menos de 1 ha.

@@ -57,6 +57,11 @@ EPSG = {("1956", 19): 24879, ("1969", 19): 29189, ("1984", 19): 32719,
         ("1956", 18): 24878, ("1969", 18): 29188, ("1984", 18): 32718}
 DATUM_SUPUESTO = "1956"
 GRAN_DERECHO_LS = 100
+VOL_RAZON_MIN, VOL_RAZON_MAX = 0.05, 1.05  # Volumen / volumen continuo aceptado como tope anual
+DUPLICADO_MAX_M = 600  # VPC y su gemelo: el desfase entre datums llega a ~420 m
+POZO_COMPARTIDO_TITULARES = 3
+GRILLA_POZO_M = 20
+CRS_UTM = "EPSG:32719"
 # Región de Valparaíso continental, con margen.
 REGION = (-72.0, -34.0, -69.9, -32.0)
 
@@ -90,7 +95,7 @@ def leer(xls: Path, comunas: dict[str, str]) -> pd.DataFrame:
     df = pd.read_excel(xls, header=6, engine="calamine", dtype=str)
     df.columns = [re.sub(r"\s+", " ", str(c)).strip() for c in df.columns]
     faltan = {"Código de Expediente", "N° Solicitud", "Comuna", "Nombre Solicitante", "Unidad de Caudal",
-              "Caudal Anual Prom", "UTM Norte Captación (m)", "UTM Este Captación (m)", "Huso", "Datum",
+              "Caudal Anual Prom", "Volumen", "UTM Norte Captación (m)", "UTM Este Captación (m)", "Huso", "Datum",
               *MESES} - set(df.columns)
     if faltan:
         sys.exit(f"El Excel cambió de formato; faltan columnas: {sorted(faltan)}")
@@ -105,7 +110,9 @@ def caudales(df: pd.DataFrame) -> pd.DataFrame:
     unidad = df["Unidad de Caudal"].fillna("").str.lower().str.strip()
     prom = numero(df["Caudal Anual Prom"])
     meses = pd.concat([numero(df[m]) for m in MESES], axis=1).to_numpy()
-    meses_completos = ~np.isnan(meses).any(axis=1)
+    # Solo se usan las columnas mensuales si están completas y no hay negativos (hay filas con meses negativos
+    # y caudal promedio positivo: error de carga).
+    meses_completos = ~np.isnan(meses).any(axis=1) & (np.nan_to_num(meses) >= 0).all(axis=1)
 
     factor = unidad.map(A_LS)
     caudal_ls = prom * factor
@@ -119,10 +126,21 @@ def caudales(df: pd.DataFrame) -> pd.DataFrame:
     m3_anual = m3_anual.where(~es_anual, prom)
     caudal_ls = caudal_ls.where(~es_anual, prom * 1000 / (365 * SEG_DIA))
 
+    # "Volumen" es el volumen total anual autorizado (tope legal). Suele ser el 20 % o el 100 % del caudal
+    # continuo. Se usa como m3_anual cuando es coherente con el caudal; fuera de ese rango es un error de carga.
+    m3_continuo = m3_anual
+    volumen = numero(df["Volumen"])
+    razon = volumen / m3_continuo
+    volumen_aplicado = (volumen > 0) & (m3_continuo > 0) & razon.between(VOL_RAZON_MIN, VOL_RAZON_MAX)
+    m3_anual = m3_anual.where(~volumen_aplicado, volumen)
+
     return pd.DataFrame({
         "unidad_origen": df["Unidad de Caudal"],
         "caudal_origen": prom,
         "caudal_ls": caudal_ls.round(4),
+        "volumen_origen": volumen,
+        "volumen_aplicado": volumen_aplicado,
+        "m3_anual_continuo": m3_continuo.round(1),
         "m3_anual": m3_anual.round(1),
         "m3_mes": (m3_anual / 12).round(1),
         "unidad_sin_equivalencia": unidad.isin(SIN_EQUIVALENCIA) | unidad.eq(""),
@@ -181,6 +199,41 @@ def puntos(df: pd.DataFrame) -> pd.DataFrame:
     }, index=df.index)
 
 
+def marcar_duplicados_vpc(gdf: gpd.GeoDataFrame, titular: pd.Series) -> pd.Series:
+    """Derecho no VPC que repite un VPC: mismo titular, comuna y caudal, a DUPLICADO_MAX_M o menos.
+
+    VPC son resoluciones recientes de la DGA que vuelven a registrar un derecho inscrito antes
+    (a veces con otro datum). Se conserva el VPC y el gemelo queda con duplicado_de = derecho_id del VPC.
+    """
+    g = gdf.assign(titular=titular, prefijo=gdf["expediente"].str.split("-").str[0])
+    g = g[g.geometry.notna() & (g["titular"] != "")].to_crs(CRS_UTM)
+    claves = ["titular", "comuna", "caudal_origen"]
+    vpc = g[g["prefijo"] == "VPC"][claves + ["derecho_id", "geometry"]]
+    otros = g[g["prefijo"] != "VPC"][claves + ["derecho_id", "geometry"]]
+    pares = vpc.merge(otros, on=claves, suffixes=("_vpc", "_otro"))
+    if pares.empty:
+        return pd.Series(None, index=gdf.index, dtype="object")
+    pares["dist"] = gpd.GeoSeries(pares["geometry_vpc"]).distance(gpd.GeoSeries(pares["geometry_otro"]))
+    # Uno a uno, de menor a mayor distancia.
+    pares = (pares[pares["dist"] <= DUPLICADO_MAX_M].sort_values("dist")
+             .drop_duplicates("derecho_id_otro").drop_duplicates("derecho_id_vpc"))
+    mapa = dict(zip(pares["derecho_id_otro"], pares["derecho_id_vpc"]))
+    return gdf["derecho_id"].map(mapa)
+
+
+def marcar_pozos_compartidos(gdf: gpd.GeoDataFrame, titular: pd.Series) -> pd.Series:
+    """Punto de captación (celda de GRILLA_POZO_M) con derechos sumables de varios titulares distintos.
+
+    Suelen ser pozos comunitarios o de comunidades de aguas: el agua no riega solo el predio donde está el punto.
+    """
+    sel = gdf["sumable"] & ~gdf["gran_derecho"] & gdf.geometry.notna()
+    p = gdf.loc[sel].to_crs(CRS_UTM)
+    celda = ((p.geometry.x / GRILLA_POZO_M).round().astype(int).astype(str) + "_"
+             + (p.geometry.y / GRILLA_POZO_M).round().astype(int).astype(str))
+    n_tit = titular.loc[sel].groupby(celda).transform("nunique")
+    return (n_tit >= POZO_COMPARTIDO_TITULARES).reindex(gdf.index, fill_value=False)
+
+
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--refrescar", action="store_true", help="vuelve a descargar el Excel aunque exista")
@@ -222,13 +275,21 @@ def main() -> None:
         sys.exit(f"derecho_id duplicado: {base.loc[base['derecho_id'].duplicated(), 'derecho_id'].head().tolist()}")
 
     out = pd.concat([base, caudales(df), puntos(df)], axis=1)
-    out["sumable"] = out["consuntivo"] & ~out["eventual"] & out["m3_anual"].notna() & (out["m3_anual"] > 0)
+    # Caudal negativo: cesiones, reducciones o errores de carga (hay uno de -41.666 l/s). La magnitud no es
+    # confiable, así que se marcan y quedan fuera de la suma en vez de descontarse.
+    out["caudal_negativo"] = out["m3_anual"] < 0
     # Derechos de 100 l/s o más: casi siempre canales o comunidades de aguas, no un solo predio.
     # D5 no los asigna a un predio por coordenada sin revisión.
     out["gran_derecho"] = out["caudal_ls"] >= GRAN_DERECHO_LS
     gdf = gpd.GeoDataFrame(out.drop(columns=["lon", "lat"]),
                            geometry=gpd.points_from_xy(out["lon"], out["lat"]), crs="EPSG:4326")
     gdf.loc[out["lon"].isna(), "geometry"] = None
+
+    titular = df["Nombre Solicitante"].fillna("").str.upper().str.replace(r"\s+", " ", regex=True).str.strip()
+    gdf["duplicado_de"] = marcar_duplicados_vpc(gdf, titular)
+    gdf["sumable"] = (gdf["consuntivo"] & ~gdf["eventual"] & gdf["m3_anual"].notna() & (gdf["m3_anual"] > 0)
+                      & gdf["duplicado_de"].isna())
+    gdf["pozo_compartido"] = marcar_pozos_compartidos(gdf, titular)
 
     procesados = DATA / "processed"
     procesados.mkdir(parents=True, exist_ok=True)
@@ -243,6 +304,14 @@ def main() -> None:
     grandes = gdf[gdf["sumable"] & gdf["gran_derecho"]]
     print(f"\nGrandes derechos (>= {GRAN_DERECHO_LS} l/s, sumables): {len(grandes)} filas, "
           f"{grandes['m3_anual'].sum() / gdf.loc[gdf['sumable'], 'm3_anual'].sum():.0%} del volumen sumable")
+    s = gdf[gdf["sumable"]]
+    print(f"Volumen aplicado como tope anual: {gdf['volumen_aplicado'].sum()} derechos; volumen sumable "
+          f"{s['m3_anual'].sum() / 1e6:,.0f} Mm³ (con caudal continuo serían {s['m3_anual_continuo'].sum() / 1e6:,.0f})")
+    print(f"Posibles duplicados VPC excluidos: {gdf['duplicado_de'].notna().sum()} "
+          f"({gdf.loc[gdf['duplicado_de'].notna(), 'm3_anual'].sum() / 1e6:,.1f} Mm³)")
+    print(f"Pozos compartidos (>= {POZO_COMPARTIDO_TITULARES} titulares): {gdf['pozo_compartido'].sum()} derechos "
+          f"({gdf.loc[gdf['pozo_compartido'], 'm3_anual'].sum() / 1e6:,.0f} Mm³)")
+    print(f"Caudal negativo: {gdf['caudal_negativo'].sum()} derechos")
     print("\nEstado de coordenadas:\n" + gdf["coord_estado"].value_counts().to_string())
     print("\nUnidades de origen:\n" + gdf["unidad_origen"].value_counts(dropna=False).to_string())
     print(f"\n-> {procesados / 'derecho.parquet'}")

@@ -27,7 +27,7 @@ Vista rápida de qué datos están listos en cada zona. Se actualiza al cerrar u
 | Cruce derechos–predios | D5 | ✅ | ✅ |
 | Fiscalizaciones (validación) | D6 | ✅ | ✅ |
 | Especie por predio | D7 | ✅ | ✅ |
-| Cauces y canales | D8 | ⬜ | ⬜ |
+| Cauces y canales | D8 | 🟡 | 🟡 |
 | Red vial | D9 | ⬜ | ⬜ |
 | Zonas de prohibición | D10 | ⬜ | ⬜ |
 | Referencia de secano | D11 | ✅ | ✅ |
@@ -45,13 +45,19 @@ Cada tarea entrega un script en `scripts/extract/` y un archivo en `data/process
 | D5 | Cruzar derechos con predios: punto de captación en el predio o a menos de 500 m; si falla, por titular en la comuna. Guardar `metodo_cruce` y `confianza_cruce`. No asignar por coordenada los `gran_derecho` (100 l/s o más: canales y comunidades de aguas) | D3 + D4 | Z1, Z2 | Tomás | D3, D4 | `scripts/extract/cruce_derechos_predios.py` → `derecho_predio.parquet` y `predio_derecho.parquet` (en git; columnas en `data/README.md`) | ✅ |
 | D6 | Filtrar la planilla de fiscalizaciones por extracción no autorizada en cada zona. Positivo: multa o "Constata infracción" / "Acoge". Negativo débil: "No acoge" / "Cierra expediente" | DGA planilla de fiscalización | Z1, Z2 | Tomás | — | `scripts/extract/fiscalizaciones_dga.py` → `fiscalizacion.parquet` (en git; 835 expedientes de Z1 y Z2, 497 de extracción de aguas) | ✅ |
 | D7 | Especie plantada y superficie frutal por predio elegible, cruzando cuarteles por superficie (no por rol) | CIREN Catastro Frutícola 2025 | Z1, Z2 | Tomás | D3 | `scripts/extract/cultivos_ciren.py` → `predio_cultivo.parquet` (en git) | ✅ |
-| D8 | Cauces y canales de riego | DGA red de drenajes (SMA) y CIREN infraestructura de riego | Z1, Z2 | Por asignar | — | `cauce.parquet` | ⬜ |
+| D8 | Cauces y canales de riego | DGA red de drenajes (SMA) y CIREN infraestructura de riego | Z1, Z2 | Tomás (canales) / Por asignar (cauces) | — | canales: `scripts/extract/canales_ciren.py` → `raw/ciren_riego/canales.parquet` (✅); cauces: pendiente | 🟡 |
 | D9 | Red vial guardada para uso offline, con 25 km/h en `track` | OSM con osmnx | Z1, Z2 | Por asignar | — | `red_vial_z1.graphml`, `red_vial_z2.graphml` | ⬜ |
 | D10 | Zonas de prohibición y restricción de los acuíferos | DGA (rest-sit.mop.gob.cl) | Z1, Z2 | Por asignar | — | `restriccion.parquet` | ⬜ |
 | D11 | Polígonos de referencia de secano (matorral y pradera) | CONAF uso de la tierra 2001–2019 | Z1, Z2 | Gabriela | — | `scripts/extract/referencia_secano_conaf.py` → `referencia_secano.parquet` (en git; solo polígonos estables 2001–2019, sin estepa andina) | ✅ |
 | D12 | Opcional: ubicación de APR y cifras de camiones aljibe para el pitch | DOH (SMA), prensa y estudios | Z1 | Por asignar | — | `apr.parquet` y notas para el pitch | ⬜ |
 | D13 | Recalcular con la escena limpia más reciente la noche antes de la demo: índices de la ficha e imagen del predio de la demo (FD-0501-181). Debe correr con un solo comando | Sentinel-2 L2A (STAC) | Z1 | Gabriela | D1 | comando en `scripts/extract/` y escena en `data/processed/` | ⬜ |
 | D14 | Buscar con fuente: costo por m³ del agua de camión aljibe (Subdere, SENAPRED, órdenes de compra, estudio EURE 2022) y dotación en litros por persona al día | Mercado Público, Subdere, prensa | Z1 | Por asignar | — | valores con fuente en [Métricas de impacto](spec-v2.md#métricas-de-impacto) | ⬜ |
+| D15 | Corregir la lectura Sentinel-2 de D1. Según el assessment (no verificado por el equipo; confirmar con el control): no restar el offset de reflectancia (los DN de Earth Search ya vienen corregidos; el indicador `boa_offset_applied` no es confiable); leer por tile y rasterizar predios, no predio a predio; solo diciembre a marzo; percentil 90 o fracción de píxeles verdes en predios de más de 100 ha. Control: el predio `88-31` (FO-0501-462, suelo desnudo) debe dar NDVI ≈ 0,1 | Sentinel-2 L2A (STAC) | Z1, Z2 | Gabriela | — | ajuste del script de D1 y nota en `docs/pruebas-acceso-datos.md` | ⬜ |
+| D16 | Cruce de derechos versión 2: no asignar pozos compartidos, sumar por rol, filtrar por fecha de otorgamiento por temporada, tope anual con "Volumen", excluir duplicados VPC y caudales negativos, distancia a canal | D3 + D4 + canales CIREN | Z1, Z2 | Tomás | D3, D4 | `predio_derecho.parquet` por predio y temporada (columnas en `data/README.md`) | ✅ |
+| D17 | Clima: `clima.parquet` repite filas por `punto_id` y fecha (estaciones compartidas entre zonas): unir también por `zona` o deduplicar. La estación Zapallar Catapilco (asignada a 2.285 predios de Z1) registró 5 mm en 2020 contra 440 mm en Quintero sin marcarse como faltante: marcar como faltante y rellenar con Open-Meteo | DMC y Open-Meteo | Z1, Z2 | Gabriela | D2 | `clima.parquet` corregido | ⬜ |
+| D18 | Set de validación limpio: marcar positivos ambiguos (otro predio a 30 m o menos del punto: el 49 %), predios con ambas etiquetas, positivos con recurso de reconsideración y positivos no detectables por verdor (suelo desnudo, p. ej. FO-0501-462). Evaluar por vecindario (predio y vecinos a 30 m) | `fiscalizacion.parquet` + D15 | Z1, Z2 | Por asignar | D6, D15 | columnas `ambiguo`, `detectable` y `vecindario` en `fiscalizacion.parquet` | ⬜ |
+| D19 | Decidir el caso de la demo con la serie Sentinel-2 completa: FD-0501-181 (NDVI estable 0,45–0,58 en 2019–2024, sin "inicio de riego"; el pozo está a 12 m del predio vecino `202-90`, que tiene un derecho a 51 m) o FO-0504-95 (NDVI 0,88–0,91 en 2019–20 y 0,67–0,71 en 2022–24: el verde baja después de la fiscalización) | D15 | Z1, Z2 | Tomás | D15 | caso y relato fijados en el spec | ⬜ |
+| D20 | Opcional: probar si el Monitoreo de Extracciones Efectivas (MEE) de la DGA se puede descargar (verdad de terreno directa) y ESA WorldCover 10 m como referencia de secano (más rápido que CONAF 2001–2019) | DGA MEE, ESA WorldCover | Z1, Z2 | Por asignar | — | nota con el resultado | ⬜ |
 
 ## Tareas de modelos
 
@@ -63,8 +69,8 @@ Cada tarea entrega código en el repo y un archivo de resultados en `data/proces
 | M2 | Anomalías `z_verdor` y `z_humedad` por predio frente a la referencia de secano o a la historia del predio | Z1, Z2 | Por asignar | D1, D11 | columnas en `serie_predio.parquet` | ⬜ |
 | M3 | Detector de riego: ambas anomalías sobre su umbral dentro de una ventana seca | Z1, Z2 | Por asignar | M1, M2 | `senal_riego.parquet` | ⬜ |
 | M4 | Consumo estimado con FAO-56: Kc(NDVI), con ajuste por especie si existe; resultado en rango de m³. El Kc sale del NDVI; la especie (`predio_cultivo.parquet`) solo ajusta: el 44 % de los positivos no tiene frutales en el catastro | Z1, Z2 | Por asignar | D1, D2, D7 | `consumo.parquet` | ⬜ |
-| M5 | Índice de sospecha, confianza y bandas (alta, media, baja). Mide el exceso del consumo sobre los derechos propios y del entorno (`predio_derecho.parquet`), no "tiene o no tiene derechos": el 73 % de los positivos tiene derechos. Los derechos del entorno solo bajan la confianza si superan lo que necesitan los predios donde están inscritos (si no, el caso de la demo queda en confianza baja) | Z1, Z2 | Por asignar | M3, M4, D5 | `puntaje.parquet` | ⬜ |
-| M6 | Validación: posición en el ranking de los positivos de D6; métrica precisión en los k primeros. Casos clave: FD-0501-181 (demo, Cabildo 2024) y FO-0504-95 (antecedente satelital, Hijuelas 2021) | Z1 y Z2 | Por asignar | M5, D6 | `validacion.md` con la métrica y el mapa | ⬜ |
+| M5 | Índice de sospecha, confianza y bandas (alta, media, baja). Mide el exceso del consumo sobre los derechos propios y del entorno (`predio_derecho.parquet`), no "tiene o no tiene derechos": el 73 % de los positivos tiene derechos. Los derechos del entorno solo bajan la confianza si superan lo que necesitan los predios donde están inscritos (si no, el caso de la demo queda en confianza baja). Usar `m3_anual_derecho_rol` de la temporada (no el del polígono). Los derechos solos no distinguen infractores (AUC 0,49–0,54 entre fiscalizados): la sospecha sale de la señal satelital y los derechos dimensionan el exceso. `canal_300m` no baja la confianza (68 % de los elegibles) | Z1, Z2 | Por asignar | M3, M4, D5 | `puntaje.parquet` | ⬜ |
+| M6 | Validación: posición en el ranking de los positivos de D6; métrica precisión en los k primeros. Casos clave: FD-0501-181 (demo, Cabildo 2024) y FO-0504-95 (antecedente satelital, Hijuelas 2021). Usar el set limpio de D18, evaluar por vecindario y reportar recall con intervalo de confianza: hay 34 positivos en predios elegibles desde 2020 y unos 10 limpios | Z1 y Z2 | Por asignar | M5, D6 | `validacion.md` con la métrica y el mapa | ⬜ |
 | M7 | Calibrar N, los umbrales de anomalía y los pesos de la confianza con el resultado de M6 | Z2 | Por asignar | M6 | valores fijados en el spec | ⬜ |
 | M8 | Ruta de inspección con OR-Tools: un vehículo, cada predio como parada opcional con premio según su puntaje, jornada de 8 h; exportar GPX | Z1, Z2 | Por asignar | M5, D9 | `ruta.py` y GPX de ejemplo | ⬜ |
 | M9 | Métricas de impacto: adelanto de detección en casos conocidos, acierto frente al 33 % de la DGA, candidatos no fiscalizados, m³ en juego y pesos (multas y costo de camión aljibe), todo en rango | Z1, Z2 | Por asignar | M5, M6, D5, D6, D14 | `impacto.md` con las cifras y supuestos | ⬜ |
@@ -85,16 +91,33 @@ Los flujos por polígono salen de M5: M10 → M11 (recorrido) y M12 → M13 (exp
 
 ## Prioridad actual
 
-Orden de trabajo al 21-11-2026. Se actualiza cuando cambia lo que bloquea.
+Orden de trabajo al 21-11-2026, después del assessment de datos. Se actualiza cuando cambia lo que bloquea.
 
-| Orden | Tarea | Responsable | Por qué ahora | Qué ya hay |
-| --- | --- | --- | --- | --- |
-| 1 | D1, D2, D11 | Gabriela | Es el inicio del camino crítico | Zonas, muestra de predios y casos en `data/` |
-| ✅ | D4 Derechos normalizados | Tomás | Es la tarea de datos más difícil (datums, unidades) y M5 no puede partir sin ella | Excel de Valparaíso descargado y columnas revisadas |
-| ✅ | D5 Cruce derechos–predios | Tomás | Sin el cruce no hay "consumo sobre derechos", que es el núcleo del índice | Predios listos (D3) |
-| ✅ | D6 Fiscalizaciones | Tomás | Desbloquea la validación (M6) y la métrica de impacto (M9) | Planilla descargada y filtros probados |
-| ✅ | D7 Especie por predio | Tomás | Mejora el Kc de M4; es rápida porque la llave es el rol | Capa de CIREN probada |
-| — | D8, D9, D10, D12, D14 | Por asignar | No bloquean el camino crítico; sirven para el expediente, la ruta y el pitch | Fuentes verificadas en el spec |
+| Orden | Tarea | Responsable | Por qué ahora |
+| --- | --- | --- | --- |
+| 1 | D15 Corregir lectura Sentinel-2, luego D1 | Gabriela | Bloquea M2 a M6 y la decisión del caso de la demo; con el offset actual el NDVI sale inflado |
+| 2 | D17 Clima | Gabriela | Arreglo corto; evita contar dos veces días de clima y una estación con lluvia falsa |
+| 3 | D19 Caso de la demo | Tomás | Depende de D15; el caso actual es frágil |
+| 4 | D18 Set de validación limpio | Por asignar | M6 no es creíble sin él |
+| 5 | D9 Red vial | Por asignar | La ruta es la salida principal del sistema y nadie la tiene |
+| ✅ | D3 a D7, D16 | Tomás | Predios, derechos (versión 2), fiscalizaciones y especie listos |
+| — | D8 (cauces), D10, D12, D14, D20 | Por asignar | No bloquean el camino crítico |
+
+## Assessment de datos (21-11-2026)
+
+Revisión independiente de los datos frente a lo que necesitan M2 a M9 y la demo. Detalle de cada gap en su tarea.
+
+| Gap | Impacto | Tarea | Estado |
+| --- | --- | --- | --- |
+| No hay serie Sentinel-2 y la regla de offset restaría dos veces (por confirmar) | Alto: bloquea M2 a M6 | D15, D1 | ⬜ |
+| El agua de canal no aparece en los derechos: 43 % (Z1) y 61 % (Z2) de los predios con frutales no tiene derecho propio, casi todos junto a un canal | Alto: infla candidatos (M9) | D16 (`dist_canal_m`), M5, M9 | 🟡 dato listo; falta la regla en M5 y M9 |
+| Derechos inflados en el predio que contiene el punto (pozos compartidos, sin agregar por rol, sin tope de Volumen, derechos posteriores a los hechos) | Alto: M5 y M6 | D16 | ✅ |
+| Los derechos solos no distinguen infractores (AUC ≈ 0,5 entre fiscalizados) | Alto: el índice depende del satélite | M5 | ⬜ |
+| Caso de la demo frágil | Alto: demo | D19 | ⬜ |
+| Validación chica y ambigua | Alto: M6, M7, M9 | D18 | ⬜ |
+| Duplicados VPC y caudales negativos | Medio-bajo | D16 | ✅ |
+| Clima con filas repetidas y una estación con lluvia faltante | Bajo a medio | D17 | ⬜ |
+| Predios de más de 100 ha (86 % de la superficie elegible) diluyen la señal | Medio | D15 | ⬜ |
 
 ## Bloqueos
 
@@ -112,6 +135,7 @@ Orden de trabajo al 21-11-2026. Se actualiza cuando cambia lo que bloquea.
 | 21-11-2026 | `predio_id` = `mslink` de CIREN, no el rol (el rol se repite y a veces no es un rol) | Tomás |
 | 21-11-2026 | Fiscalizaciones: solo "extracción no autorizada de aguas" (sin áridos). Corrige la línea base: acierto de la DGA 33 % y multa mediana 575,7 UTM | Tomás |
 | 21-11-2026 | Universo elegible: rol válido y 1 ha o más (7.911 predios); cubre el 93 % de los positivos por extracción de aguas | Tomás |
+| 21-11-2026 | Assessment de datos: tareas D15 a D20. Cruce de derechos versión 2 (por rol y por temporada, sin pozos compartidos). `canal_300m` queda como dato, no baja la confianza | Tomás |
 | 21-11-2026 | D5 entrega `predio_derecho.parquet` con `m3_anual_derecho_entorno_500m`: M5 baja la confianza (no sube la sospecha) si el predio tiene poco derecho propio y mucho en el entorno (lotes de pozo) | Tomás |
 | 21-11-2026 | Métrica de impacto: candidatos no fiscalizados × acierto medido, en rango de m³ y pesos; un candidato no es un caso | Tomás |
 | 21-11-2026 | Caso de la demo: FD-0501-181 (Cabildo, 2024; 16,1 ha de palto sin derechos propios) en lugar de FO-0501-462, cuyo derecho alcanza para su superficie y que no tiene frutales | Tomás |

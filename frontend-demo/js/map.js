@@ -313,6 +313,23 @@ async function clipDemToChile(buf, z, x, y) {
   const blob = c.convertToBlob ? await c.convertToBlob({ type: 'image/png' }) : await new Promise((r) => c.toBlob(r, 'image/png'));
   return blob.arrayBuffer();
 }
+/**
+ * Terrain ('dem') and hillshade ('dem-hs') ask for the same DEM file through two protocols: share
+ * the download (small bounded cache; each caller gets its own copy of the bytes). Not abortable on
+ * purpose: one consumer giving up must not cancel the other's tile.
+ */
+const DEM_SHARE_MAX = 96;
+const demShare = new Map();
+function fetchDemShared(url) {
+  let p = demShare.get(url);
+  if (!p) {
+    p = fetch(url).then((r) => (r.ok ? r.arrayBuffer() : null)).catch(() => null);
+    demShare.set(url, p);
+    if (demShare.size > DEM_SHARE_MAX) demShare.delete(demShare.keys().next().value);
+  }
+  return p.then((buf) => (buf ? buf.slice(0) : null));
+}
+
 function registerHillshadeProtocol(maplibregl, local) {
   if (registerHillshadeProtocol.done || typeof maplibregl.addProtocol !== 'function') return;
   registerHillshadeProtocol.done = true;
@@ -323,9 +340,9 @@ function registerHillshadeProtocol(maplibregl, local) {
     const keys = local.dem && local.dem.keys;
     if (keys && !keys.has(key)) return { data: await blankTile('dem') };
     const url = local.dem ? LOCAL_FILE.dem(key) : `https://s3.amazonaws.com/elevation-tiles-prod/terrarium/${key}.png`;
-    const r = await fetch(url, { signal: abortController && abortController.signal });
-    if (!r.ok) return { data: await blankTile('dem') };
-    return { data: await clipDemToChile(await r.arrayBuffer(), z, x, y) };
+    const buf = await fetchDemShared(url);
+    if (!buf) return { data: await blankTile('dem') };
+    return { data: await clipDemToChile(buf, z, x, y) };
   });
 }
 
@@ -338,6 +355,10 @@ function registerLocalProtocol(maplibregl, local) {
     const [, kind, key] = m;
     const keys = local[kind] && local[kind].keys;
     if (keys && !keys.has(key)) return { data: await blankTile(kind) };
+    if (kind === 'dem') {
+      const buf = await fetchDemShared(LOCAL_FILE.dem(key));
+      return { data: buf || (await blankTile('dem')) };
+    }
     const r = await fetch(LOCAL_FILE[kind](key), { signal: abortController && abortController.signal });
     if (!r.ok) return { data: await blankTile(kind) };
     return { data: await r.arrayBuffer() };
@@ -611,6 +632,29 @@ function normCaso(c) {
   const lon = +c.lon, lat = +c.lat;
   if (!Number.isFinite(lon) || !Number.isFinite(lat)) return null;
   return { ...c, expediente: String(c.expediente), zona: zoneKey(c.zona), lon, lat };
+}
+
+/**
+ * MapLibre dims a marker hidden behind a mountain by reading the terrain depth buffer: a synchronous
+ * gl.readPixels per marker, every 100 ms while the map renders (Marker._updateOpacity). With the ~13
+ * markers here that was 2.6 s of main thread in the first 22 s of the page, and it grows with every
+ * case added to the map. Keep only the cheap globe check (marker on the far side of the planet).
+ * Private API: if the method is not there the marker keeps the stock behaviour.
+ */
+function skipTerrainOcclusion(marker) {
+  if (typeof marker._updateOpacity !== 'function') return marker;
+  marker._updateOpacity = function updateOpacityNoReadback() {
+    const map = this._map;
+    if (!map) return;
+    let occluded = false;
+    try { occluded = !!map.transform.isLocationOccluded(this._lngLat); } catch (_) { /* private API changed */ }
+    const target = occluded ? this._opacityWhenCovered : this._opacity;
+    if (this._element.style.opacity !== target) {
+      this._element.style.opacity = target;
+      this._element.classList.toggle('maplibregl-marker-covered', occluded);
+    }
+  };
+  return marker;
 }
 
 const FISC_LABEL = { positivo: 'infracción constatada', negativo: 'sin infracción en la visita', en_tramite: 'en trámite', otro: 'otro trámite' };
@@ -959,7 +1003,7 @@ export async function initMap({ container, sites, casos: casosIn, onSelect } = {
     // drop the one-off entrance animation class once it has played
     el.addEventListener('animationend', (ev) => { if (ev.animationName === 'cm-in') el.classList.remove('cm-enter'); });
 
-    const marker = new maplibregl.Marker({ element: el, anchor: 'center', opacityWhenCovered: '0.3' })
+    const marker = skipTerrainOcclusion(new maplibregl.Marker({ element: el, anchor: 'center', opacityWhenCovered: '0.3' }))
       .setLngLat([d.lon, d.lat])
       .addTo(map);
     el.setAttribute('aria-label', label); // Marker.addTo() overwrites it with 'Map marker'
@@ -1167,7 +1211,7 @@ export async function initMap({ container, sites, casos: casosIn, onSelect } = {
       if (isHidden()) return;
       zoomToMembers(ids);
     });
-    const marker = new maplibregl.Marker({ element: el, anchor: 'center', opacityWhenCovered: '0.5' });
+    const marker = skipTerrainOcclusion(new maplibregl.Marker({ element: el, anchor: 'center', opacityWhenCovered: '0.5' }));
     el.dataset.aria = `${group.length} ${noun}: ${names.join(', ')}. Acercar`;
     return { el, marker, ids };
   }

@@ -210,6 +210,27 @@ function cpuSummary(profile) {
   };
 }
 
+/* ---------- traza de GPU (tiempo de trabajo del proceso de GPU, por ventana) ---------- */
+async function startGpuTrace(browser) {
+  const cdp = await browser.newBrowserCDPSession();
+  const events = [];
+  cdp.on('Tracing.dataCollected', (d) => { for (const e of d.value) if (e.name === 'Scheduler::RunTask' && e.ph === 'X') events.push([e.ts, e.dur || 0]); });
+  await cdp.send('Tracing.start', { transferMode: 'ReportEvents', traceConfig: { includedCategories: ['gpu'], excludedCategories: ['*'] } });
+  const t0 = Date.now();
+  return {
+    /** ms de GPU ocupada en total y en la ventana [fromMs, toMs] desde el inicio de la traza */
+    async stop(fromMs, toMs) {
+      const done = new Promise((r) => cdp.once('Tracing.tracingComplete', r));
+      await cdp.send('Tracing.end');
+      await done;
+      if (!events.length) return null;
+      const first = Math.min(...events.map((e) => e[0]));
+      const sum = (a, b) => Math.round(events.filter((e) => e[0] - first >= a * 1000 && e[0] - first < b * 1000).reduce((x, e) => x + e[1], 0) / 1000);
+      return { totalMs: sum(0, Infinity), windowMs: sum(fromMs, toMs), windowSpanMs: toMs - fromMs, wallMs: Date.now() - t0 };
+    },
+  };
+}
+
 /* ---------- escenarios ---------- */
 /** Servidor local para los datos (multiplicados): cuerpos de decenas de MB no caben en route.fulfill. */
 function startDataServer(body, counters) {
@@ -247,11 +268,14 @@ async function runLanding(browser, base) {
   await cdp.send('Profiler.enable');
   await cdp.send('Profiler.setSamplingInterval', { interval: 500 });
   await cdp.send('Profiler.start');
+  const gpu = await startGpuTrace(browser).catch(() => null);
   await page.goto(base + '/', { waitUntil: 'commit' });
   await page.waitForTimeout(LANDING_MS);
   const r = await page.evaluate(collectLanding, LANDING_MS - 1000);
   const { profile } = await cdp.send('Profiler.stop');
   r.cpu = cpuSummary(profile);
+  // GPU: total de la carga y los últimos 4 s (página en reposo, nadie toca nada)
+  r.gpu_busy = gpu ? await gpu.stop(LANDING_MS - 4000, LANDING_MS).catch(() => null) : null;
   r.zonaDataKB = Math.round(counters.dataBytes / 1024);
   await close();
   return r;

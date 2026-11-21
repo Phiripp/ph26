@@ -97,7 +97,7 @@ Orden de trabajo al 21-11-2026, con la serie Sentinel-2 corregida (D15). Se actu
 | --- | --- | --- | --- | --- |
 | 1a | D1 corrida de validación: 159 predios, diciembre a marzo de 2019-20 a 2025-26 (`--validacion`) | Tomás | ✅ `serie_predio_validacion.parquet` | Desbloquea D18 `detectable`, D19 y M6 |
 | 1b | D1 corrida de ranking: 7.911 elegibles, 2025-26 (`--elegibles`) | Tomás | ✅ `serie_predio_elegibles_2025-26.parquet`: 7.911 predios, 97 escenas, mediana de 18 fechas válidas por predio | Universo del ranking de la demo; es la corrida más larga |
-| 1c | D1 corrida de referencia de secano, mismas temporadas (`--referencia`) | Tomás | ⬜ | M2 necesita la referencia para las anomalías |
+| 1c | D1 corrida de referencia de secano, mismas temporadas (`--referencia`) | Tomás | ✅ `serie_referencia.parquet`: 3.642 polígonos, 7 temporadas | M2 necesita la referencia para las anomalías |
 | 2 | M2 a M4: anomalías, detector de riego, consumo FAO-56 | Tomás | 🟡 en curso | Camino crítico; M2 espera la referencia de secano (1c) para las anomalías |
 | 3 | D19 caso de la demo, primera versión de M6 | Tomás | ⬜ | D18 `detectable` ya está listo; falta decidir el caso con la serie corregida |
 | 4 | M5 ranking, M9 impacto (M8 ruta ya está ✅) | Tomás | ⬜ | Cuando estén 1c y 2 |

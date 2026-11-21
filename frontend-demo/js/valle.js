@@ -1346,7 +1346,13 @@ export async function initValle({
 
   new ResizeObserver(() => { if (SB) resize(); }).observe(host);
 
+  // The scene is usually warmed up in the background while the national map is on screen: hand the
+  // main thread back between the three heavy steps (context, zone build, first render = shader
+  // compile + texture upload) so they are three short tasks instead of one ~0.5 s freeze.
+  const breathe = () => new Promise((r) => setTimeout(r, 0));
+  await breathe();
   await build(zona);
+  await breathe();
   renderer.render(scene, camera); // first frame at the START pose
 
   // ---------- controller ----------

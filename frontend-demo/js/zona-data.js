@@ -25,10 +25,70 @@ export const loadCasos = () => once('casos', async () => {
   return (Array.isArray(c) ? c : c.casos || []).map(x => ({ ...x, predio_id: x.predio_id == null ? null : String(x.predio_id) }));
 });
 export const loadFiscalizaciones = () => once('fisc', () => getJSON(ROOT + 'fiscalizaciones.geojson'));
+/**
+ * Small landing summary (scripts/build_zonas_web.py): per-zone predio/band counts + route, and the demo
+ * case series. Lets the landing page skip the full zone data. null when the file is not there.
+ */
+export const loadResumen = () => once('resumen', () => optJSON(ROOT + 'resumen.json'));
+
+/* ---------- per-predio series, loaded by block on demand ---------- */
+/** Block of a predio id. Same hash as scripts/build_zonas_web.py (bloque_de): h = h*31 + code, 32 bits. */
+export function serieBlock(id, nBlocks) {
+  let h = 0;
+  const str = String(id);
+  for (let i = 0; i < str.length; i++) h = (Math.imul(h, 31) + str.charCodeAt(i)) >>> 0;
+  return h % nBlocks;
+}
+const blockFile = n => `b${String(n).padStart(2, '0')}.json`;
+/** {ndvi:[…], ndmi:[…]} aligned to `meses` -> [{fecha, ndvi, ndmi}] (months without any value are skipped). */
+function rowsOf(cols, meses) {
+  const out = [];
+  for (let i = 0; i < meses.length; i++) {
+    const ndvi = cols.ndvi?.[i] ?? null, ndmi = cols.ndmi?.[i] ?? null;
+    if (ndvi != null || ndmi != null) out.push({ fecha: meses[i], ndvi, ndmi });
+  }
+  return out;
+}
+/**
+ * Series store of a zone. `predios` starts empty and is filled block by block by ensureSeries(); chart.js
+ * and dryWindowStats() keep reading data.series.predios[id] synchronously once the block is in.
+ * Falls back to the full series.json (everything in memory at once) when series/index.json is missing.
+ */
+async function loadSeriesStore(base) {
+  const index = await optJSON(base + 'series/index.json');
+  if (index && Array.isArray(index.meses) && index.bloques > 0) {
+    return {
+      predios: {},
+      referencia_secano: index.referencia_secano || { serie: [] },
+      lazy: { base: base + 'series/', meses: index.meses, bloques: index.bloques, loaded: new Map() },
+    };
+  }
+  const full = await optJSON(base + 'series.json');
+  return { predios: full?.predios || {}, referencia_secano: full?.referencia_secano || { serie: [] }, lazy: null };
+}
+/**
+ * Make sure the series of these predio ids are in data.series.predios (fetches their blocks once).
+ * Never rejects: a block that fails to load leaves its predios without series ("Sin serie satelital").
+ */
+export async function ensureSeries(data, ids) {
+  const lazy = data?.series?.lazy;
+  if (!lazy) return data;
+  const list = (Array.isArray(ids) ? ids : [ids]).filter(id => id != null).map(String);
+  const blocks = [...new Set(list.filter(id => !(id in data.series.predios)).map(id => serieBlock(id, lazy.bloques)))];
+  await Promise.all(blocks.map(n => {
+    if (!lazy.loaded.has(n)) {
+      lazy.loaded.set(n, getJSON(lazy.base + blockFile(n)).then(j => {
+        for (const [id, cols] of Object.entries(j.predios || {})) data.series.predios[id] = rowsOf(cols, lazy.meses);
+      }).catch(err => { console.warn(String(err.message || err)); lazy.loaded.delete(n); }));
+    }
+    return lazy.loaded.get(n);
+  }));
+  return data;
+}
 
 const zonaKey = id => String(id || '').toLowerCase();
 
-/** Everything one zone needs: predios (scores merged), series, clima, ruta, its cases, counts. */
+/** Everything one zone needs: predios (scores merged), clima, ruta, its cases, counts. Series: see ensureSeries(). */
 export function loadZona(id) {
   const key = zonaKey(id);
   return once('zona:' + key, async () => {
@@ -39,8 +99,9 @@ export function loadZona(id) {
     if (!base.endsWith('/')) base += '/';
     const [geo, scores, series, clima, ruta] = await Promise.all([
       getJSON(base + 'predios.geojson'),
-      optJSON(base + 'scores.json'),
-      optJSON(base + 'series.json'),
+      // lite = only the fields used here; the full scores.json (with per-season history) is the fallback
+      optJSON(base + 'scores.lite.json').then(j => j || optJSON(base + 'scores.json')),
+      loadSeriesStore(base),
       optJSON(base + 'clima.json'),
       optJSON(base + 'ruta.json'),
     ]);
@@ -83,7 +144,7 @@ export function loadZona(id) {
     return {
       id: key, zona, base, predios, byId, casos, casoByPredio, counts,
       scoresMeta: scores ? { provisional: scores.provisional !== false, metodo: scores.metodo, temporada: scores.temporada } : null,
-      series: series || { predios: {}, referencia_secano: { serie: [] } },
+      series,
       clima: clima || { ventanas_secas: [] },
       ruta,
       gpxUrl: base + 'ruta.gpx',

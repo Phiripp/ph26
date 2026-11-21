@@ -4,7 +4,7 @@
 // Uso (con el servidor local arriba: python3 -m http.server 8000 en frontend-demo/):
 //   npm i playwright-core            # en cualquier carpeta; no baja navegadores, usa el Chrome instalado
 //   NODE_PATH=<esa carpeta>/node_modules node scripts/perf/measure.cjs --label antes --out antes.json
-// Opciones: --base http://localhost:8000  --only landing,zona  --mults 1,20,100  --runs 2  --headed
+// Opciones: --base http://localhost:8000  --only landing,zona,aculeo  --mults 1,20,100  --runs 2  --headed
 //
 // "mult" multiplica los predios de cada zona en memoria (clones desplazados) para ver cómo escala la vista
 // sin tener todavía los datos reales. Los datos de data/zonas/ se sirven desde disco por este script.
@@ -19,7 +19,7 @@ const LANDING_MS = 24000;
 const ZONA_TIMEOUT_MS = 120000;
 
 function parseArgs(argv) {
-  const out = { base: 'http://localhost:8000', only: 'landing,zona', mults: '1,20,100', runs: '2', label: 'run', out: '', headed: false };
+  const out = { base: 'http://localhost:8000', only: 'landing,zona,aculeo', mults: '1,20,100', runs: '2', label: 'run', out: '', headed: false };
   for (let i = 2; i < argv.length; i++) {
     const k = argv[i].replace(/^--/, '');
     if (k === 'headed') out.headed = true;
@@ -30,7 +30,6 @@ function parseArgs(argv) {
 
 /* ---------- multiplicador de predios (clones desplazados dentro de la zona) ---------- */
 const cloneId = (id, k) => (k ? `${id}_${k}` : String(id));
-const baseId = (id) => String(id).replace(/_\d+$/, '');
 function shift(coords, dx, dy) {
   return typeof coords[0] === 'number' ? [coords[0] + dx, coords[1] + dy] : coords.map((c) => shift(c, dx, dy));
 }
@@ -52,23 +51,49 @@ function multiplyKeyed(obj, mult) {
   for (const id of Object.keys(obj)) for (let k = 0; k < mult; k++) out[cloneId(id, k)] = obj[id];
   return out;
 }
+/** Mismo hash que js/zona-data.js (serieBlock) y scripts/build_zonas_web.py (bloque_de). */
+function serieBlock(id, n) {
+  let h = 0;
+  const str = String(id);
+  for (let i = 0; i < str.length; i++) h = (Math.imul(h, 31) + str.charCodeAt(i)) >>> 0;
+  return h % n;
+}
+const blockName = (n) => `b${String(n).padStart(2, '0')}.json`;
+/** Series por bloques de una zona, re-particionadas para `mult` clones por predio. → Map(archivo → Buffer) */
+function multiplySeriesBlocks(zdir, mult) {
+  const sdir = path.join(ROOT, zdir, 'series');
+  const index = JSON.parse(fs.readFileSync(path.join(sdir, 'index.json'), 'utf8'));
+  const real = {};
+  for (let b = 0; b < index.bloques; b++) Object.assign(real, JSON.parse(fs.readFileSync(path.join(sdir, blockName(b)), 'utf8')).predios);
+  const ids = Object.keys(real);
+  const n = Math.max(1, Math.ceil((ids.length * mult) / (index.predios_por_bloque || 50)));
+  const blocks = Array.from({ length: n }, () => ({ predios: {} }));
+  for (const id of ids) for (let k = 0; k < mult; k++) { const cid = cloneId(id, k); blocks[serieBlock(cid, n)].predios[cid] = real[id]; }
+  const out = new Map([['index.json', Buffer.from(JSON.stringify({ ...index, bloques: n }))]]);
+  blocks.forEach((b, i) => out.set(blockName(i), Buffer.from(JSON.stringify(b))));
+  return out;
+}
 /** Devuelve el cuerpo (Buffer) de un archivo de data/zonas/, multiplicado si corresponde, o null si no existe. */
 function makeDataSource(mult) {
   const cache = new Map();
+  const series = new Map(); // zona → Map(archivo → Buffer)
   return function body(rel) {
     if (cache.has(rel)) return cache.get(rel);
-    let file = path.join(ROOT, rel);
-    // archivos por predio (series/<id>.json): un clon usa el archivo de su predio original
-    const m = /^(.*\/series\/)([^/]+)\.json$/.exec(rel);
-    if (m && !fs.existsSync(file)) file = path.join(ROOT, `${m[1]}${baseId(m[2])}.json`);
+    const file = path.join(ROOT, rel);
+    const m = /^(data\/zonas\/z\d+)\/series\/([^/]+\.json)$/.exec(rel);
+    if (m && mult > 1) {
+      if (!fs.existsSync(path.join(ROOT, m[1], 'series', 'index.json'))) return null;
+      if (!series.has(m[1])) series.set(m[1], multiplySeriesBlocks(m[1], mult));
+      return series.get(m[1]).get(m[2]) || null;
+    }
     if (!fs.existsSync(file)) { cache.set(rel, null); return null; }
     let buf = fs.readFileSync(file);
-    if (mult > 1 && /\/z\d+\/(predios\.geojson|scores\.json|series\.json)$/.test(rel)) {
+    if (mult > 1 && /\/z\d+\/(predios\.geojson|scores\.json|scores\.lite\.json|series\.json)$/.test(rel)) {
       const j = JSON.parse(buf.toString('utf8'));
       const big = /predios\.geojson$/.test(rel) ? multiplyPredios(j, mult) : { ...j, predios: multiplyKeyed(j.predios || {}, mult) };
       buf = Buffer.from(JSON.stringify(big));
     }
-    if (!m) cache.set(rel, buf);
+    cache.set(rel, buf);
     return buf;
   };
 }
@@ -295,6 +320,40 @@ async function runZona(browser, base, mult) {
   return r;
 }
 
+async function measureLagoon() {
+  const P = window.__perf;
+  const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+  const raf = () => new Promise((r) => requestAnimationFrame(r));
+  const tl = (P.modes.find((m) => m[0] === 'lagoon') || [])[1];
+  const lb = P.long.filter((x) => x[0] < tl);
+  await sleep(2500);
+  // primer recorrido del slider por todos los años (2024 → 2018 → 2024)
+  const scrub = document.getElementById('scrub');
+  const y0 = +scrub.min, y1 = +scrub.max, a = performance.now(), l0 = P.long.length;
+  for (let i = 0; i <= 180; i++) {
+    const k = i / 180, y = k < 0.5 ? y1 - (y1 - y0) * (k * 2) : y0 + (y1 - y0) * ((k - 0.5) * 2);
+    scrub.value = y; scrub.dispatchEvent(new Event('input', { bubbles: true }));
+    await raf();
+  }
+  const b = performance.now();
+  const f = P.frames.filter((x) => x[0] >= a && x[0] < b).map((x) => x[1]).sort((x, y) => x - y);
+  return {
+    toLagoonMs: tl, longBeforeLagoonMs: lb.reduce((s, x) => s + x[1], 0), longMaxMs: Math.max(0, ...lb.map((x) => x[1])),
+    scrub: { fps: +(f.length / ((b - a) / 1000)).toFixed(1), p95: Math.round(f[Math.floor(f.length * 0.95)]), max: Math.round(f[f.length - 1]) },
+    scrubLongMs: P.long.slice(l0).reduce((s, x) => s + x[1], 0),
+  };
+}
+
+async function runLagoon(browser, base) {
+  const counters = { dataBytes: 0, dataReqs: 0 };
+  const { page, close } = await newPage(browser, 1, counters);
+  await page.goto(base + '/#aculeo', { waitUntil: 'commit' });
+  await page.waitForFunction(() => document.getElementById('top')?.dataset.mode === 'lagoon', null, { timeout: ZONA_TIMEOUT_MS });
+  const r = await page.evaluate(measureLagoon);
+  await close();
+  return r;
+}
+
 const pickBest = (runs, key) => runs.slice().sort((a, b) => key(a) - key(b))[Math.floor((runs.length - 1) / 2)];
 
 async function main() {
@@ -319,6 +378,11 @@ async function main() {
         try { result.zona[`x${m}`] = await runZona(browser, args.base, m); }
         catch (err) { result.zona[`x${m}`] = { error: String(err.message || err).split('\n')[0] }; process.stderr.write(`[measure] zona x${m} falló: ${err.message}\n`); }
       }
+    }
+    if (only.includes('aculeo')) {
+      process.stderr.write('[measure] aculeo…\n');
+      try { result.aculeo = await runLagoon(browser, args.base); }
+      catch (err) { result.aculeo = { error: String(err.message || err).split('\n')[0] }; }
     }
   } finally {
     await browser.close();

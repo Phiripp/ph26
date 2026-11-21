@@ -117,7 +117,7 @@ const getManifest = () => (manifestP ??= fetch(MANIFEST_URL).then(r => {
   return r.json();
 }));
 
-/* ---------- hero (3D lagoon): init once at startup so textures preload ---------- */
+/* ---------- hero (3D lagoon): created on first use (boot -> getHero), not at startup ---------- */
 async function setupHero() {
   const canvas = $('hero-canvas');
   const play = $('play'), scrub = $('scrub');
@@ -400,18 +400,27 @@ async function setupZonasSummary() {
     </article>`;
   }).join('');
 
-  // fill counts per zone as each loads (a zone that fails keeps its dashes)
+  // fill counts per zone from the small summary file; without it, from the full zone data
+  // (a zone that fails keeps its dashes)
+  const resumen = await Zmod().then(Z => Z.loadResumen()).catch(() => null);
+  const fromZona = d => ({
+    predios: d.predios.length, counts: d.counts || {},
+    ruta: d.ruta && Array.isArray(d.ruta.paradas) && d.ruta.paradas.length
+      ? { paradas: d.ruta.paradas.length, distancia_km: d.ruta.distancia_km, duracion_min: d.ruta.duracion_min, inicio: d.ruta.inicio }
+      : null,
+  });
   for (const z of zonas) {
     const id = zkey(z.id), card = $('zc-' + id);
-    loadZonaData(id).then(d => {
+    const known = resumen?.zonas?.[id];
+    (known ? Promise.resolve(known) : loadZonaData(id).then(fromZona)).then(d => {
       const c = d.counts || {}, set = (k, v) => { const e = card.querySelector(`[data-k="${k}"]`); if (e) e.textContent = v; };
-      set('predios', `${d.predios.length} predios`);
+      set('predios', `${d.predios} predios`);
       set('alta', c.alta ?? 0); set('media', c.media ?? 0); set('baja', c.baja ?? 0);
       set('sin', (c.sin_alerta || 0) + (c.sin_dato || 0));
       const r = d.ruta;
-      if (r && Array.isArray(r.paradas) && r.paradas.length) {
+      if (r && r.paradas) {
         const h = Math.floor(r.duracion_min / 60), m = Math.round(r.duracion_min % 60);
-        set('ruta', `Ruta: ${r.paradas.length} paradas · ${nf1.format(r.distancia_km)} km · ${h} h ${String(m).padStart(2, '0')} min · desde ${r.inicio?.nombre || 'la plaza'}`);
+        set('ruta', `Ruta: ${r.paradas} paradas · ${nf1.format(r.distancia_km)} km · ${h} h ${String(m).padStart(2, '0')} min · desde ${r.inicio?.nombre || 'la plaza'}`);
       } else set('ruta', 'Ruta de inspección: en preparación');
     }).catch(err => console.error(`[Caudal] zona ${id} summary:`, err));
   }
@@ -455,6 +464,8 @@ function setupZonaPanel({ getValle }) {
       if (st.view !== 'ficha' || st.selectedId !== id) return;
       const f = d.byId.get(id);
       if (!f) { showRanking(); return; }
+      await P.Z.ensureSeries(d, id);
+      if (st.view !== 'ficha' || st.selectedId !== id) return;
       P.renderFicha(panes.predios, f, d, {
         onExpediente: pid => showExpediente(pid || id),
         onBack: () => deselect(),
@@ -472,6 +483,8 @@ function setupZonaPanel({ getValle }) {
       if (st.view !== 'expediente') return;
       const f = d.byId.get(id);
       if (!f) { showRanking(); return; }
+      await P.Z.ensureSeries(d, id);
+      if (st.view !== 'expediente') return;
       st.selectedId = id;
       P.renderExpediente(panes.predios, f, d, { onBack: () => showFicha(id) });
       body.scrollTop = 0;
@@ -514,6 +527,10 @@ function setupZonaPanel({ getValle }) {
       if (st.caseView !== 'caso' || st.selectedCaso !== exp) return;
       const caso = d.casos.find(c => c.expediente === exp);
       if (!caso) { showCasos(); return; }
+      if (caso.predio_id) {
+        await P.Z.ensureSeries(d, caso.predio_id);
+        if (st.caseView !== 'caso' || st.selectedCaso !== exp) return;
+      }
       if (from !== 'valle') {
         if (getValle()?.selectCaso) valleCall('selectCaso', exp, { focus: true });
         else if (caso.predio_id) valleCall('selectPredio', caso.predio_id, { focus: true });
@@ -684,7 +701,7 @@ function setupZonaPanel({ getValle }) {
 }
 
 /* ---------- stage: landing (national map) <-> lagoon (Aculeo) <-> zona (Z1 / Z2) ---------- */
-function setupStage({ heroP }) {
+function setupStage({ getHero }) {
   const stage = $('top'), heroCanvas = $('hero-canvas'), valleCanvas = $('valle-canvas');
   const back = $('back'), bar = $('lagoon-bar'), hint = $('hint');
   const card = $('site-card');
@@ -698,7 +715,12 @@ function setupStage({ heroP }) {
 
   const zp = setupZonaPanel({ getValle: () => valle });
 
-  heroP.then(h => { hero = h; heroFailed = !h; });
+  // Aculeo is a side view: its scene (7 satellite images, DEM, a WebGL context) loads on first use,
+  // or a moment earlier when the pointer/focus reaches one of its entry points.
+  const ensureHero = () => getHero().then(h => { hero = h; heroFailed = !h; return h; });
+  const preloadHero = () => { ensureHero().catch(() => {}); };
+  $('map').addEventListener('pointerover', e => { if (e.target.closest?.(`[data-id="${LAGOON_ID}"]`)) preloadHero(); });
+  for (const ev of ['pointerenter', 'focus']) $('ac-open')?.addEventListener(ev, preloadHero);
 
   function updateHint() {
     hint.innerHTML = '<span class="rec" aria-hidden="true"></span>' + (valleFailed
@@ -773,6 +795,7 @@ function setupStage({ heroP }) {
       : 'Vista 3D de la zona no disponible en este momento. Revisa el resumen de zonas más abajo.';
     card.hidden = false;
     hint.hidden = true;
+    if (isLagoon) preloadHero();
   }
   function hideCard() { card.hidden = true; hint.hidden = false; }
 
@@ -784,7 +807,7 @@ function setupStage({ heroP }) {
     try {
       if (mapCtl) { mapCtl.select(LAGOON_ID); mapCtl.setLagoon(true); }
       const fly = mapCtl ? mapCtl.flyToSite(LAGOON_ID, { ...LAGOON_CAM, duration: RM ? 0 : LAGOON_CAM.duration }) : Promise.resolve();
-      const [, h] = await Promise.all([fly, heroP]);
+      const [, h] = await Promise.all([fly, ensureHero()]);
       if (!h) throw new Error('hero no disponible');
       try {
         const latest = h.years[h.years.length - 1];
@@ -1060,10 +1083,12 @@ async function boot() {
   setupZonasSummary();
   lazyOnView($('th-a'), drawThumbs);
 
-  // Start the hero right away so its textures preload while the map is on screen.
-  const heroP = setupHero().catch(err => { console.error('[Caudal] hero setup:', err); return null; });
+  // The lagoon scene is not part of the landing: it used to load here (3.7 MB of imagery + a WebGL
+  // context) for a view most visits never open.
+  let heroP = null;
+  const getHero = () => (heroP ??= setupHero().catch(err => { console.error('[Caudal] hero setup:', err); return null; }));
 
-  const stage = setupStage({ heroP });
+  const stage = setupStage({ getHero });
 
   // intro controller (null until/unless the intro runs). hideTitle(): navigation removes the title;
   // if it happens mid-flight (e.g. browser back to a #z1 link) the intro is skipped first.
@@ -1172,7 +1197,7 @@ async function boot() {
     hideTitle();
     if (t.kind === 'zona') return stage.goZona(t.zona, opts);
     if (t.kind === 'caso') return stage.goCaso(t.expediente, opts);
-    if (t.kind === 'lagoon') return heroP.then(() => stage.goLagoon(opts));
+    if (t.kind === 'lagoon') return stage.goLagoon(opts);
   }
   addEventListener('hashchange', () => { const t = parseHash(location.hash.slice(1)); if (t) go(t, { scroll: true }); });
 }

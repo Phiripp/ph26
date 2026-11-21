@@ -89,12 +89,23 @@ export async function renderChart(svgEl, calloutEl) {
   if (!svgEl) return null;
   try {
     const Z = await import('./zona-data.js');
-    const casos = await Z.loadCasos();
-    const caso = casos.find(c => c.papel === 'demo_principal' && c.predio_id) || casos.find(c => c.predio_id);
-    if (!caso) return null;
-    const data = await Z.loadZona(caso.zona);
-    const id = caso.predio_id;
-    const f = data.byId.get(id);
+    const [casos, resumen] = await Promise.all([Z.loadCasos(), Z.loadResumen()]);
+    // the landing summary carries the demo case series, so the page does not load a whole zone for one chart
+    const demo = resumen?.demo;
+    let caso = demo ? casos.find(c => c.expediente === demo.expediente) : null;
+    let data, id, rol;
+    if (caso && demo.series?.predios?.[demo.predio_id]) {
+      data = { series: demo.series, clima: demo.clima };
+      id = demo.predio_id;
+      rol = demo.rol;
+    } else {
+      caso = casos.find(c => c.papel === 'demo_principal' && c.predio_id) || casos.find(c => c.predio_id);
+      if (!caso) return null;
+      data = await Z.loadZona(caso.zona);
+      id = caso.predio_id;
+      await Z.ensureSeries(data, id);
+      rol = data.byId.get(id)?.properties.rol;
+    }
     const marks = [{ fecha: caso.fecha_inspeccion, label: 'Inspección DGA' }];
     const st = dryWindowStats(data, id, { before: caso.fecha_inspeccion, months: 14 });
     svgEl.setAttribute('viewBox', '0 0 960 300');
@@ -104,7 +115,7 @@ export async function renderChart(svgEl, calloutEl) {
     const fig = svgEl.closest('figure');
     const cap = fig?.querySelector('figcaption');
     if (cap) {
-      cap.innerHTML = `<span>Caso ${caso.expediente} · ${fmtComuna(caso.comuna)} · rol ${f?.properties.rol || caso.rol || '—'} · NDVI mensual Sentinel-2 L2A</span>` +
+      cap.innerHTML = `<span>Caso ${caso.expediente} · ${fmtComuna(caso.comuna)} · rol ${rol || caso.rol || '—'} · NDVI mensual Sentinel-2 L2A</span>` +
         `<span class="keys pc-legend">${chartLegendHTML({ ndmi: false, mark: true })}</span>`;
     }
     fig?.classList.add('in');

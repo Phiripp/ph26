@@ -326,21 +326,21 @@ Ya corregido: la cifra de validación del pitch (2,6) y las equivalencias (perso
 | T0 | ~~Decidir almacenamiento y transporte~~ Decidido: API con DuckDB y respaldo estático ([Almacenamiento y transporte](#almacenamiento-y-transporte)) | P0 | — | — | Hecho |
 | T1 | `explicacion.py`: razones, confianza y límites por predio, con fuentes | P0 | Tomás | — | Devuelve el contrato de la explicación para `5301984` y para el caso FO-0504-95 |
 | T2 | `api/datos.py` (funciones de lectura con DuckDB) y `build_m5_web.py`, que escribe `data/respaldo/` con ellas | P0 | Felipe, con apoyo de Tomás | T1 | La zona Z2 muestra las bandas de M5 leyendo el respaldo |
-| T2b | Rutas `GET` de lectura en `caudal-api`, llamando a `api/datos.py` | P0 | Gabi | T2, T6 | `GET /api/predios/5301984` responde en local lo mismo que su archivo del respaldo |
+| T2b | Rutas `GET` de lectura en `caudal-api`, llamando a `api/datos.py` | P0 | Tomás | T2, T6 | `GET /api/predios/5301984` responde en local lo mismo que su archivo del respaldo |
 | T3 | F1 y F2: página con datos de M5 y ficha con "Por qué está en alerta" | P0 | Nico | T1, T2 | El predio `5301984` muestra sus razones con fuente |
 | T4 | F4: línea de tiempo y adelanto en la ficha del caso | P0 | Nico | T2 | FO-0504-95 muestra su primera alerta y los años de adelanto |
 | T5 | F5 y F6: ruta de M8 y panel de impacto leídos del dato | P0 | Felipe | T2 | `#impacto` muestra las 5 cifras sin números en el código |
-| T6 | `caudal-api`: `health` y `expediente` | P0 | Gabi | — | `POST /api/expediente` devuelve un PDF en local |
+| T6 | `caudal-api`: `health` y `expediente` | P0 | Tomás | — | `POST /api/expediente` devuelve un PDF en local |
 | T7 | Desplegar `caudal-api` con los Parquet y generar el expediente del candidato | P0 | Gabi | T2b | `/api/predios/5301984` y el expediente responden en producción en menos de 2 s |
 | T8 | F3: botón que llama al backend, visor de PDF y respaldo | P0 | Nico | T6 | El clic abre el PDF en producción; con el backend apagado abre el respaldo |
 | T9 | Desplegar `caudal-web` y llenar `platanus-hack-project.jsonc` | P0 | Nico | T3 a T8 | El recorrido completo funciona en la URL pública, también con `caudal-api` apagado |
 | T10 | Limpieza para el agente del jurado: quitar lo provisional, `data/demo.json`, README raíz con "en vivo y precalculado" | P0 | Tomás | T3 | La tabla de la sección anterior no tiene pendientes |
 | T11 | Video de respaldo y 5 ensayos con cronómetro | P0 | Todos | T9 | Video guardado en dos computadores |
 | T12 | F7: modo demo (enlaces, teclas, `?demo=1`) | P1 | Nico | T3 | Las teclas 1 a 5 recorren el guion |
-| T13 | Recortes de los predios en alerta en un bucket privado | P1 | Felipe o Gabi | T7 | La ficha del candidato muestra recortes con fecha y escena |
+| T13 | Recortes de los predios en alerta en un bucket privado | P1 | Felipe | T7 | La ficha del candidato muestra recortes con fecha y escena |
 | T14 | Filtros del ranking y ruta del escenario conservador | P2 | Tomás | T2 | — |
 
-Orden sugerido para hoy: T1 y T6 parten ya y en paralelo. Con T1 parte T2; con T2 parten T3, T4 y T5, que trabajan contra el respaldo estático mientras la API no está desplegada. Con T2 y T6 parte T2b.
+Orden sugerido para hoy: Tomás parte con T1 y sigue con T6. Gabi solo hace T7 (desplegar, porque tiene los permisos de GCP). Con T1 parte T2; con T2 parten T3, T4 y T5, que trabajan contra el respaldo estático mientras la API no está desplegada. Con T2 y T6 parte T2b.
 
 ## Criterios de aceptación de la demo
 

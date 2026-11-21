@@ -27,12 +27,21 @@ Uso:
   uv run scripts/extract/poi_predio.py                                 # predio de la demo (88-31, La Ligua)
   uv run scripts/extract/poi_predio.py --predios 5330704,5331888 --png
   uv run scripts/extract/poi_predio.py --senal-m3 10                   # los 10 predios con más señal de M3
+
+Todos los elegibles en un Cloud Run Job (ver scripts/cloud/poi/): cada tarea toma su trozo de los predios
+elegibles (CLOUD_RUN_TASK_INDEX / CLOUD_RUN_TASK_COUNT), los procesa con --workers procesos en paralelo y deja
+poi_NNNN.parquet, hechos_NNNN.json y fallos_NNNN.json en --salida-gcs. Si la tarea se reintenta, retoma los hechos.
+  uv run scripts/extract/poi_predio.py --elegibles --workers 8 --salida-gcs gs://BUCKET/poi/corrida
 """
 
 import argparse
+import concurrent.futures as cf
 import importlib.util
 import json
+import multiprocessing
+import os
 import sys
+import time
 from pathlib import Path
 
 import geopandas as gpd
@@ -67,6 +76,10 @@ _spec = importlib.util.spec_from_file_location("s2", Path(__file__).with_name("s
 s2 = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(s2)
 s2.RES = RES  # D1 trabaja a 20 m; los POI a 10 m
+
+
+class SinEscenas(Exception):
+    """El predio no tiene escenas limpias en el periodo: no es un error, es un predio sin POI."""
 
 
 def cargar_predio(pid: int) -> gpd.GeoDataFrame:
@@ -132,11 +145,18 @@ def muestrea(z, pend, tr, lon, lat):
 
 
 def capa_ciren(i, bbox):
-    r = requests.get(f"{CIREN}/{i}/query", timeout=60, params={
-        "where": "1=1", "geometry": ",".join(map(str, bbox)), "geometryType": "esriGeometryEnvelope",
-        "inSR": 4326, "outSR": 4326, "spatialRel": "esriSpatialRelIntersects", "outFields": "*", "f": "geojson"})
-    r.raise_for_status()
-    fs = r.json().get("features", [])
+    params = {"where": "1=1", "geometry": ",".join(map(str, bbox)), "geometryType": "esriGeometryEnvelope",
+              "inSR": 4326, "outSR": 4326, "spatialRel": "esriSpatialRelIntersects", "outFields": "*", "f": "geojson"}
+    for intento in range(5):  # el servidor de CIREN falla a ratos; con muchos predios en paralelo se reintenta
+        try:
+            r = requests.get(f"{CIREN}/{i}/query", timeout=60, params=params)
+            r.raise_for_status()
+            fs = r.json().get("features", [])
+            break
+        except Exception:
+            if intento == 4:
+                raise
+            time.sleep(2 ** intento)
     return gpd.GeoDataFrame.from_features(fs, crs=4326) if fs else gpd.GeoDataFrame(geometry=[], crs=4326)
 
 
@@ -163,6 +183,15 @@ def argumentos():
     ap.add_argument("--max-escenas", type=int, default=8)
     ap.add_argument("--z-umbral", type=float, default=1.0)
     ap.add_argument("--max-poi", type=int, default=8)
+    ap.add_argument("--elegibles", action="store_true", help="todos los predios elegibles (predio.parquet), ordenados por predio_id")
+    ap.add_argument("--limit", type=int, help="solo los primeros N predios de la lista (prueba)")
+    ap.add_argument("--tarea", type=int, default=int(os.environ.get("CLOUD_RUN_TASK_INDEX", 0)),
+                    help="índice de este trozo (por defecto CLOUD_RUN_TASK_INDEX)")
+    ap.add_argument("--tareas", type=int, default=int(os.environ.get("CLOUD_RUN_TASK_COUNT", 1)),
+                    help="cantidad de trozos (por defecto CLOUD_RUN_TASK_COUNT)")
+    ap.add_argument("--workers", type=int, default=1, help="predios en paralelo dentro de la tarea (procesos)")
+    ap.add_argument("--salida-gcs", help="gs://bucket/prefijo: deja ahí poi_NNNN.parquet, hechos y fallos de esta tarea")
+    ap.add_argument("--silencio", action="store_true", help="no imprime el detalle de cada predio")
     ap.add_argument("--png", action="store_true")
     ap.add_argument("--salida", default=str(DATA / "processed/poi.parquet"))
     return ap.parse_args()
@@ -188,12 +217,14 @@ def procesa(a, ctx):
     area = pm.geometry.iloc[0]
     amplio = gpd.GeoDataFrame(pred[["predio_id", "zona"]], geometry=[area.buffer(ANILLO[1])], crs=CRS_M).to_crs(4326)
     bbox = tuple(amplio.total_bounds)
-    print(f"predio {a.predio_id} ({zona}), {area.area/1e4:.2f} ha", flush=True)
+    if not a.silencio:
+        print(f"predio {a.predio_id} ({zona}), {area.area/1e4:.2f} ha", flush=True)
 
     its = escenas(bbox, a.inicio, a.fin, a.nubes_max, a.max_escenas)
     if not its:
-        raise ValueError("sin escenas limpias en el periodo")
-    print(f"{len(its)} escenas: {[i.datetime.date().isoformat() for i in its]}", flush=True)
+        raise SinEscenas("sin escenas limpias en el periodo")
+    if not a.silencio:
+        print(f"{len(its)} escenas: {[i.datetime.date().isoformat() for i in its]}", flush=True)
     tile = s2.Tile(its[0], amplio)
     pila = {"ndvi": [], "ndwi": [], "ndmi": []}
     validas, fechas = [], []
@@ -251,11 +282,7 @@ def procesa(a, ctx):
         agrega("posible_tranque", geom, f"agua (NDWI) en {int(np.median(agua_n[m]))} de {len(fechas)} escenas", 0.5, ha)
 
     for tipo, i, rad, col in (("bocatoma", 0, 500, "nom_can"), ("canal", 1, 200, "nom_can")):
-        try:
-            g = capa_ciren(i, bbox)
-        except Exception as e:
-            print(f"  aviso: capa CIREN {i}: {e}", file=sys.stderr)
-            continue
+        g = capa_ciren(i, bbox)  # si falla tras los reintentos, el predio queda en fallos (no se omite en silencio)
         if g.empty:
             continue
         gm = g.to_crs(CRS_M)
@@ -296,20 +323,15 @@ def procesa(a, ctx):
 
     poi = pd.DataFrame(filas)
     if poi.empty:
-        print("sin POI: el predio no muestra señal; la ruta irá solo al acceso")
+        if not a.silencio:
+            print("sin POI: el predio no muestra señal; la ruta irá solo al acceso")
     else:
         poi = poi.assign(orden=poi.tipo.map({"captacion": 0, "pozo_derecho": 1, "zona_riego": 2, "posible_tranque": 3, "bocatoma": 4, "cauce": 5, "canal": 6})
                          ).sort_values(["orden", "confianza"], ascending=[True, False]).head(a.max_poi).drop(columns="orden")
         poi.insert(0, "poi_id", [f"{a.predio_id}-{i+1}" for i in range(len(poi))])
         poi = gpd.GeoDataFrame(poi, geometry=gpd.points_from_xy(poi.lon, poi.lat), crs=4326)
-        sal = Path(a.salida)
-        if sal.exists():
-            prev = gpd.read_parquet(sal)
-            poi = pd.concat([prev[prev.predio_id != a.predio_id], poi], ignore_index=True)
-            poi = gpd.GeoDataFrame(poi, geometry="geometry", crs=4326)
-        sal.parent.mkdir(parents=True, exist_ok=True)
-        poi.to_parquet(sal, index=False)
-        print(poi[poi.predio_id == a.predio_id][["poi_id", "tipo", "area_ha", "elev_m", "pend_pct", "confianza", "razon"]].to_string(index=False))
+        if not a.silencio:
+            print(poi[["poi_id", "tipo", "area_ha", "elev_m", "pend_pct", "confianza", "razon"]].to_string(index=False))
 
     if a.png:
         fig, ax = plt.subplots(1, 2, figsize=(12, 6))
@@ -329,26 +351,124 @@ def procesa(a, ctx):
         sp = RAIZ / f"data/raw/poi_{a.predio_id}.png"
         fig.savefig(sp, dpi=110, bbox_inches="tight")
         print("mapa de control:", sp)
+    return poi
+
+
+_A = None
+_CTX = None
+
+
+def _inicia(a):
+    global _A, _CTX
+    _A, _CTX = a, contexto()
+
+
+def _trabaja(pid: int):
+    """Un predio en un proceso hijo; devuelve (pid, POI o None, error o None)."""
+    a = argparse.Namespace(**vars(_A))
+    a.predio_id = int(pid)
+    try:
+        return pid, procesa(a, _CTX), None
+    except SinEscenas:
+        return pid, None, None
+    except Exception as e:  # el predio queda en fallos; el resto sigue
+        return pid, None, f"{type(e).__name__}: {e}"
+
+
+class SalidaGCS:
+    """Resultados de una tarea en GCS: poi_NNNN.parquet, hechos_NNNN.json (incluye predios sin POI) y fallos_NNNN.json."""
+
+    def __init__(self, destino: str, tarea: int):
+        from google.cloud import storage
+
+        bucket, _, prefijo = destino.removeprefix("gs://").partition("/")
+        self.bucket = storage.Client().bucket(bucket)
+        self.base = prefijo.strip("/")
+        self.n = f"{tarea:04d}"
+
+    def blob(self, nombre):
+        return self.bucket.blob(f"{self.base}/{nombre}_{self.n}")
+
+    def retoma(self):
+        """(POI previos, predios hechos) de un intento anterior de esta tarea."""
+        b = self.blob("hechos")
+        if not b.exists():
+            return pd.DataFrame(), set()
+        hechos = set(json.loads(b.download_as_text()))
+        poi = pd.DataFrame()
+        bp = self.blob("poi")
+        if bp.exists():
+            bp.download_to_filename(f"/tmp/poi_prev_{self.n}.parquet")
+            poi = gpd.read_parquet(f"/tmp/poi_prev_{self.n}.parquet")
+        return poi, hechos
+
+    def guarda(self, poi, hechos, fallos):
+        if len(poi):
+            ruta = f"/tmp/poi_{self.n}.parquet"
+            gpd.GeoDataFrame(poi, geometry="geometry", crs=4326).to_parquet(ruta, index=False)
+            self.blob("poi").upload_from_filename(ruta + "")
+        self.blob("hechos").upload_from_string(json.dumps(sorted(hechos)))
+        self.blob("fallos").upload_from_string(json.dumps(fallos))
 
 
 def main():
     a = argumentos()
     ctx = contexto()
-    if a.senal_m3:
+    if a.elegibles:
+        pr = gpd.read_parquet(DATA / "processed/predio.parquet")
+        if "elegible" not in pr:
+            pr["elegible"] = pr["rol_valido"] & (pr["area_ha"] >= 1)
+        ids = sorted(pr.loc[pr["elegible"], "predio_id"].astype(int))
+    elif a.senal_m3:
         s = ctx["senal"]
         ids = s[s["senal_riego"]].sort_values("z_verdor_mediana", ascending=False).head(a.senal_m3).index.tolist()
     else:
         ids = [int(x) for x in a.predios.split(",")]
-    fallos = []
-    for pid in ids:
-        a.predio_id = int(pid)
-        try:
-            procesa(a, ctx)
-        except Exception as e:
-            print(f"predio {pid}: {e}", file=sys.stderr)
-            fallos.append(pid)
-    print(f"\n{len(ids) - len(fallos)} de {len(ids)} predios procesados" + (f"; fallaron {fallos}" if fallos else ""))
+    if a.limit:
+        ids = ids[: a.limit]
+    ids = [x for k, x in enumerate(ids) if k % a.tareas == a.tarea]  # reparto intercalado: tareas parejas
+    print(f"tarea {a.tarea + 1}/{a.tareas}: {len(ids)} predios, {a.workers} en paralelo", flush=True)
+
+    gcs = SalidaGCS(a.salida_gcs, a.tarea) if a.salida_gcs else None
+    poi_total, hechos = (gcs.retoma() if gcs else (pd.DataFrame(), set()))
+    pendientes = [x for x in ids if x not in hechos]
+    if hechos:
+        print(f"retomando: {len(hechos)} hechos, {len(pendientes)} pendientes", flush=True)
+    partes, fallos, t0 = [poi_total] if len(poi_total) else [], {}, time.time()
+
+    def checkpoint():
+        if gcs:
+            gcs.guarda(pd.concat(partes, ignore_index=True) if partes else pd.DataFrame(), hechos, fallos)
+
+    ctx_mp = multiprocessing.get_context("spawn")
+    with cf.ProcessPoolExecutor(max_workers=a.workers, mp_context=ctx_mp, initializer=_inicia, initargs=(a,)) as ex:
+        futs = [ex.submit(_trabaja, pid) for pid in pendientes]
+        for k, f in enumerate(cf.as_completed(futs), 1):
+            pid, poi, err = f.result()
+            if err:
+                fallos[str(pid)] = err
+                print(f"predio {pid}: {err}", file=sys.stderr, flush=True)
+            else:
+                hechos.add(pid)
+                if poi is not None and len(poi):
+                    partes.append(poi)
+            if k % 10 == 0:
+                checkpoint()
+                print(f"  {k}/{len(pendientes)} predios, {(time.time() - t0) / 60:.1f} min", flush=True)
+    checkpoint()
+
+    poi = pd.concat(partes, ignore_index=True) if partes else pd.DataFrame()
+    if not gcs and len(poi):  # local: se acumula en poi.parquet, reemplazando los predios procesados
+        sal = Path(a.salida)
+        if sal.exists():
+            prev = gpd.read_parquet(sal)
+            poi = pd.concat([prev[~prev.predio_id.isin(poi.predio_id.unique())], poi], ignore_index=True)
+        sal.parent.mkdir(parents=True, exist_ok=True)
+        gpd.GeoDataFrame(poi, geometry="geometry", crs=4326).to_parquet(sal, index=False)
+    print(f"\n{len(hechos & set(ids))} de {len(ids)} predios procesados, {len(fallos)} con fallo, "
+          f"{len(poi)} POI, {(time.time() - t0) / 60:.1f} min" + (f"; fallaron {list(fallos)[:20]}" if fallos else ""))
+    return 1 if fallos else 0
 
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())

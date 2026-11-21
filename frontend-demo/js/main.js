@@ -827,7 +827,6 @@ function setupStage({ getHero }) {
         canvas,
         zona: data,
         base: meta?.base || `assets/zonas/${id}/`,
-        dataBase: meta?.data || `data/zonas/${id}/`,   // older valle.js loads predios/ruta itself
         onSelectPredio: arg => zp.onValleSelect(arg),
         onSelectCaso: exp => zp.onValleCaso(exp),
         onRouteStop: (orden, parada) => zp.onRouteStop(orden, parada),

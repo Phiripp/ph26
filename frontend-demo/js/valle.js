@@ -7,10 +7,9 @@
 // Overlay dentro de #stage: canvas transparente (<canvas id="valle-canvas">); badges/etiquetas van en canvas.parentElement
 // y quedan ocultos (visibility:hidden, sin eventos) cuando la vista no está activa.
 //
-// API: initValle({canvas, zona, base, dataBase, onSelectPredio(props|null), onSelectCaso(expediente),
+// API: initValle({canvas, zona, base, onSelectPredio(props|null), onSelectCaso(expediente),
 //                 onRouteStop(orden, parada), onRouteProgress(t)})
 //   zona = objeto de loadZona(id) (js/zona-data.js): {id, zona:{base, bbox_escena, ...}, predios: Feature[], casos, ruta}
-//   (sin `zona`, modo legado: lee dataBase/predios.geojson + dataBase/ruta.json)
 //   -> {setZona(zonaData) -> Promise, enter, exit, setActive, selectPredio(id, {focus}), selectCaso(exp, {focus}),
 //       focusPredio(id), resetView(), setRouteProgress, playRoute, showRoute, setYear, setInsets, getRouteProgress,
 //       years, predios, ruta, casos, zonaId, bbox, sceneBbox, outsideImagery}
@@ -297,7 +296,7 @@ const DOT_FS = /* glsl */`
 `;
 
 export async function initValle({
-  canvas, zona = null, base = null, dataBase = 'data/petorca/',
+  canvas, zona = null, base = null,
   onSelectPredio, onSelectCaso, onRouteStop, onRouteProgress,
 } = {}) {
   if (!canvas) throw new Error('initValle: falta el canvas');
@@ -722,24 +721,18 @@ export async function initValle({
     selLabel.style.transform = OFF; tip.style.transform = OFF; headDot.style.opacity = '0';
   }
 
-  // normalise input: zone object from loadZona(), or legacy {base, dataBase}
+  // normalise input: zone object from loadZona()
   async function resolveInput(z) {
-    if (z && Array.isArray(z.predios)) {
-      const zi = z.zona || {};
-      const id = String(z.id || zi.id || '').toLowerCase();
-      const b = (z === zona && base) || zi.base || (id ? `assets/zonas/${id}/` : 'assets/petorca/');
-      return {
-        id, zi, assetBase: absDir(b), predios: z.predios, ruta: z.ruta || null,
-        casos: Array.isArray(z.casos) ? z.casos : [],
-        bboxEscena: Array.isArray(zi.bbox_escena) && zi.bbox_escena.length === 4 ? zi.bbox_escena : null,
-      };
-    }
-    const db = absDir(dataBase);
-    const [geo, rt] = await Promise.all([
-      loadJson(new URL('predios.geojson', db).href),
-      loadJson(new URL('ruta.json', db).href).catch(() => null),
-    ]);
-    return { id: 'petorca', zi: {}, assetBase: absDir(base || 'assets/petorca/'), predios: geo.features || [], ruta: rt, casos: [], bboxEscena: null };
+    if (!z || !Array.isArray(z.predios)) throw new Error('initValle: falta la zona (objeto de loadZona)');
+    const zi = z.zona || {};
+    const id = String(z.id || zi.id || '').toLowerCase();
+    if (!id) throw new Error('initValle: la zona no tiene id');
+    const b = (z === zona && base) || zi.base || `assets/zonas/${id}/`;
+    return {
+      id, zi, assetBase: absDir(b), predios: z.predios, ruta: z.ruta || null,
+      casos: Array.isArray(z.casos) ? z.casos : [],
+      bboxEscena: Array.isArray(zi.bbox_escena) && zi.bbox_escena.length === 4 ? zi.bbox_escena : null,
+    };
   }
 
   let buildToken = 0;

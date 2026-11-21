@@ -446,20 +446,41 @@ def main():
             gcs.guarda(pd.concat(partes, ignore_index=True) if partes else pd.DataFrame(), hechos, fallos)
 
     ctx_mp = multiprocessing.get_context("spawn")
-    with cf.ProcessPoolExecutor(max_workers=a.workers, mp_context=ctx_mp, initializer=_inicia, initargs=(a,)) as ex:
-        futs = [ex.submit(_trabaja, pid) for pid in pendientes]
-        for k, f in enumerate(cf.as_completed(futs), 1):
-            pid, poi, err = f.result()
-            if err:
-                fallos[str(pid)] = err
-                print(f"predio {pid}: {err}", file=sys.stderr, flush=True)
-            else:
-                hechos.add(pid)
-                if poi is not None and len(poi):
-                    partes.append(poi)
-            if k % 10 == 0:
-                checkpoint()
-                print(f"  {k}/{len(pendientes)} predios, {(time.time() - t0) / 60:.1f} min", flush=True)
+    contador = [0]
+
+    def corre(lista, workers):
+        """Procesa `lista` en un pool; si un proceso muere (p. ej. sin memoria), devuelve los predios que no terminaron."""
+        en_vuelo = set(lista)
+        try:
+            with cf.ProcessPoolExecutor(max_workers=workers, mp_context=ctx_mp, initializer=_inicia, initargs=(a,)) as ex:
+                futs = {ex.submit(_trabaja, pid): pid for pid in lista}
+                for f in cf.as_completed(futs):
+                    pid, poi, err = f.result()
+                    en_vuelo.discard(pid)
+                    if err:
+                        fallos[str(pid)] = err
+                        print(f"predio {pid}: {err}", file=sys.stderr, flush=True)
+                    else:
+                        hechos.add(pid)
+                        if poi is not None and len(poi):
+                            partes.append(poi)
+                    contador[0] += 1
+                    if contador[0] % 10 == 0:
+                        checkpoint()
+                        print(f"  {contador[0]}/{len(pendientes)} predios, {(time.time() - t0) / 60:.1f} min", flush=True)
+        except cf.process.BrokenProcessPool:
+            checkpoint()
+            print(f"un proceso murió (¿memoria?): quedan {len(en_vuelo)} predios sin terminar", file=sys.stderr, flush=True)
+            return sorted(en_vuelo)
+        return []
+
+    resto = corre(pendientes, a.workers)
+    # Tras una caída, los que quedaron se reintentan de a uno: así un predio que agota la memoria no tumba a los demás.
+    while resto:
+        pid, resto = resto[0], resto[1:]
+        if corre([pid], 1):
+            fallos[str(pid)] = "proceso terminado de golpe (probablemente sin memoria)"
+            print(f"predio {pid}: sin memoria incluso solo; queda en fallos", file=sys.stderr, flush=True)
     checkpoint()
 
     poi = pd.concat(partes, ignore_index=True) if partes else pd.DataFrame()
@@ -472,7 +493,8 @@ def main():
         gpd.GeoDataFrame(poi, geometry="geometry", crs=4326).to_parquet(sal, index=False)
     print(f"\n{len(hechos & set(ids))} de {len(ids)} predios procesados, {len(fallos)} con fallo, "
           f"{len(poi)} POI, {(time.time() - t0) / 60:.1f} min" + (f"; fallaron {list(fallos)[:20]}" if fallos else ""))
-    return 1 if fallos else 0
+    # Los predios con fallo quedan en fallos_NNNN.json; salir con 0 evita que Cloud Run repita la tarea entera por ellos.
+    return 0
 
 
 if __name__ == "__main__":

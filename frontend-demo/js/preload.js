@@ -24,6 +24,7 @@ const MAX_SERIES_BLOCKS = 12;           // zonas con más bloques: solo los de c
 const MAX_SERIES_IDS = 150;
 const BUSY_POLL_MS = 250;
 const IDLE_TIMEOUT_MS = 1500;
+const SCENE_GAP_MS = 300;                // breathing room between two scene builds
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const warn = (what, err) => console.warn(`[Caudal] precarga · ${what}:`, (err && err.message) || err);
@@ -175,10 +176,12 @@ export function startPreload({ zonas, lagoon, loadZona, ensureSeries, warmZona, 
     await Promise.resolve(scenesAfter).catch(() => {});
     for (const z of zonas) {
       await calm();
+      await sleep(SCENE_GAP_MS);
       await step(`construir ${z.id}`, async () => { if (!(await warmZona(z.id))) throw new Error('escena no disponible'); });
     }
     if (lagoon) {
       await calm();
+      await sleep(SCENE_GAP_MS);
       await step('construir laguna', async () => { if (!(await warmLagoon())) throw new Error('escena no disponible'); });
     }
   }

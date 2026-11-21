@@ -53,6 +53,8 @@ const TRACK_LNG = [[40, -71.5], [10, -70.6], [-18, -70.2], [-30, -71.0], [-38, -
 const SWATH_DEG = 2.6;      // Sentinel-2 swath ~290 km
 const DEFAULT_START = { center: [-62, -22], zoom: 1.8, pitch: 0, bearing: 0 };
 const READY_LIMIT_MS = 2600; // max wait for the first globe frame before starting anyway
+const INTRO_MAP_PIXEL_RATIO = 1;    // the map flies at this density on retina screens, full density once landed
+const WARM_VIEW_LIMIT_MS = 1500;   // max wait for each of the two warm-up draws behind the loading veil
 const TRACK_SRC = 'intro-track';
 const TRACK_LAYERS = ['intro-track-glow', 'intro-track-core'];
 
@@ -246,6 +248,9 @@ export function initIntro({
     timers.forEach(clearTimeout);
     removeEventListener('keydown', onKey);
     removeEventListener('hashchange', onHash);
+    setMapDensity(fullDensity);
+    removeEventListener('resize', dropOffset);
+    removeEventListener('scroll', dropOffset);
     try {
       if (quick) { m.stop(); m.jumpTo(home); }
     } catch (_) { /* ignore */ }
@@ -274,9 +279,17 @@ export function initIntro({
   overlay.addEventListener('wheel', (e) => e.preventDefault(), { passive: false });
 
   // ---- per-frame ----
+  // measured once per layout change, not per frame (two forced layouts a frame otherwise)
+  let offset = null;
+  const dropOffset = () => { offset = null; };
+  addEventListener('resize', dropOffset);
+  addEventListener('scroll', dropOffset, { passive: true });
   const mapOffset = () => {
-    const sr = canvas.getBoundingClientRect(), mr = m.getContainer().getBoundingClientRect();
-    return { x: mr.left - sr.left, y: mr.top - sr.top, w: sr.width, h: sr.height };
+    if (!offset) {
+      const sr = canvas.getBoundingClientRect(), mr = m.getContainer().getBoundingClientRect();
+      offset = { x: mr.left - sr.left, y: mr.top - sr.top, w: sr.width, h: sr.height };
+    }
+    return offset;
   };
   const project = (lng, lat, off) => {
     const p = m.project([lng, lat]);
@@ -354,8 +367,37 @@ export function initIntro({
     .then((mod) => { if (phase === 'gone') return; layer = mod.createSatLayer(canvas); })
     .catch((e) => { console.warn('[intro] satellite layer unavailable, flying without it:', e); });
 
-  Promise.race([Promise.all([mapReady, layerReady]), new Promise((r) => setTimeout(r, READY_LIMIT_MS + 400))]).then(() => {
+  // On a retina screen the globe + relief at full density is 4x the pixels and the flight drops to
+  // ~40 fps on an integrated GPU. Nobody reads detail on a planet that is moving: fly at a lower
+  // density and go back to full when the flight ends.
+  const fullDensity = (typeof m.getPixelRatio === 'function' && m.getPixelRatio()) || window.devicePixelRatio || 1;
+  function setMapDensity(ratio) {
+    try { if (typeof m.setPixelRatio === 'function' && m.getPixelRatio() !== ratio) m.setPixelRatio(ratio); }
+    catch (e) { console.warn('[intro] pixel ratio:', e); }
+  }
+
+  // While the loading veil still covers the map, draw the landing view once and come back: the map
+  // compiles its flat-projection shaders and loads the landing tiles now, instead of in the middle
+  // of the flight (that was a 150 ms freeze at the globe -> flat switch plus a run of slow frames).
+  const mapSettled = (ms) => new Promise((r) => {
+    const t = setTimeout(r, ms);
+    try { m.once('idle', () => { clearTimeout(t); r(); }); } catch (_) { /* the timeout resolves it */ }
+  });
+  async function warmLandingView() {
+    try {
+      m.jumpTo(home);
+      await mapSettled(WARM_VIEW_LIMIT_MS);
+      if (phase !== 'loading') return;
+      m.jumpTo(start);
+      await mapSettled(WARM_VIEW_LIMIT_MS);
+    } catch (e) { console.warn('[intro] warm-up:', e); }
+  }
+
+  Promise.race([Promise.all([mapReady, layerReady]), new Promise((r) => setTimeout(r, READY_LIMIT_MS + 400))]).then(async () => {
     if (phase !== 'loading') return;
+    await warmLandingView();
+    if (phase !== 'loading') return;
+    setMapDensity(Math.min(fullDensity, INTRO_MAP_PIXEL_RATIO));
     addTrack();
     phase = 'playing';
     stage.dataset.intro = 'playing';

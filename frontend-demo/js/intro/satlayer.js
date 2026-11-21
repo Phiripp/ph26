@@ -74,13 +74,16 @@ function makeBeam() {
   return { mesh, geo, mat };
 }
 
+const SAT_MAX_PIXEL_RATIO = 1.5;
+
 /**
  * @param {HTMLCanvasElement} canvas  full-stage canvas (CSS sizes it; pointer-events none)
  * @returns {{ render: (f: object) => void, dispose: () => void }}
  */
 export function createSatLayer(canvas) {
   const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true, premultipliedAlpha: true, powerPreference: 'high-performance' });
-  renderer.setPixelRatio(Math.min(2, window.devicePixelRatio || 1));
+  // full-stage antialiased canvas: at density 2 it alone took ~8 fps off the flight on an integrated GPU
+  renderer.setPixelRatio(Math.min(SAT_MAX_PIXEL_RATIO, window.devicePixelRatio || 1));
   renderer.outputColorSpace = THREE.SRGBColorSpace;
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
   renderer.setClearColor(0x000000, 0);

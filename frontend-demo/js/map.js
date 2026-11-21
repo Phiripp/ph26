@@ -618,19 +618,23 @@ function normCaso(c) {
  * Two calls inside MapLibre's render make the main thread wait for the GPU process, and during a flight
  * (new tiles every frame) those waits were ~450 ms of dropped frames per flight:
  *  - the globe's precision self-measurement (a pixel readback every few frames). It only corrects the
- *    globe: skipped while the map is fully in mercator (zoom above the globe -> mercator transition).
+ *    globe: skipped while the map is fully in mercator (zoom above the globe -> mercator transition),
+ *    and run at a quarter of the rate while the globe shows.
  *  - gl.checkFramebufferStatus after creating every hillshade / terrain framebuffer: a pure validation
  *    round trip. The formats used (RGBA8 + depth) are always complete in WebGL2, so it answers
  *    "complete" without asking. `?gpucheck=1` restores the real call.
  * Private API on both counts: anything missing leaves the stock behaviour.
  */
+const GLOBE_MEASURE_EVERY = 4;
 function skipGpuWaits(map) {
   try {
     const proj = map.style && map.style.projection;
     const globe = proj && proj._verticalPerspectiveProjection;
     if (globe && typeof globe.updateGPUdependent === 'function' && !globe._caudalPatched) {
       const measure = globe.updateGPUdependent.bind(globe);
-      globe.updateGPUdependent = (ctx) => { if (proj.transitionState > 0) measure(ctx); };
+      // while the globe shows, one step of the measurement every GLOBE_MEASURE_EVERY frames is plenty
+      let n = 0;
+      globe.updateGPUdependent = (ctx) => { if (proj.transitionState > 0 && n++ % GLOBE_MEASURE_EVERY === 0) measure(ctx); };
       globe._caudalPatched = true;
     }
     const gl = map.painter && map.painter.context && map.painter.context.gl;

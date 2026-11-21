@@ -36,8 +36,26 @@ function imageData(img, maxSide = 0) {
   return { w, h, data: ctx.getImageData(0, 0, w, h).data };
 }
 
+/**
+ * Image for a texture, as an ImageBitmap decoded off the main thread from the file's bytes (already
+ * flipped for WebGL): uploading it to the GPU is then a plain copy, instead of a synchronous decode
+ * + conversion that froze frames. Falls back to a regular <img> load.
+ */
+async function loadTextureImage(url) {
+  if (typeof createImageBitmap === 'function') {
+    try {
+      const res = await fetch(url);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      return await createImageBitmap(await res.blob(), { imageOrientation: 'flipY', premultiplyAlpha: 'none', colorSpaceConversion: 'none' });
+    } catch (_) { /* older browser or odd file: the <img> path below reports real failures */ }
+  }
+  return loadImage(url);
+}
+const isBitmap = (img) => typeof ImageBitmap !== 'undefined' && img instanceof ImageBitmap;
+
 function texFromImage(img, srgb) {
   const t = new THREE.Texture(img);
+  if (isBitmap(img)) t.flipY = false; // the bitmap is already flipped (loadTextureImage)
   if (srgb) t.colorSpace = THREE.SRGBColorSpace;
   t.anisotropy = 8;
   t.minFilter = THREE.LinearMipmapLinearFilter;
@@ -46,6 +64,8 @@ function texFromImage(img, srgb) {
   t.needsUpdate = true;
   return t;
 }
+
+const PREWARM_GAP_MS = 140;
 
 const TERRAIN_VS = /* glsl */`
   varying vec2 vUv;
@@ -217,7 +237,7 @@ export async function initHero({ canvas, manifestUrl, autoplay = false }) {
   const sdfFileFor = (y) => (manifest.waterSdf && manifest.waterSdf[y]) || `water-${y}.png`;
   const [demImg, satImgs, sdfImgs] = await Promise.all([
     manifest.dem ? loadImage(url(manifest.dem.file || 'dem.png')).catch(() => null) : Promise.resolve(null),
-    Promise.all(years.map((y) => loadImage(url(`sat-${y}.jpg`)))),
+    Promise.all(years.map((y) => loadTextureImage(url(`sat-${y}.jpg`)))),
     Promise.all(years.map((y) => loadImage(url(sdfFileFor(y))).catch(() => null))),
   ]);
 
@@ -303,6 +323,7 @@ export async function initHero({ canvas, manifestUrl, autoplay = false }) {
   // ---------- renderer / scene ----------
   // transparent canvas: the (dimmed) national map shows around the terrain
   const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true, premultipliedAlpha: true, powerPreference: 'high-performance' });
+  renderer.debug.checkShaderErrors = false; // no synchronous shader-log queries (see compileAsync below)
   renderer.setClearColor(BG, 0);
   renderer.outputColorSpace = THREE.SRGBColorSpace;
   const scene = new THREE.Scene();
@@ -597,6 +618,11 @@ export async function initHero({ canvas, manifestUrl, autoplay = false }) {
     updateHud(loss);
     emit();
   }
+  // Compile the shaders without blocking: three.js otherwise links them inside the first render and
+  // then asks the driver for the result (checkShaderErrors), a synchronous wait of ~0.2 s per scene.
+  if (typeof renderer.compileAsync === 'function') {
+    try { await renderer.compileAsync(scene, camera); } catch (err) { console.warn('[3d] compileAsync:', err && err.message); }
+  }
   renderOnce(); // first frame at the START pose (the page keeps the canvas hidden until it fades it in)
 
   // ---------- controller ----------
@@ -647,7 +673,8 @@ export async function initHero({ canvas, manifestUrl, autoplay = false }) {
       for (const t of [...Object.values(satTex), ...Object.values(sdfTex)]) {
         if (!t || !t.image) continue;
         try { renderer.initTexture(t); } catch (err) { console.warn('[hero] prewarm:', err && err.message); return; }
-        await new Promise((r) => setTimeout(r, 0));
+        // spaced out: back to back, each upload waits for the previous one inside the GPU process
+        await new Promise((r) => setTimeout(r, PREWARM_GAP_MS));
       }
     },
     onUpdate(cb) {

@@ -78,8 +78,26 @@ function imageData(img, maxSide = 0) {
   return { w, h, data: ctx.getImageData(0, 0, w, h).data };
 }
 
+/**
+ * Image for a texture, as an ImageBitmap decoded off the main thread from the file's bytes (already
+ * flipped for WebGL): uploading it to the GPU is then a plain copy, instead of a synchronous decode
+ * + conversion that froze frames. Falls back to a regular <img> load.
+ */
+async function loadTextureImage(url) {
+  if (typeof createImageBitmap === 'function') {
+    try {
+      const res = await fetch(url);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      return await createImageBitmap(await res.blob(), { imageOrientation: 'flipY', premultiplyAlpha: 'none', colorSpaceConversion: 'none' });
+    } catch (_) { /* older browser or odd file: the <img> path below reports real failures */ }
+  }
+  return loadImage(url);
+}
+const isBitmap = (img) => typeof ImageBitmap !== 'undefined' && img instanceof ImageBitmap;
+
 function texFromImage(img, srgb) {
   const t = new THREE.Texture(img);
+  if (isBitmap(img)) t.flipY = false; // the bitmap is already flipped (loadTextureImage)
   if (srgb) t.colorSpace = THREE.SRGBColorSpace;
   t.anisotropy = 8;
   t.minFilter = THREE.LinearMipmapLinearFilter;
@@ -287,6 +305,7 @@ export async function initValle({
 
   // ---------- renderer / scene (created once, reused across zones) ----------
   const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true, premultipliedAlpha: true, powerPreference: 'high-performance' });
+  renderer.debug.checkShaderErrors = false; // no synchronous shader-log queries (see compileAsync below)
   renderer.setClearColor(BG, 0);
   renderer.outputColorSpace = THREE.SRGBColorSpace;
   const scene = new THREE.Scene();
@@ -733,7 +752,7 @@ export async function initValle({
     const lastY = yrs.length ? yrs[yrs.length - 1] : 0;
     const [demImg, lastImg] = await Promise.all([
       man && man.dem ? loadImage(assetUrl(man.dem.file || 'dem.png')).catch(() => null) : Promise.resolve(null),
-      lastY ? loadImage(assetUrl(`sat-${lastY}.jpg`)).catch((e) => { console.warn('[valle]', e.message); return null; }) : Promise.resolve(null),
+      lastY ? loadTextureImage(assetUrl(`sat-${lastY}.jpg`)).catch((e) => { console.warn('[valle]', e.message); return null; }) : Promise.resolve(null),
     ]);
     if (token !== buildToken) return false; // a newer setZona() won
 
@@ -831,7 +850,7 @@ export async function initValle({
       if (satTex[y]) return Promise.resolve(satTex[y]);
       if (!satLoading[y]) {
         const tk = buildToken;
-        satLoading[y] = loadImage(assetUrl(`sat-${y}.jpg`)).then((img) => {
+        satLoading[y] = loadTextureImage(assetUrl(`sat-${y}.jpg`)).then((img) => {
           if (tk !== buildToken) return null;
           satTex[y] = texFromImage(img, true);
           dirty = true;
@@ -1406,6 +1425,11 @@ export async function initValle({
   await breathe();
   await build(zona);
   await breathe();
+  // Compile the shaders without blocking: three.js otherwise links them inside the first render and
+  // then asks the driver for the result (checkShaderErrors), a synchronous wait of ~0.2 s per scene.
+  if (typeof renderer.compileAsync === 'function') {
+    try { await renderer.compileAsync(scene, camera); } catch (err) { console.warn('[3d] compileAsync:', err && err.message); }
+  }
   renderer.render(scene, camera); // first frame at the START pose
 
   // ---------- controller ----------

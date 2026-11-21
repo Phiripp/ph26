@@ -238,6 +238,26 @@ uv run scripts/models/detector_riego.py [--umbral-verdor 2 --umbral-humedad 2 --
 - Lo generado hoy usa la **muestra y una referencia provisional** (los predios oscuros de la misma muestra; columna `referencia = provisional`): sirve para ver el formato, no para calibrar. Con la referencia CONAF real de diciembre de 2019, el secano da NDVI 0,16 con MAD ≈ 0,02, así que el piso de escala 0,05 manda: z ≥ 2 equivale a 0,10 de NDVI y de NDMI sobre el secano. Esa escala y los umbrales se calibran en M7.
 - El detector marca riego, no ilegalidad: con z ≥ 2, el 42 % de los predios de los vecindarios de validación tendría señal en diciembre de 2019. M5 cruza la señal con el consumo (M4) y los derechos.
 
+## Series Sentinel-2 en GCP (D1)
+
+`serie_sentinel2.py` se puede correr en una VM de Compute Engine del proyecto `ph-26-caudal`. Es mucho más rápido que en un notebook: la referencia de secano de 2025-26 (3.642 polígonos, 112 escenas) tardó 52 s, contra ~90 s por escena en local. La VM está cerca del bucket de Earth Search (AWS us-west-2), y en local manda la red.
+
+```
+scripts/gcp/bootstrap.sh       # una vez: APIs, bucket, permiso de la VM y revisión de cuota
+scripts/gcp/job-serie-sentinel2-deploy.sh <corrida> -- <argumentos de serie_sentinel2.py>
+# p. ej.: scripts/gcp/job-serie-sentinel2-deploy.sh elegibles-2025-26 -- --elegibles --temporadas 2025-26:2025-26 --nubes-max 40
+gcloud storage cat gs://ph-26-caudal-sentinel2/runs/<corrida>/DONE    # 0 = completa
+gcloud storage cp gs://ph-26-caudal-sentinel2/runs/<corrida>/serie_<corrida>.parquet data/processed/
+gcloud compute instances delete job-s2-<corrida> --zone us-west1-b --project ph-26-caudal --quiet
+```
+
+- La VM (`e2-highmem-8`, 16 hilos) baja las entradas, corre el script, sube la serie, el log y el caché a `gs://ph-26-caudal-sentinel2/` y se apaga sola. Configuración en `scripts/gcp/config.sh`.
+- Usa `--nubes-max 40` como las series de esta tabla: sin él, el script toma 70 y agrega escenas muy nubladas.
+- Cuota global del proyecto: 12 vCPU, así que corre una VM a la vez y bórrala al terminar.
+- Memoria: con `--referencia` o `--elegibles`, cada hilo lee ventanas de casi un tile. Una `e2-highcpu-8` (8 GB) con 24 hilos murió por memoria (`DONE` = 137).
+- `--elegibles` y `--validacion` necesitan tu `predio.parquet` local con la columna `elegible`; el deploy lo revisa antes de crear la VM.
+- Verificación: la referencia 2025-26 calculada en GCP coincide exactamente con `serie_referencia.parquet` (NDVI, NDMI y píxeles válidos iguales en las 80.518 filas comunes). Las 15 escenas de más que trajo GCP tenían 42 % a 70 % de nubes y quedaban fuera con `--nubes-max 40`.
+
 ## Lo que hay que saber
 
 - Derechos, prueba con casos: el pozo de FO-0504-95 (multado por "2 pozos sin derechos") no tiene ningún derecho a menos de 500 m; el más cercano está a 1.280 m. El de FO-0501-462 tiene 11 derechos a menos de 500 m, así que ahí la infracción sería extraer más de lo autorizado.

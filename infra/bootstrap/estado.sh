@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Crea el bucket del estado remoto de Terraform (una sola vez; es idempotente).
 # Es lo único que Terraform no puede administrar solo (huevo y gallina).
-# Uso: infra/bootstrap.sh   (usa la cuenta activa de gcloud o CLOUDSDK_CORE_ACCOUNT)
+# Uso: infra/bootstrap/estado.sh   (usa la cuenta activa de gcloud o CLOUDSDK_CORE_ACCOUNT)
 set -euo pipefail
 
 PROYECTO="${PROYECTO:-ph-26-caudal}"
@@ -20,4 +20,4 @@ fi
 
 # Versionado: permite recuperar un estado anterior si algo sale mal.
 gcloud storage buckets update "gs://${BUCKET}" --project "${PROYECTO}" --versioning
-echo "Listo. Ahora: cd infra && terraform init"
+echo "Listo. Ahora: cd infra/entornos/prod && terraform init"

@@ -1,19 +1,16 @@
 output "bucket_chile" {
   description = "Bucket de la corrida nacional (se monta en /datos en los jobs)."
-  value       = google_storage_bucket.chile.name
+  value       = module.almacenamiento.nombre
 }
 
 output "cuenta_servicio_jobs" {
   description = "Cuenta de servicio con la que corren los jobs."
-  value       = google_service_account.jobs.email
+  value       = module.identidad.email
 }
 
 output "jobs" {
   description = "Jobs creados, con su nombre y región."
-  value = {
-    for clave, job in google_cloud_run_v2_job.chile :
-    clave => { nombre = job.name, region = job.location }
-  }
+  value       = module.jobs.jobs
 }
 
 output "comandos_ejecucion" {

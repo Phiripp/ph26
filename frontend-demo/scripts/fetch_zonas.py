@@ -25,9 +25,9 @@ FRONT = os.path.normpath(os.path.join(HERE, ".."))
 REPO = os.path.normpath(os.path.join(FRONT, ".."))
 UA = {"User-Agent": "caudal-hackathon-mockup"}
 
-YEARS = list(range(2018, 2025))
-MAX_W = 2048
-DEM_W = 512
+YEARS = [2024]  # la escena usa el año más reciente; más años solo agregan peso
+MAX_W = 4096
+DEM_W = 1024
 DEM_Z = 13
 PREVIEW_W = 1000
 MARGIN_KM = 1.5
@@ -151,7 +151,8 @@ def build_dem(bbox):
     for j in range(h):
         for i in range(w):
             R, G, B = rp[i, j]
-            fp[i, j] = R * 256 + G + B / 256 - 32768
+            # sea floor clamped to 0 m: the scene shows land relief, not ocean bathymetry
+            fp[i, j] = max(0.0, R * 256 + G + B / 256 - 32768)
     return f
 
 

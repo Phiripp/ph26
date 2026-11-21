@@ -1,15 +1,15 @@
 {
-  "_regla": "bbox [w,s,e,n] EPSG:4326 de los puntos de casos_validacion + predios de predio_muestra de cada zona, margen 1.5 km, redondeado hacia afuera a 3 decimales. Escrito por scripts/fetch_zonas.py; DATA-TAB lo copia a index.json bbox_escena.",
+  "_regla": "bbox [w,s,e,n] EPSG:4326 de todos los predios exportados por build_m5_web.py en cada zona, con margen ~1,5 km.",
   "z1": [
-    -71.399,
-    -32.493,
-    -71.0,
-    -32.388
+    -71.51,
+    -32.67,
+    -70.67,
+    -32.075
   ],
   "z2": [
-    -71.257,
-    -32.853,
-    -70.988,
-    -32.789
+    -71.44,
+    -32.975,
+    -70.985,
+    -32.575
   ]
 }

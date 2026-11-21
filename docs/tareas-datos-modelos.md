@@ -52,7 +52,7 @@ Cada tarea entrega un script en `scripts/extract/` y un archivo en `data/process
 | D12 | Opcional: ubicación de APR y cifras de camiones aljibe para el pitch | DOH (SMA), prensa y estudios | Z1 | Por asignar | — | `apr.parquet` y notas para el pitch | ⬜ |
 | D13 | Recalcular con la escena limpia más reciente la noche antes de la demo: índices de la ficha e imagen del predio de la demo (FD-0501-181). Debe correr con un solo comando | Sentinel-2 L2A (STAC) | Z1 | Gabriela | D1 | comando en `scripts/extract/` y escena en `data/processed/` | ⬜ |
 | D14 | Buscar con fuente: costo por m³ del agua de camión aljibe (Subdere, SENAPRED, órdenes de compra, estudio EURE 2022) y dotación en litros por persona al día | Mercado Público, Subdere, prensa | Z1 | Por asignar | — | valores con fuente en [Métricas de impacto](spec-v2.md#métricas-de-impacto) | ⬜ |
-| D15 | Corregir la lectura Sentinel-2 de D1. Según el assessment (no verificado por el equipo; confirmar con el control): no restar el offset de reflectancia (los DN de Earth Search ya vienen corregidos; el indicador `boa_offset_applied` no es confiable); leer por tile y rasterizar predios, no predio a predio; solo diciembre a marzo; percentil 90 o fracción de píxeles verdes en predios de más de 100 ha. Control: el predio `88-31` (FO-0501-462, suelo desnudo) debe dar NDVI ≈ 0,1 | Sentinel-2 L2A (STAC) | Z1, Z2 | Gabriela | — | ajuste del script de D1 y nota en `docs/pruebas-acceso-datos.md` | ⬜ |
+| D15 | **Urgente.** Corregir la lectura Sentinel-2 de D1: `serie_sentinel2.py` resta el offset de −0,1 que declara Earth Search, pero los DN ya vienen corregidos. Verificado en `serie_predio_temporada_2025-26.parquet`: en las 57 escenas con menos de 1 % de nubes, la mediana de píxeles descartados por predio es del 88 % (la vegetación queda con rojo ≤ 0 y se descarta), y el predio de control `88-31` da NDVI 0,28 en vez de ≈ 0,1. Quitar la resta del offset (la lectura por tile ya está hecha); solo diciembre a marzo; percentil 90 o fracción de píxeles verdes en predios de más de 100 ha. Control: el predio `88-31` (FO-0501-462, suelo desnudo) debe dar NDVI ≈ 0,1 | Sentinel-2 L2A (STAC) | Z1, Z2 | Gabriela | — | ajuste del script de D1 y nota en `docs/pruebas-acceso-datos.md` | ⬜ |
 | D16 | Cruce de derechos versión 2: no asignar pozos compartidos, sumar por rol, filtrar por fecha de otorgamiento por temporada, tope anual con "Volumen", excluir duplicados VPC y caudales negativos, distancia a canal | D3 + D4 + canales CIREN | Z1, Z2 | Tomás | D3, D4 | `predio_derecho.parquet` por predio y temporada (columnas en `data/README.md`) | ✅ |
 | D17 | Clima: `clima.parquet` repite filas por `punto_id` y fecha (estaciones compartidas entre zonas): unir también por `zona` o deduplicar. La estación Zapallar Catapilco (asignada a 2.285 predios de Z1) registró 5 mm en 2020 contra 440 mm en Quintero sin marcarse como faltante: marcar como faltante y rellenar con Open-Meteo | DMC y Open-Meteo | Z1, Z2 | Gabriela | D2 | `clima.parquet` corregido | ⬜ |
 | D18 | Set de validación limpio: marcar positivos ambiguos (otro predio a 30 m o menos del punto: el 49 %), predios con ambas etiquetas, positivos con recurso de reconsideración y positivos no detectables por verdor (suelo desnudo, p. ej. FO-0501-462). Evaluar por vecindario (predio y vecinos a 30 m) | `fiscalizacion.parquet` + D15 | Z1, Z2 | Por asignar | D6, D15 | columnas `ambiguo`, `detectable` y `vecindario` en `fiscalizacion.parquet` | ⬜ |
@@ -95,7 +95,7 @@ Orden de trabajo al 21-11-2026, después del assessment de datos. Se actualiza c
 
 | Orden | Tarea | Responsable | Por qué ahora |
 | --- | --- | --- | --- |
-| 1 | D15 Corregir lectura Sentinel-2, luego D1 | Gabriela | Bloquea M2 a M6 y la decisión del caso de la demo; con el offset actual el NDVI sale inflado |
+| 1 | D15 Corregir lectura Sentinel-2 y volver a correr D1 | Gabriela | Bloquea M2 a M6 y la decisión del caso de la demo: con el offset actual se descarta el 88 % de los píxeles y el NDVI sale sesgado |
 | 2 | D17 Clima | Gabriela | Arreglo corto; evita contar dos veces días de clima y una estación con lluvia falsa |
 | 3 | D19 Caso de la demo | Tomás | Depende de D15; el caso actual es frágil |
 | 4 | D18 Set de validación limpio | Por asignar | M6 no es creíble sin él |
@@ -109,7 +109,7 @@ Revisión independiente de los datos frente a lo que necesitan M2 a M9 y la demo
 
 | Gap | Impacto | Tarea | Estado |
 | --- | --- | --- | --- |
-| No hay serie Sentinel-2 y la regla de offset restaría dos veces (por confirmar) | Alto: bloquea M2 a M6 | D15, D1 | ⬜ |
+| La serie Sentinel-2 resta el offset dos veces (verificado: 88 % de píxeles descartados en escenas despejadas) | Alto: bloquea M2 a M6 | D15, D1 | ⬜ |
 | El agua de canal no aparece en los derechos: 43 % (Z1) y 61 % (Z2) de los predios con frutales no tiene derecho propio, casi todos junto a un canal | Alto: infla candidatos (M9) | D16 (`dist_canal_m`), M5, M9 | 🟡 dato listo; falta la regla en M5 y M9 |
 | Derechos inflados en el predio que contiene el punto (pozos compartidos, sin agregar por rol, sin tope de Volumen, derechos posteriores a los hechos) | Alto: M5 y M6 | D16 | ✅ |
 | Los derechos solos no distinguen infractores (AUC ≈ 0,5 entre fiscalizados) | Alto: el índice depende del satélite | M5 | ⬜ |

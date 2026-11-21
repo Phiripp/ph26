@@ -15,8 +15,6 @@ resource "google_cloud_quotas_quota_preference" "cpu" {
   quota_config {
     preferred_value = var.cuota_cpu_milli
   }
-
-  depends_on = [google_project_service.apis]
 }
 
 resource "google_cloud_quotas_quota_preference" "memoria" {
@@ -33,6 +31,4 @@ resource "google_cloud_quotas_quota_preference" "memoria" {
   quota_config {
     preferred_value = var.cuota_memoria_bytes
   }
-
-  depends_on = [google_project_service.apis]
 }

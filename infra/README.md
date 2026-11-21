@@ -2,17 +2,35 @@
 
 Infraestructura de la corrida nacional de [spec-chile.md](../docs/spec-chile.md) en el proyecto `ph-26-caudal`. Terraform crea solo recursos **nuevos**; no toca el bucket `ph-26-caudal-sentinel2`, el job `caudal-poi` ni el servicio `caudal-web`.
 
+## Estructura
+
+```
+infra/
+├── bootstrap/
+│   └── estado.sh            bucket del estado remoto (ph-26-caudal-tfstate); se corre una vez
+├── entornos/
+│   └── prod/                raíz de Terraform: aquí se corre init, plan y apply
+│       ├── main.tf          compone los módulos
+│       ├── variables.tf     parámetros del entorno (proyecto, regiones, corrida, cuota)
+│       ├── outputs.tf       bucket, cuenta de servicio, jobs y comandos de ejecución
+│       ├── providers.tf     proveedor google
+│       ├── versions.tf      versión de Terraform y del proveedor, backend GCS
+│       └── moved.tf         migración del estado desde la versión sin módulos
+└── modulos/                 un módulo por responsabilidad (main, variables, outputs, versions)
+    ├── apis/                APIs del proyecto (disable_on_destroy = false: nunca se deshabilitan)
+    ├── identidad/           cuenta de servicio caudal-jobs
+    ├── almacenamiento/      bucket ph-26-caudal-chile y sus permisos (jobs escriben, caudal-web lee)
+    ├── secretos/            secreto CDS_API_KEY (valor provisorio PENDIENTE) y acceso de caudal-jobs
+    ├── jobs/                Cloud Run Jobs de datos, satélite (4 regiones) y predicción
+    └── cuota/               solicitud de cuota de Cloud Run en us-west1 (opcional)
+```
+
 ## Qué crea
 
-| Archivo | Recursos |
-| --- | --- |
-| `apis.tf` | APIs: Cloud Run, Storage, Secret Manager, IAM, Resource Manager y Cloud Quotas (`disable_on_destroy = false`: nunca se deshabilitan) |
-| `almacenamiento.tf` | Bucket `ph-26-caudal-chile` (us-west1, acceso uniforme, acceso público prohibido, sin versionado) |
-| `iam.tf` | Cuenta `caudal-jobs` con `objectAdmin` sobre el bucket y `secretAccessor` sobre el secreto; `objectViewer` del bucket para la cuenta con la que corre `caudal-web` |
-| `secreto.tf` | Secreto `CDS_API_KEY` con una versión provisoria `PENDIENTE` |
-| `jobs.tf` | Jobs `caudal-chile-datos`, `caudal-chile-prediccion` y `caudal-chile-satelite` (en 4 regiones) |
-| `cuota.tf` | Solicitud de cuota de Cloud Run en us-west1: 200 vCPU y 400 GiB (opcional) |
-| `bootstrap.sh` | Bucket del estado remoto `ph-26-caudal-tfstate` |
+- Bucket `ph-26-caudal-chile` (us-west1, acceso uniforme, acceso público prohibido, sin versionado).
+- Cuenta `caudal-jobs` con `objectAdmin` sobre el bucket y `secretAccessor` sobre el secreto. La cuenta con la que corre `caudal-web` recibe `objectViewer` del bucket.
+- Secreto `CDS_API_KEY` con una versión provisoria `PENDIENTE`.
+- Los jobs de la tabla y, si se pasa `correo_contacto`, la solicitud de 200 vCPU y 400 GiB de Cloud Run en us-west1.
 
 | Job | Región | Recursos | Timeout | Reintentos | `ETAPA` |
 | --- | --- | --- | --- | --- | --- |
@@ -28,26 +46,27 @@ Requisitos: `terraform` >= 1.6 y `gcloud` con acceso al proyecto.
 
 ```bash
 # 1. Una sola vez: bucket del estado (no está en git)
-infra/bootstrap.sh
+infra/bootstrap/estado.sh
 
 # 2. Credenciales (ADC, o un token de la cuenta del equipo)
 gcloud auth application-default login
 # alternativa: export GOOGLE_OAUTH_ACCESS_TOKEN=$(gcloud auth print-access-token --account <cuenta>)
 
-# 3. Aplicar
-cd infra
+# 3. Aplicar (siempre con el correo de contacto: sin él, el plan borra la solicitud de cuota)
+cd infra/entornos/prod
+export TF_VAR_correo_contacto=<correo>
 terraform init
 terraform plan
 terraform apply
 ```
 
-La primera vez, la API de Resource Manager debe estar habilitada para que el proveedor lea el estado de las demás. Si `apply` falla por eso, corre `terraform apply -target='google_project_service.apis["cloudresourcemanager.googleapis.com"]'` y después `terraform apply` completo.
+La primera vez, la API de Resource Manager debe estar habilitada para que el proveedor lea el estado de las demás. Si `apply` falla por eso, corre `terraform apply -target='module.apis.google_project_service.apis["cloudresourcemanager.googleapis.com"]'` y después `terraform apply` completo.
 
 El estado remoto vive en `gs://ph-26-caudal-tfstate` (prefijo `chile`, versionado). No se commitean estados, `.terraform/` ni `*.tfvars`; el único secreto, la clave de CDS, no pasa por Terraform. El `.terraform.lock.hcl` sí se commitea para fijar la versión del proveedor.
 
 ### Variables
 
-Ver `variables.tf`; todas tienen valor por defecto salvo que se indique. Las útiles:
+Ver `entornos/prod/variables.tf`; todas tienen valor por defecto salvo que se indique. Las útiles:
 
 | Variable | Para qué |
 | --- | --- |

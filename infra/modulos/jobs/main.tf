@@ -9,7 +9,7 @@ locals {
     {
       datos = {
         nombre      = "caudal-chile-datos"
-        region      = var.region
+        region      = var.region_principal
         cpu         = 4
         memoria     = "8Gi"
         timeout     = "21600s" # 6 h
@@ -18,7 +18,7 @@ locals {
       }
       prediccion = {
         nombre      = "caudal-chile-prediccion"
-        region      = var.region
+        region      = var.region_principal
         cpu         = 8
         memoria     = "32Gi"
         timeout     = "10800s" # 3 h
@@ -62,7 +62,7 @@ resource "google_cloud_run_v2_job" "chile" {
     task_count = 1
 
     template {
-      service_account       = google_service_account.jobs.email
+      service_account       = var.cuenta_servicio
       timeout               = each.value.timeout
       max_retries           = each.value.max_retries
       execution_environment = "EXECUTION_ENVIRONMENT_GEN2" # requerido para montar GCS
@@ -98,7 +98,7 @@ resource "google_cloud_run_v2_job" "chile" {
           name = "CDS_API_KEY"
           value_source {
             secret_key_ref {
-              secret  = google_secret_manager_secret.cds_api_key.secret_id
+              secret  = var.secreto_cds
               version = "latest"
             }
           }
@@ -113,7 +113,7 @@ resource "google_cloud_run_v2_job" "chile" {
       volumes {
         name = local.nombre_volumen
         gcs {
-          bucket    = google_storage_bucket.chile.name
+          bucket    = var.bucket
           read_only = false
           # Caché de metadatos de gcsfuse: menos llamadas al listar carpetas grandes.
           mount_options = ["metadata-cache-ttl-secs=600"]
@@ -126,11 +126,4 @@ resource "google_cloud_run_v2_job" "chile" {
   lifecycle {
     ignore_changes = [client, client_version]
   }
-
-  depends_on = [
-    google_project_service.apis,
-    google_storage_bucket_iam_member.jobs_escritura,
-    google_secret_manager_secret_iam_member.jobs_cds,
-    google_secret_manager_secret_version.provisoria,
-  ]
 }

@@ -30,7 +30,7 @@ Vista rápida de qué datos están listos en cada zona. Se actualiza al cerrar u
 | Cauces y canales | D8 | ⬜ | ⬜ |
 | Red vial | D9 | ⬜ | ⬜ |
 | Zonas de prohibición | D10 | ⬜ | ⬜ |
-| Referencia de secano | D11 | ⬜ | ⬜ |
+| Referencia de secano | D11 | ✅ | ✅ |
 
 ## Tareas de datos
 
@@ -48,7 +48,7 @@ Cada tarea entrega un script en `scripts/extract/` y un archivo en `data/process
 | D8 | Cauces y canales de riego | DGA red de drenajes (SMA) y CIREN infraestructura de riego | Z1, Z2 | Por asignar | — | `cauce.parquet` | ⬜ |
 | D9 | Red vial guardada para uso offline, con 25 km/h en `track` | OSM con osmnx | Z1, Z2 | Por asignar | — | `red_vial_z1.graphml`, `red_vial_z2.graphml` | ⬜ |
 | D10 | Zonas de prohibición y restricción de los acuíferos | DGA (rest-sit.mop.gob.cl) | Z1, Z2 | Por asignar | — | `restriccion.parquet` | ⬜ |
-| D11 | Polígonos de referencia de secano (matorral y pradera) | CONAF uso de la tierra 2001–2019 | Z1, Z2 | Gabriela | — | `referencia_secano.parquet` | ⬜ |
+| D11 | Polígonos de referencia de secano (matorral y pradera) | CONAF uso de la tierra 2001–2019 | Z1, Z2 | Gabriela | — | `scripts/extract/referencia_secano_conaf.py` → `referencia_secano.parquet` (en git; solo polígonos estables 2001–2019, sin estepa andina) | ✅ |
 | D12 | Opcional: ubicación de APR y cifras de camiones aljibe para el pitch | DOH (SMA), prensa y estudios | Z1 | Por asignar | — | `apr.parquet` y notas para el pitch | ⬜ |
 | D13 | Recalcular con la escena limpia más reciente la noche antes de la demo: índices de la ficha e imagen del predio de la demo (FD-0501-181). Debe correr con un solo comando | Sentinel-2 L2A (STAC) | Z1 | Gabriela | D1 | comando en `scripts/extract/` y escena en `data/processed/` | ⬜ |
 | D14 | Buscar con fuente: costo por m³ del agua de camión aljibe (Subdere, SENAPRED, órdenes de compra, estudio EURE 2022) y dotación en litros por persona al día | Mercado Público, Subdere, prensa | Z1 | Por asignar | — | valores con fuente en [Métricas de impacto](spec-v2.md#métricas-de-impacto) | ⬜ |

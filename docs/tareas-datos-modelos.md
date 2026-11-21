@@ -21,7 +21,7 @@ Vista rápida de qué datos están listos en cada zona. Se actualiza al cerrar u
 | Dato | Tarea | Z1 Petorca | Z2 Aconcagua bajo |
 | --- | --- | --- | --- |
 | Series Sentinel-2 por predio | D1 | ⬜ | ⬜ |
-| Clima (lluvia y ET0) | D2 | ⬜ | ⬜ |
+| Clima (lluvia y ET0) | D2 | ✅ | ✅ |
 | Predios | D3 | ✅ | ✅ |
 | Derechos normalizados | D4 | ⬜ | ⬜ |
 | Cruce derechos–predios | D5 | ⬜ | ⬜ |
@@ -39,7 +39,7 @@ Cada tarea entrega un script en `scripts/extract/` y un archivo en `data/process
 | ID | Tarea | Fuente | Zonas | Responsable | Depende de | Entrega | Estado |
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | D1 | Series mensuales de NDVI, NDWI y NDMI por predio, con máscara de nubes SCL; desde enero de 2020 hasta la última escena limpia (periodos prioritarios en `data/zonas.json`: Z1 desde diciembre de 2024; Z2 en 2021–2022 y de diciembre de 2024 a mayo de 2025) | Sentinel-2 L2A (STAC) | Z1, Z2 | Gabriela | D3 (geometrías) | `serie_predio.parquet` | ⬜ |
-| D2 | Lluvia diaria y ET0 en grilla; estaciones DMC, DGA e INIA donde existan | Open-Meteo y estaciones | Z1, Z2 | Gabriela | — | `clima.parquet` | ⬜ |
+| D2 | Lluvia diaria y ET0 en grilla; estaciones DMC, DGA e INIA donde existan | Open-Meteo y estaciones | Z1, Z2 | Gabriela | — | `clima.parquet`, `predio_clima.parquet` y `estacion_clima.parquet` (plan: [d2-clima.md](plans/d2-clima.md)) | ✅ |
 | D3 | Descargar los predios de las comunas de cada zona y calcular el área en EPSG:32719. Entregar primero una muestra de 50 predios por zona para desbloquear D1 | CIREN Propiedades Rurales | Z1, Z2 | Tomás | — | `scripts/extract/predios_ciren.py` → `predio.parquet` (local) y `predio_muestra.geojson` (en git) | ✅ |
 | D4 | Descargar el Excel de derechos de Valparaíso; convertir datums; normalizar a m³ por mes; marcar los eventuales y las "Acciones" | DGA derechos registrados | Z1, Z2 | Tomás | — | `derecho.parquet` (sin nombres de titulares; los nombres quedan en `data/raw/`) | ⬜ |
 | D5 | Cruzar derechos con predios: punto de captación en el predio o a menos de 500 m; si falla, por titular en la comuna. Guardar `metodo_cruce` y `confianza_cruce` | D3 + D4 | Z1, Z2 | Tomás | D3, D4 | `derecho.parquet` con `predio_id` | ⬜ |
@@ -68,12 +68,20 @@ Cada tarea entrega código en el repo y un archivo de resultados en `data/proces
 | M7 | Calibrar N, los umbrales de anomalía y los pesos de la confianza con el resultado de M6 | Z2 | Por asignar | M6 | valores fijados en el spec | ⬜ |
 | M8 | Ruta de inspección con OR-Tools: un vehículo, cada predio como parada opcional con premio según su puntaje, jornada de 8 h; exportar GPX | Z1, Z2 | Por asignar | M5, D9 | `ruta.py` y GPX de ejemplo | ⬜ |
 | M9 | Métricas de impacto: adelanto de detección en casos conocidos, acierto frente al 27 % de la DGA, candidatos no fiscalizados, m³ en juego y pesos (multas y costo de camión aljibe), todo en rango | Z1, Z2 | Por asignar | M5, M6, D5, D6, D14 | `impacto.md` con las cifras y supuestos | ⬜ |
+| M10 | Puntos de interés por predio: zonas con anomalía de humedad y verdor en ventana seca, posibles tranques por NDWI y punto del cauce más cercano; máximo 8 por predio, cada uno con tipo, razón, fecha de la imagen y confianza (ver [spec-flujos-poligono.md](spec-flujos-poligono.md), A1) | Z1, Z2 | Gabriela | D1, D8, M2, M3 | `poi.parquet` | ⬜ |
+| M11 | Recorrido dentro del predio: acceso por red vial, orden de visita de los POI con OR-Tools, ficha de verificación por parada y GPX. Es el detalle de una parada de M8 (A2) | Z1, Z2 | Gabriela | M10, D9, M8 | `recorrido.py` y GPX de ejemplo | ⬜ |
+| M12 | Contexto del predio al elegirlo: provincia, comuna y sector, cauce cercano y distancia, derechos y puntaje; expuesto en `GET /predios/{id}/contexto` (paso 0) | Z1, Z2 | Gabriela | D4, D5, D8, M5 | `contexto.py` y endpoint | ⬜ |
+| M13 | Expediente PDF con los campos de la guía de la DGA (jul 2025): secciones pre-llenadas, vacías y generadas, sección de afectación del denunciante y anexo técnico (B1 a B4) | Z1, Z2 | Gabriela | M12, M5, M10 | plantilla y `expediente.py`; PDF de ejemplo | ⬜ |
+| M14 | Opcional, solo si hay dron y operador: plan de vuelo con barrido del polígono y pasadas sobre tranques y bocatomas (A3) | Z1 | Gabriela | M10 | `plan_vuelo.py` y archivo de misión de ejemplo | ⬜ |
+| M15 | Opcional: retorno de campo, con fotos y notas por POI que alimentan el expediente en versión post-visita (A4) | Z1 | Gabriela | M11, M13 | `POST /predios/{id}/retorno` | ⬜ |
 
 ## Camino crítico
 
 D3 → D1 → M2 → M3 → M5 → M6 es la cadena más larga. Por eso D3 entrega primero una muestra de 50 predios por zona, para que D1 parta sin esperar la descarga completa.
 
 D4 → D5 corre en paralelo y debe estar listo antes de M5.
+
+Los flujos por polígono salen de M5: M10 → M11 (recorrido) y M12 → M13 (expediente) corren en paralelo. M14 y M15 solo si sobra tiempo.
 
 ## Prioridad actual
 

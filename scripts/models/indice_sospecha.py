@@ -63,6 +63,11 @@ intensidad dio el mayor AUC entre fiscalizados (0,558 contra 0,532 del anual + v
 remuestreos, no significativo) con el mismo recall (6 de 19 en alta, 11 de 19 en alta o media). Descontar derechos
 ajenos en el orden (intensidad_ajenos) no mejoró.
 
+Aplicabilidad (corrida nacional): `aplicabilidad` sale de la zona en CAUDAL_ZONAS (config/regiones.json) y va a la salida
+(Z1 y Z2, sin ese campo en zonas.json, son "calibrado"). En `sur_humedo` el modelo está calibrado en clima de verano
+seco: la banda alta exige además aplicabilidad != sur_humedo, así que ahí una alerta alta baja a media (motivo
+`aplicabilidad_sur_humedo`) y el frontend la muestra como exploratoria.
+
 Privacidad: la salida no tiene nombres. En la demo los candidatos se muestran agregados; una fiscalización "en
 trámite" no es una infracción (solo se marca fiscalizado_dga, sin resultado).
 
@@ -73,6 +78,7 @@ Uso:
 """
 
 import argparse
+import json
 import sys
 from pathlib import Path
 
@@ -81,7 +87,7 @@ import numpy as np
 import pandas as pd
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from comun.rutas import PROC, RAIZ  # noqa: E402
+from comun.rutas import PROC, RAIZ, ZONAS  # noqa: E402
 
 CRS_METROS = "EPSG:32719"
 NIVELES = ["baja", "media", "alta"]
@@ -92,11 +98,18 @@ USOS_NO_RIEGO = {"Bebida/Uso Domestico/Saneamiento", "Uso Industrial", "Uso Mine
 BASE_BANDA = {"alta": 75.0, "media": 50.0, "baja": 25.0, "sin_alerta": 0.0}
 ORDEN_BANDA = {"alta": 0, "media": 1, "baja": 2, "sin_alerta": 3}
 PESO_CONFIANZA = {"alta": 1.0, "media": 0.7, "baja": 0.4}
+APLICABILIDAD_DEFECTO = "calibrado"  # Z1 y Z2: donde se calibró M7
+SIN_BANDA_ALTA = {"sur_humedo"}
 
 
 def ruta(p: str) -> Path:
     q = Path(p)
     return q if q.is_absolute() else RAIZ / q
+
+
+def aplicabilidad_por_zona() -> dict[str, str]:
+    zonas = json.loads(ZONAS.read_text(encoding="utf-8"))["zonas"] if ZONAS.exists() else {}
+    return {z: d.get("aplicabilidad", APLICABILIDAD_DEFECTO) for z, d in zonas.items()}
 
 
 def peor(*niveles: pd.Series) -> pd.Series:
@@ -278,6 +291,12 @@ def main() -> int:
         # Una alerta con confianza baja baja un nivel de banda: la banda alta exige confianza media o alta.
         bajar = (b["confianza"] == "baja") & (b["banda"] != "sin_alerta")
         b.loc[bajar, "banda"] = b.loc[bajar, "banda"].map({"alta": "media", "media": "baja", "baja": "sin_alerta"})
+        # Aplicabilidad: en el sur húmedo no hay banda alta (el modelo se calibró en verano seco).
+        b["aplicabilidad"] = b["zona"].map(aplicabilidad_por_zona()).fillna(APLICABILIDAD_DEFECTO)
+        sin_alta = b["aplicabilidad"].isin(SIN_BANDA_ALTA) & (b["banda"] == "alta")
+        b.loc[sin_alta, "banda"] = "media"
+        for i in b.index[sin_alta]:
+            motivos[i].append("aplicabilidad_sur_humedo")
         b["motivos"] = pd.Series({i: ";".join(dict.fromkeys(";".join(m).split(";")) if m else "")
                                   for i, m in motivos.items()})
         b["motivos"] = b["motivos"].str.strip(";")
@@ -310,7 +329,7 @@ def main() -> int:
              "m3_exceso_min", "m3_exceso_central", "m3_exceso_max", "frac_sin_derecho",
              "m3_derecho_ajeno_disponible_500m", "m3_anual_derecho_entorno_500m", "pozo_compartido_500m",
              "estado_derechos", "confianza_cruce", "confianza_m3", "canal_300m", "dist_canal_m", "rol_id",
-             "area_rol_ha", "temporada_completa", "fiscalizado_dga"]
+             "area_rol_ha", "temporada_completa", "fiscalizado_dga", "aplicabilidad"]
     out = out[orden]
     destino = ruta(args.salida)
     out.to_parquet(destino, index=False)

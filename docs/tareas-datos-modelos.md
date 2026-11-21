@@ -28,7 +28,7 @@ Vista rápida de qué datos están listos en cada zona. Se actualiza al cerrar u
 | Fiscalizaciones (validación) | D6 | ✅ | ✅ |
 | Especie por predio | D7 | ✅ | ✅ |
 | Cauces y canales | D8 | 🟡 | 🟡 |
-| Red vial | D9 | ⬜ | ⬜ |
+| Red vial | D9 | ✅ | ✅ |
 | Zonas de prohibición | D10 | ⬜ | ⬜ |
 | Referencia de secano | D11 | ✅ | ✅ |
 
@@ -46,7 +46,7 @@ Cada tarea entrega un script en `scripts/extract/` y un archivo en `data/process
 | D6 | Filtrar la planilla de fiscalizaciones por extracción no autorizada en cada zona. Positivo: multa o "Constata infracción" / "Acoge". Negativo débil: "No acoge" / "Cierra expediente" | DGA planilla de fiscalización | Z1, Z2 | Tomás | — | `scripts/extract/fiscalizaciones_dga.py` → `fiscalizacion.parquet` (en git; 835 expedientes de Z1 y Z2, 497 de extracción de aguas) | ✅ |
 | D7 | Especie plantada y superficie frutal por predio elegible, cruzando cuarteles por superficie (no por rol) | CIREN Catastro Frutícola 2025 | Z1, Z2 | Tomás | D3 | `scripts/extract/cultivos_ciren.py` → `predio_cultivo.parquet` (en git) | ✅ |
 | D8 | Cauces y canales de riego | DGA red de drenajes (SMA) y CIREN infraestructura de riego | Z1, Z2 | Tomás (canales) / Por asignar (cauces) | — | canales: `scripts/extract/canales_ciren.py` → `raw/ciren_riego/canales.parquet` (✅); cauces: pendiente | 🟡 |
-| D9 | Red vial guardada para uso offline, con 25 km/h en `track` | OSM con osmnx | Z1, Z2 | Tomás | — | `red_vial_z1.graphml`, `red_vial_z2.graphml` | 🟡 |
+| D9 | Rutas con OSRM para los N predios top (no la red completa): matriz `/table` y trazado `/route`, verificados con los 10 positivos limpios. La red completa con osmnx queda descartada (Overpass corta la conexión; Z1 es muy grande) | OSRM público (OpenStreetMap) | Z1, Z2 | Tomás | — | decisión y prueba en el spec (Fuentes de datos verificadas); las llamadas las hace M8 | ✅ |
 | D10 | Zonas de prohibición y restricción de los acuíferos | DGA (rest-sit.mop.gob.cl) | Z1, Z2 | Por asignar | — | `restriccion.parquet` | ⬜ |
 | D11 | Polígonos de referencia de secano (matorral y pradera) | CONAF uso de la tierra 2001–2019 | Z1, Z2 | Gabriela | — | `scripts/extract/referencia_secano_conaf.py` → `referencia_secano.parquet` (en git; solo polígonos estables 2001–2019, sin estepa andina) | ✅ |
 | D12 | Opcional: ubicación de APR y cifras de camiones aljibe para el pitch | DOH (SMA), prensa y estudios | Z1 | Por asignar | — | `apr.parquet` y notas para el pitch | ⬜ |
@@ -72,7 +72,7 @@ Cada tarea entrega código en el repo y un archivo de resultados en `data/proces
 | M5 | Índice de sospecha, confianza y bandas (alta, media, baja). Mide el exceso del consumo sobre los derechos propios y del entorno (`predio_derecho.parquet`), no "tiene o no tiene derechos": el 73 % de los positivos tiene derechos. Los derechos del entorno solo bajan la confianza si superan lo que necesitan los predios donde están inscritos (si no, el caso de la demo queda en confianza baja). Usar `m3_anual_derecho_rol` de la temporada (no el del polígono). Los derechos solos no distinguen infractores (AUC 0,49–0,54 entre fiscalizados): la sospecha sale de la señal satelital y los derechos dimensionan el exceso. `canal_300m` no baja la confianza (68 % de los elegibles) | Z1, Z2 | Por asignar | M3, M4, D5 | `puntaje.parquet` | ⬜ |
 | M6 | Validación: posición en el ranking de los positivos de D6; métrica precisión en los k primeros. Casos clave: FO-0504-95 (caso base con multa efectuada y antecedente satelital, Hijuelas 2021) y FD-0501-181 (validación, Cabildo 2024). Usar el set limpio de D18, evaluar por vecindario y reportar recall con intervalo de confianza: hay 34 positivos en predios elegibles desde 2020 y unos 10 limpios | Z1 y Z2 | Por asignar | M5, D6 | `validacion.md` con la métrica y el mapa | ⬜ |
 | M7 | Calibrar N, los umbrales de anomalía y los pesos de la confianza con el resultado de M6 | Z2 | Por asignar | M6 | valores fijados en el spec | ⬜ |
-| M8 | Ruta de inspección con OR-Tools: un vehículo, cada predio como parada opcional con premio según su puntaje, jornada de 8 h; exportar GPX | Z1, Z2 | Por asignar | M5, D9 | `ruta.py` y GPX de ejemplo | ⬜ |
+| M8 | Ruta de inspección con OR-Tools: un vehículo, cada predio como parada opcional con premio según su puntaje, jornada de 8 h; exportar GPX. Matriz de tiempos y trazado con OSRM (`/table` y `/route`) para los predios top; precalcular y guardar la ruta por zona, sin llamadas en vivo en la demo | Z1, Z2 | Por asignar | M5, D9 | `ruta.py` y GPX de ejemplo | ⬜ |
 | M9 | Métricas de impacto: adelanto de detección en casos conocidos, acierto frente al 33 % de la DGA, candidatos no fiscalizados, m³ en juego y pesos (multas y costo de camión aljibe), todo en rango | Z1, Z2 | Por asignar | M5, M6, D5, D6, D14 | `impacto.md` con las cifras y supuestos | ⬜ |
 | M10 | Puntos de interés por predio: zonas con anomalía de humedad y verdor en ventana seca, posibles tranques por NDWI y punto del cauce más cercano; máximo 8 por predio, cada uno con tipo, razón, fecha de la imagen y confianza (ver [spec-flujos-poligono.md](spec-flujos-poligono.md), A1) | Z1, Z2 | Gabriela | D1, D8, M2, M3 | `poi.parquet` | ⬜ |
 | M11 | Recorrido dentro del predio: acceso por red vial, orden de visita de los POI con OR-Tools, ficha de verificación por parada y GPX. Es el detalle de una parada de M8 (A2) | Z1, Z2 | Gabriela | M10, D9, M8 | `recorrido.py` y GPX de ejemplo | ⬜ |
@@ -99,7 +99,7 @@ Orden de trabajo al 21-11-2026, después del assessment de datos. Se actualiza c
 | 2 | D17 Clima | Gabriela | Arreglo corto; evita contar dos veces días de clima y una estación con lluvia falsa |
 | 3 | D19 Caso de la demo | Tomás | Depende de D15; el caso actual es frágil |
 | 4 | D18 Set de validación limpio | Por asignar | M6 no es creíble sin él |
-| 5 | D9 Red vial | Por asignar | La ruta es la salida principal del sistema y nadie la tiene |
+| ✅ | D9 Rutas con OSRM | Tomás | Verificado con los casos limpios; la ruta la arma M8 |
 | ✅ | D3 a D7, D16 | Tomás | Predios, derechos (versión 2), fiscalizaciones y especie listos |
 | — | D8 (cauces), D10, D12, D14, D20 | Por asignar | No bloquean el camino crítico |
 
@@ -135,6 +135,7 @@ Revisión independiente de los datos frente a lo que necesitan M2 a M9 y la demo
 | 21-11-2026 | `predio_id` = `mslink` de CIREN, no el rol (el rol se repite y a veces no es un rol) | Tomás |
 | 21-11-2026 | Fiscalizaciones: solo "extracción no autorizada de aguas" (sin áridos). Corrige la línea base: acierto de la DGA 33 % y multa mediana 575,7 UTM | Tomás |
 | 21-11-2026 | Universo elegible: rol válido y 1 ha o más (7.911 predios); cubre el 93 % de los positivos por extracción de aguas | Tomás |
+| 21-11-2026 | D9: rutas con OSRM solo para los predios top, precalculadas. No se baja la red vial completa (Overpass corta la conexión y no hace falta para el MVP) | Tomás |
 | 21-11-2026 | Assessment de datos: tareas D15 a D20. Cruce de derechos versión 2 (por rol y por temporada, sin pozos compartidos). `canal_300m` queda como dato, no baja la confianza | Tomás |
 | 21-11-2026 | D5 entrega `predio_derecho.parquet` con `m3_anual_derecho_entorno_500m`: M5 baja la confianza (no sube la sospecha) si el predio tiene poco derecho propio y mucho en el entorno (lotes de pozo) | Tomás |
 | 21-11-2026 | Métrica de impacto: candidatos no fiscalizados × acierto medido, en rango de m³ y pesos; un candidato no es un caso | Tomás |

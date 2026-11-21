@@ -1,0 +1,15 @@
+# Proveedores descargados por `terraform init`
+.terraform/
+
+# Estado local y respaldos: el estado real vive en gs://ph-26-caudal-tfstate
+*.tfstate
+*.tfstate.*
+crash.log
+crash.*.log
+
+# Variables locales (pueden contener datos propios)
+*.tfvars
+*.tfvars.json
+
+# Planes guardados
+*.tfplan

@@ -4,9 +4,10 @@
 
 ## Objetivo
 
-Correr el ranking de la temporada seca 2025-26 (M1 a M5) sobre todos los predios elegibles de Chile, no solo los de Z1 y Z2. Lo hacen dos Cloud Run Jobs que dejan todo en un bucket de GCS. Ese bucket se monta como volumen en los jobs y en `caudal-web`.
+Correr el ranking de la temporada seca 2025-26 (M1 a M5) sobre todos los predios elegibles de Chile, no solo los de Z1 y Z2. Lo hacen tres Cloud Run Jobs (el segundo es el mismo job repetido en cuatro regiones) que dejan todo en un bucket de GCS. Ese bucket se monta como volumen en los jobs y en `caudal-web`.
 
-- **Job 1, `caudal-chile-datos`:** baja las fuentes y la serie Sentinel-2 de cada predio.
+- **Job 1, `caudal-chile-datos`:** baja las fuentes (`base`) y arma el plan Sentinel-2 (`plan`).
+- **Job 1b, `caudal-chile-satelite`:** lee la serie Sentinel-2 de cada predio. Es un job aparte para poder crearlo en cuatro regiones y sumar su cuota.
 - **Job 2, `caudal-chile-prediccion`:** corre M1 a M5 por región y exporta los archivos del frontend.
 
 El gasto no es una restricción; el tiempo sí. Cada decisión de abajo prioriza la duración total y el riesgo de no llegar.
@@ -78,22 +79,22 @@ Sentinel-2 entra en dos momentos. En `plan` se consulta **solo el catálogo STAC
 
 ### Un job, varias etapas
 
-Cada job es **una sola definición** que corre con `ETAPA` y `--tasks` distintos en cada ejecución (`gcloud run jobs execute ... --update-env-vars ETAPA=plan --tasks 1`). Así hay una sola imagen y un solo punto de entrada, `scripts/cloud/chile/entrada.py`, que lee `CLOUD_RUN_TASK_INDEX` y `CLOUD_RUN_TASK_COUNT`.
+Cada job es **una sola definición** que corre con `ETAPA` y `--tasks` distintos en cada ejecución (`gcloud run jobs execute ... --update-env-vars ETAPA=plan --tasks 1`). Los jobs los define Terraform en [`infra/`](../infra/README.md), con la etapa por defecto de cada uno; los valores de `ETAPA`, `CORRIDA`, `HILOS` y `PARTE_BASE` son variables de entorno. Así hay una sola imagen y un solo punto de entrada, `scripts/cloud/chile/entrada.py`, que lee `CLOUD_RUN_TASK_INDEX` y `CLOUD_RUN_TASK_COUNT`.
 
 Cada tarea es **idempotente**: si su archivo de salida ya está en el bucket, lo salta. Un reintento (`--max-retries 2`) o una nueva ejecución retoma donde quedó, igual que hoy el caché `_v2` de `serie_sentinel2.py`.
 
 ### Bucket y montaje
 
 - Bucket nuevo `gs://ph-26-caudal-chile` en **us-west1**: acceso uniforme, sin acceso público y versionado desactivado. Va en us-west1 porque los jobs hacen casi toda la E/S y corren ahí, al lado de Earth Search (Oregón). `caudal-web` lo lee desde Santiago. Son archivos chicos precalculados, con unos 150 ms extra la primera vez y la caché de metadatos de FUSE después.
-- Cuenta de servicio nueva `caudal-jobs@ph-26-caudal.iam.gserviceaccount.com` con `roles/storage.objectAdmin` sobre el bucket. La de `caudal-web` lleva `roles/storage.objectViewer`.
-- Montaje en los jobs: `--add-volume name=datos,type=cloud-storage,bucket=ph-26-caudal-chile --add-volume-mount volume=datos,mount-path=/datos`. En la web, lo mismo con `readonly=true` y `mount-path=/usr/share/nginx/html/data/chile`. Opciones de montaje: caché de metadatos con TTL de 600 s. Antes de usar la sintaxis de `mount-options`, verificarla en la versión de `gcloud` instalada.
+- Cuenta de servicio nueva `caudal-jobs@ph-26-caudal.iam.gserviceaccount.com` con `roles/storage.objectAdmin` sobre el bucket y `secretAccessor` sobre `CDS_API_KEY`. La de `caudal-web` lleva `roles/storage.objectViewer`. Todo esto, el bucket, el secreto y los jobs los crea Terraform; el estado vive en `gs://ph-26-caudal-tfstate`.
+- Montaje en los jobs (definido en Terraform, `infra/jobs.tf`): volumen GCS del bucket en `/datos`, gen2, con `mount_options = ["metadata-cache-ttl-secs=600"]`. En la web, el montaje queda como decisión pendiente y Terraform no toca el servicio; el comando (`--add-volume ...,readonly=true` y `mount-path=/usr/share/nginx/html/data/chile`) está en [`infra/README.md`](../infra/README.md#pendientes-manuales).
 - Reglas para escribir por FUSE: cada tarea escribe **solo archivos propios**, con nombres únicos (región, tile o escena). Se escribe primero en `/tmp` y después se copia al montaje. No se hace append ni se renombra dentro del montaje. Las rutas de datos se leen de la variable `CAUDAL_DATA=/datos`.
 
 ### Estructura del bucket
 
 ```
 gs://ph-26-caudal-chile/
-  codigo/app.tgz                         scripts/ + config, lo sube desplegar.sh
+  codigo/app.tgz                         scripts/ + config, lo sube el script de carga del código (`arranque.sh` también va en `codigo/`)
   config/regiones.json                   mismo esquema que data/zonas.json, con zona = región
   base/
     predio/region=R05.parquet            capa CIREN completa de la región (con elegible, rol_valido)
@@ -153,7 +154,7 @@ Antofagasta (II) y Magallanes (XII) no tienen capa de predios CIREN y quedan fue
 
 ## Job 1: `caudal-chile-datos`
 
-Recursos: 4 vCPU y 8 GiB en `base` y `plan`; 2 vCPU y 4 GiB en `satelite` (`ejecutar.sh` corre `gcloud run jobs update --cpu 2 --memory 4Gi` antes de la etapa, porque `execute` no cambia recursos). `--task-timeout 6h`, `--max-retries 2`, cuenta `caudal-jobs`, volumen `/datos`. Imagen `mirror.gcr.io/library/python:3.12-slim`. Al arrancar instala las dependencias con `uv pip install --system`, que es más rápido que pip, y descomprime `/datos/codigo/app.tgz`. Es el mismo patrón que `scripts/cloud/poi/ejecutar.sh`.
+Recursos: 4 vCPU y 8 GiB en `base` y `plan`. La etapa `satelite` tiene su propio job, `caudal-chile-satelite` (2 vCPU y 4 GiB), porque `execute` no cambia recursos y porque así se crea en las 4 regiones. `--task-timeout 6h`, `--max-retries 2`, cuenta `caudal-jobs`, volumen `/datos`. Imagen `mirror.gcr.io/library/python:3.12-slim`, comando `bash /datos/codigo/arranque.sh`. Al arrancar instala las dependencias con `uv pip install --system`, que es más rápido que pip, y descomprime `/datos/codigo/app.tgz`. Es el mismo patrón que `scripts/cloud/poi/ejecutar.sh`.
 
 ### Etapa `base` (14 tareas, una por región)
 
@@ -253,7 +254,7 @@ Se descartaron:
 - **Bandas:** rojo, NIR, NIR08, SWIR16 y SCL, a 20 m vía overview.
 - **Lectura:** celdas de 512 en tramos, SCL primero y salto por huella STAC.
 - **Tareas de Cloud Run:** 2 vCPU y 4 GiB, 10 hilos. Con la cuota de 20 vCPU y 40 GiB son 10 tareas por región.
-- **Regiones:** el mismo job en `us-west1`, `us-west2`, `us-west4` y `us-central1`, con `PARTE_BASE` 0, 10, 20 y 30. En total, `N = 40` partes y 80 vCPU.
+- **Job:** `caudal-chile-satelite` (`ETAPA=satelite`, `HILOS=10`, 6 h, 2 reintentos), el mismo job en `us-west1`, `us-west2`, `us-west4` y `us-central1`, con `PARTE_BASE` 0, 10, 20 y 30. En total, `N = 40` partes y 80 vCPU.
 - **Cuota:** al inicio (H0) se pide subir la de `us-west1` a 200 vCPU y 400 GiB. Si se aprueba, se relanza solo ahí con más tareas: el plan se rehace con el nuevo `N` y el caché evita repetir escenas.
 
 **Estimación (E).** Unos 57 MB y 1,6 s de CPU por escena, contra 228 MB y 6 s del código actual sobre el tile completo (M para los 228 MB). Para 3.500 escenas son ~200 GB y ~1,6 horas de CPU. Contando el arranque, la rasterización y los reintentos, la corrida toma **20 a 40 min en 4 regiones**, o **1 a 1,5 horas solo en us-west1**. El **piloto** (H2: 1 tile, 1 tarea, desde Cloud Run) mide los MB/s y los segundos por escena antes de fijar `N`.
@@ -339,8 +340,8 @@ Salidas en `modelo/<corrida>/region=RXX/` y `web/<corrida>/RXX/`.
 | `scripts/cloud/chile/regiones.py` | Genera `config/regiones.json` (tabla de arriba + comunas y bbox desde CIREN) |
 | `scripts/cloud/chile/entrada.py` | Despacha la `ETAPA` y la tarea a los scripts y arma la carpeta de trabajo desde `/datos` |
 | `scripts/cloud/chile/plan.py` | Etapa `plan` |
-| `scripts/cloud/chile/bootstrap.sh` | Bucket, cuenta de servicio, permisos, secreto `CDS_API_KEY` y solicitud de cuota |
-| `scripts/cloud/chile/desplegar.sh` | Sube `codigo/app.tgz` y crea o actualiza los dos jobs en sus regiones, con volúmenes |
+| `infra/` (Terraform) | Bucket, cuenta de servicio, permisos, secreto `CDS_API_KEY`, solicitud de cuota y los jobs (`datos`, `satelite` en 4 regiones, `prediccion`) con volúmenes. Ver [`infra/README.md`](../infra/README.md) |
+| `scripts/cloud/chile/desplegar.sh` | Sube `codigo/app.tgz` y `codigo/arranque.sh` al bucket (los jobs los crea Terraform) |
 | `scripts/cloud/chile/ejecutar.sh ETAPA [TAREAS]` | Lanza una etapa (en las 4 regiones si es `satelite`) |
 | `scripts/cloud/chile/progreso.sh` | Escenas del plan contra escenas en caché, tareas terminadas por etapa, últimas líneas de log |
 | Extractores (tabla de la etapa base) | Parametrizar capa, archivo y bbox por región; paginar |
@@ -356,8 +357,8 @@ H0 es el inicio. Las horas son de reloj y hay tareas en paralelo.
 
 | Hora | Infra (Gabi) | Datos | Modelos y web |
 | --- | --- | --- | --- |
-| H0–H1 | `bootstrap.sh`, pedir cuota, crear la cuenta de CDS y aceptar la licencia de ERA5-Land, piloto de ERA5-Land, montaje probado con un job de prueba | `rutas.py`, `regiones.py`, paginación de `predios_ciren.py` | Revisar M2 a M5 en busca de supuestos de Z1 y Z2 y bucles por predio |
-| H1–H2 | `entrada.py`, `desplegar.sh`, `ejecutar.sh` | Resto de los extractores; **lanzar `base`** apenas estén predios, CONAF y derechos | Columna `aplicabilidad` |
+| H0–H1 | `terraform apply` (ya incluye la solicitud de cuota), crear la cuenta de CDS y aceptar la licencia de ERA5-Land, piloto de ERA5-Land, montaje probado con un job de prueba | `rutas.py`, `regiones.py`, paginación de `predios_ciren.py` | Revisar M2 a M5 en busca de supuestos de Z1 y Z2 y bucles por predio |
+| H1–H2 | `entrada.py`, `arranque.sh`, `desplegar.sh`, `ejecutar.sh` | Resto de los extractores; **lanzar `base`** apenas estén predios, CONAF y derechos | Columna `aplicabilidad` |
 | H2–H3 | `plan.py`, `progreso.sh` | Cambios de `serie_sentinel2.py`; **piloto** de 1 tile: segundos por escena y memoria | `build_m5_web.py` por región |
 | H3–H5 | **Lanzar `satelite`** en 4 regiones | Revisar el clima de `base` (cobertura de celdas, corrección DMC) | Etapa `region` probada con Valparaíso cuando termine su satélite |
 | H5–H7 | — | — | **Lanzar `prediccion` (`region`)**, comprobación de regresión, etapa `nacional` |

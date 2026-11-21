@@ -1,5 +1,5 @@
 // Caudal v2 · vista 3D de una zona de estudio (Z1 Petorca, Z2 Aconcagua bajo): terreno DEM + imagen satelital EOX
-// + predios drapeados por banda de sospecha (provisional) + casos sancionados por la DGA + ruta de inspección.
+// + predios drapeados por banda de prioridad (modelo M5) + casos sancionados por la DGA + ruta de inspección.
 // Principio: "prioriza, no acusa" -> solo IDs/rol de predio y rangos de m³, nunca dueños ni cifras únicas.
 // Cámara fija (norte arriba, ~50° desde la vertical). enter()/exit() animan el descenso desde / el regreso hacia el mapa.
 // Nada se anima solo: la ruta se dibuja con setRouteProgress() o playRoute(); el acercamiento a un predio/caso
@@ -62,6 +62,35 @@ async function loadJson(url) {
   const res = await fetch(url);
   if (!res.ok) throw new Error(`HTTP ${res.status} en ${url}`);
   return res.json();
+}
+
+// Route geometry. The M8 ruta.json (data/processed/ruta_z*.json) carries the stops but no line; the driven
+// track (OSRM, closed loop plaza → stops → plaza) lives in ruta.gpx as <trkpt>. The older ruta.json had
+// `geometry` inline: use it when present. Returns a shallow copy (zone data objects are shared).
+const gpxTrackCache = new Map();
+function gpxTrack(url) {
+  if (!gpxTrackCache.has(url)) {
+    gpxTrackCache.set(url, fetch(url).then((res) => {
+      if (!res.ok) throw new Error(`HTTP ${res.status} en ${url}`);
+      return res.text();
+    }).then((txt) => {
+      const coords = [];
+      for (const m of txt.matchAll(/<trkpt\b([^>]*)>/g)) {
+        const lat = +(/\blat="([^"]+)"/.exec(m[1]) || [])[1], lon = +(/\blon="([^"]+)"/.exec(m[1]) || [])[1];
+        if (isFinite(lat) && isFinite(lon)) coords.push([lon, lat]);
+      }
+      return coords;
+    }).catch((e) => { gpxTrackCache.delete(url); throw e; }));
+  }
+  return gpxTrackCache.get(url);
+}
+async function withRouteGeometry(ruta, gpxUrl) {
+  if (!ruta || (ruta.geometry && ruta.geometry.type === 'LineString') || !gpxUrl) return ruta;
+  try {
+    const coords = await gpxTrack(gpxUrl);
+    if (coords.length > 1) return { ...ruta, geometry: { type: 'LineString', coordinates: coords } };
+  } catch (e) { console.warn('[valle] sin trazado de ruta (GPX):', e.message); }
+  return ruta;
 }
 
 function imageData(img, maxSide = 0) {
@@ -729,7 +758,8 @@ export async function initValle({
       const id = String(z.id || zi.id || '').toLowerCase();
       const b = (z === zona && base) || zi.base || (id ? `assets/zonas/${id}/` : 'assets/petorca/');
       return {
-        id, zi, assetBase: absDir(b), predios: z.predios, ruta: z.ruta || null,
+        id, zi, assetBase: absDir(b), predios: z.predios,
+        ruta: await withRouteGeometry(z.ruta || null, z.gpxUrl || (z.base ? z.base + 'ruta.gpx' : null)),
         casos: Array.isArray(z.casos) ? z.casos : [],
         bboxEscena: Array.isArray(zi.bbox_escena) && zi.bbox_escena.length === 4 ? zi.bbox_escena : null,
       };
@@ -739,7 +769,8 @@ export async function initValle({
       loadJson(new URL('predios.geojson', db).href),
       loadJson(new URL('ruta.json', db).href).catch(() => null),
     ]);
-    return { id: 'petorca', zi: {}, assetBase: absDir(base || 'assets/petorca/'), predios: geo.features || [], ruta: rt, casos: [], bboxEscena: null };
+    const rtGeo = await withRouteGeometry(rt, new URL('ruta.gpx', db).href);
+    return { id: 'petorca', zi: {}, assetBase: absDir(base || 'assets/petorca/'), predios: geo.features || [], ruta: rtGeo, casos: [], bboxEscena: null };
   }
 
   let buildToken = 0;
@@ -1014,26 +1045,30 @@ export async function initValle({
     // ---------- HTML: stops, start pin, case badges ----------
     let lastIdx = 0;
     for (const s of paradas) {
-      const { d, i } = alongRoute(s.lon, s.lat, lastIdx);
+      // M8 stops: lon/lat = predio point, acceso_lon/lat = where the road reaches it (that is on the track)
+      const onRoad = isFinite(+s.acceso_lon) && isFinite(+s.acceso_lat) && s.acceso_lon != null;
+      const { d, i } = alongRoute(onRoad ? +s.acceso_lon : +s.lon, onRoad ? +s.acceso_lat : +s.lat, lastIdx);
       lastIdx = i;
       const el = document.createElement('button');
       el.type = 'button';
-      const colr = BAND_HEX[s.banda] || CYAN;
-      el.setAttribute('aria-label', `Parada ${s.orden}: predio ${s.predio_id}, banda ${s.banda}`);
+      const sb = (byId.get(String(s.predio_id)) || {}).properties?.banda || s.banda;
+      const colr = BAND_HEX[sb] || CYAN;
+      el.setAttribute('aria-label', `Parada ${s.orden}: predio ${s.predio_id}${sb ? ', prioridad ' + sb : ''}${s.llegada ? ', llegada ' + s.llegada : ''}`);
       el.innerHTML = `<span data-stem style="position:absolute;left:11px;top:22px;width:1px;height:16px;background:${colr};opacity:.75;transform-origin:0 0"></span>`
         + `<span data-n style="display:grid;place-items:center;width:22px;height:22px;border-radius:50%;border:1.5px solid ${colr};background:rgba(5,8,11,.86);color:${colr};font:600 11px/1 'IBM Plex Mono',ui-monospace,monospace;transition:background .25s,color .25s,box-shadow .25s">${esc(s.orden)}</span>`;
       Object.assign(el.style, {
         position: 'absolute', left: '0', top: '0', padding: '0', margin: '0', border: '0', background: 'none', zIndex: '3',
         cursor: 'pointer', pointerEvents: 'auto', transform: OFF, willChange: 'transform',
       });
-      el.addEventListener('click', (ev) => { ev.stopPropagation(); pick(s.predio_id, true); });
+      el.addEventListener('click', (ev) => { ev.stopPropagation(); pick(String(s.predio_id), true); });
       layer.appendChild(el); zoneEls.push(el);
-      stops.push({ s, d, el, num: el.querySelector('[data-n]'), stem: el.querySelector('[data-stem]'), col: colr, world: llToWorld(s.lon, s.lat), reached: null });
+      stops.push({ s, d, el, num: el.querySelector('[data-n]'), stem: el.querySelector('[data-stem]'), col: colr, world: llToWorld(+s.lon, +s.lat), reached: null });
     }
     if (ruta && ruta.inicio && isFinite(ruta.inicio.lon)) {
+      const hIni = ruta.inicio.hora || ruta.hora_inicio;
       const el = document.createElement('div');
       el.innerHTML = `<span style="display:block;width:10px;height:10px;margin:0 auto;border-radius:2px;background:${CYAN};box-shadow:0 0 0 3px rgba(69,214,238,.25),0 0 12px rgba(69,214,238,.8);transform:rotate(45deg)"></span>`
-        + `<span style="display:block;margin-top:7px;white-space:nowrap;padding:3px 6px;background:rgba(5,8,11,.78);border:1px solid rgba(69,214,238,.5);color:${CYAN};letter-spacing:.06em">INICIO · ${esc(String(ruta.inicio.nombre || '').toUpperCase())}${ruta.inicio.hora ? ' · ' + esc(ruta.inicio.hora) : ''}</span>`;
+        + `<span style="display:block;margin-top:7px;white-space:nowrap;padding:3px 6px;background:rgba(5,8,11,.78);border:1px solid rgba(69,214,238,.5);color:${CYAN};letter-spacing:.06em">INICIO · ${esc(String(ruta.inicio.nombre || '').toUpperCase())}${hIni ? ' · ' + esc(hIni) : ''}</span>`;
       Object.assign(el.style, { position: 'absolute', left: '0', top: '0', transform: OFF, textAlign: 'center', zIndex: '1' });
       layer.appendChild(el); zoneEls.push(el);
       startPin = { el, world: llToWorld(ruta.inicio.lon, ruta.inicio.lat, 0.01) };
@@ -1119,7 +1154,7 @@ export async function initValle({
       isFinite(p.area_ha) && p.area_ha != null ? `${(+p.area_ha).toLocaleString('es-CL', { maximumFractionDigits: 1 })} ha` : null].filter(Boolean).join(' · ');
     selLabel.style.borderColor = exp ? '#fff' : col;
     selLabel.innerHTML = `<div style="display:flex;gap:8px;align-items:center"><b style="font-weight:600;color:#fff">${esc(p.id)}</b>`
-      + `<span style="color:${col}">● ${B.label}${p.banda !== 'sin_dato' ? ' <span style="opacity:.6">prov.</span>' : ''}</span>`
+      + `<span style="color:${col}">● ${B.label}</span>`
       + (exp ? `<span style="color:#fff;border:1px solid #fff;padding:0 4px">CASO ${esc(expShort(exp))}</span>` : '')
       + (stop ? `<span style="color:${CYAN}">PARADA ${esc(stop.orden)}</span>` : '') + '</div>'
       + (where ? `<div style="color:#9fb0b6">${where}</div>` : '')

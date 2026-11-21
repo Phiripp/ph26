@@ -37,7 +37,7 @@ function hechos(p, data) {
     : +der === 0 ? `sin derechos de aprovechamiento asociados al rol en el registro DGA${p.estado_derechos ? ` (${p.estado_derechos})` : ''}`
       : `frente a un derecho asociado al rol de ${fmtMil(der)} mil m³/año (registro DGA)`;
   if (p.m3_estimado_min != null) {
-    parts.push(`Con el método FAO-56 simplificado (Kc a partir de NDVI, ET0 y lluvia), el consumo estimado del predio para la temporada ${temporada} se sitúa entre ${fmtMil(p.m3_estimado_min)} y ${fmtMil(p.m3_estimado_max)} mil m³, ${derTxt}${ex.hi > 0 ? ` (posible exceso de ${fmtMil(ex.lo)} a ${fmtMil(ex.hi)} mil m³)` : ''}. Estimación provisional; confianza ${p.confianza || 'no evaluada'}${(p.confianza_motivos || []).length ? ` (${p.confianza_motivos.join('; ')})` : ''}.`);
+    parts.push(`Con el método FAO-56 simplificado (Kc a partir de NDVI, ET0 y lluvia), el consumo estimado del predio para la temporada ${temporada} se sitúa entre ${fmtMil(p.m3_estimado_min)} y ${fmtMil(p.m3_estimado_max)} mil m³, ${derTxt}${ex.hi > 0 ? ` (posible exceso de ${fmtMil(ex.lo)} a ${fmtMil(ex.hi)} mil m³)` : ''}. Confianza ${p.confianza || 'no evaluada'}${(p.confianza_motivos || []).length ? ` (${p.confianza_motivos.join('; ')})` : ''}.`);
   }
   parts.push('Estos antecedentes son un indicio para priorizar la fiscalización en terreno; no constituyen prueba ni identifican a personas.');
   return parts.join('\n\n');
@@ -46,7 +46,7 @@ function hechos(p, data) {
 const ADJUNTOS = (p, data) => [
   `Serie mensual NDVI/NDMI del predio (${p.rol ? 'rol ' + p.rol : p.id}) y de la referencia de secano CONAF (Sentinel-2 L2A, Element84 Earth Search)`,
   'Imágenes satelitales antes/después de la ventana seca (color natural y NDVI)',
-  `Cálculo de consumo FAO-56 simplificado, temporada ${temporadaOf(data)} (provisional)`,
+  `Cálculo de consumo FAO-56 simplificado, temporada ${temporadaOf(data)}`,
   'Derechos de aprovechamiento asociados al rol (registro DGA / CPA)',
   `Ventanas secas detectadas (${climaFuente(data)}, ≥ 10 días sin lluvia efectiva)`,
 ];

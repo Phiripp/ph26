@@ -11,7 +11,7 @@
 // Apagarlo: abrir la página con ?sw=0 (js/main.js lo desregistra y borra las cachés).
 // Al cambiar las reglas de este archivo, subir VERSION: la caché anterior se borra al activar.
 
-const VERSION = 'v1';
+const VERSION = 'v2'; // v2: datos de M5 (build_m5_web.py)
 const CACHE = `caudal-${VERSION}`;
 const NETWORK_TIMEOUT_MS = 2500;
 const HEAVY_LOCAL = /\/(tiles|assets)\//;

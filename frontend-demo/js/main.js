@@ -393,7 +393,7 @@ async function setupZonasSummary() {
       <h3 id="zc-${esc(id)}-t">${esc(z.nombre || id)}</h3>
       <p class="p-loc">${esc((z.comunas || []).map(comunaFmt).join(' · '))}</p>
       <p class="zc-meta"><span data-k="predios">— predios</span> · <b>${nCasos} casos DGA</b></p>
-      <dl class="stats stats-4" aria-label="Predios por banda (provisional)">
+      <dl class="stats stats-4" aria-label="Predios por banda">
         <div><dt>Alta</dt><dd class="b-alta" data-k="alta">—</dd></div>
         <div><dt>Media</dt><dd class="b-media" data-k="media">—</dd></div>
         <div><dt>Baja</dt><dd class="b-baja" data-k="baja">—</dd></div>
@@ -407,10 +407,11 @@ async function setupZonasSummary() {
   // fill counts per zone from the small summary file; without it, from the full zone data
   // (a zone that fails keeps its dashes)
   const resumen = await Zmod().then(Z => Z.loadResumen()).catch(() => null);
+  if (Number.isFinite(+resumen?.total) && $('total-predios')) $('total-predios').textContent = nf0.format(+resumen.total);
   const fromZona = d => ({
     predios: d.predios.length, counts: d.counts || {},
     ruta: d.ruta && Array.isArray(d.ruta.paradas) && d.ruta.paradas.length
-      ? { paradas: d.ruta.paradas.length, distancia_km: d.ruta.distancia_km, duracion_min: d.ruta.duracion_min, inicio: d.ruta.inicio }
+      ? { paradas: d.ruta.paradas.length, distancia_km: d.ruta.distancia_km ?? d.ruta.total_km, duracion_min: d.ruta.duracion_min ?? d.ruta.total_min, inicio: d.ruta.inicio }
       : null,
   });
   for (const z of zonas) {
@@ -418,9 +419,9 @@ async function setupZonasSummary() {
     const known = resumen?.zonas?.[id];
     (known ? Promise.resolve(known) : loadZonaData(id).then(fromZona)).then(d => {
       const c = d.counts || {}, set = (k, v) => { const e = card.querySelector(`[data-k="${k}"]`); if (e) e.textContent = v; };
-      set('predios', `${d.predios} predios`);
-      set('alta', c.alta ?? 0); set('media', c.media ?? 0); set('baja', c.baja ?? 0);
-      set('sin', (c.sin_alerta || 0) + (c.sin_dato || 0));
+      set('predios', `${nf0.format(d.predios)} predios`);
+      set('alta', nf0.format(c.alta ?? 0)); set('media', nf0.format(c.media ?? 0)); set('baja', nf0.format(c.baja ?? 0));
+      set('sin', nf0.format((c.sin_alerta || 0) + (c.sin_dato || 0)));
       const r = d.ruta;
       if (r && r.paradas) {
         const h = Math.floor(r.duracion_min / 60), m = Math.round(r.duracion_min % 60);
@@ -627,7 +628,7 @@ function setupZonaPanel({ getValle, onFocusChange }) {
       if (st.rutaRendered) return;
       st.rutaCtl = P.renderRuta(panes.ruta, d, {
         onPlay: () => playRoute(),
-        onStop: pid => { if (pid) { st.selectedId = String(pid); valleCall('selectPredio', String(pid)); } },
+        onStop: pid => { if (pid) selectPredio(String(pid)); },   // F5: tapping a stop opens the predio ficha
         onGPX: () => {},
       }) || null;
       st.rutaRendered = true;
@@ -709,7 +710,7 @@ function setupZonaPanel({ getValle, onFocusChange }) {
       const id = zkey(meta?.id);
       if (st.zona !== id) { st.zona = id; dataP = null; reset(); }
       const name = `${meta?.codigo || id.toUpperCase()} · ${meta?.nombre || ''}`;
-      $('vp-kicker').textContent = `${name} · priorización provisional`;
+      $('vp-kicker').textContent = `${name} · priorización`;
       $('vp-grip-l').textContent = `Priorización · ${meta?.nombre || id.toUpperCase()}`;
       panel.setAttribute('aria-label', `Priorización de la zona ${name}`);
       $('vt-predios-n').textContent = n.predios ? `· ${n.predios}` : '';
@@ -1347,10 +1348,14 @@ async function boot() {
     if (ZONA_IDS.includes(k)) return { kind: 'zona', zona: k };
     if (/^caso-/i.test(h)) return { kind: 'caso', expediente: decodeURIComponent(h.slice(5)) };
     if (k === LAGOON_ID) return { kind: 'lagoon' };
+    if (k === 'impacto') return { kind: 'impacto' };
     return null;
   }
   function go(t, opts) {
     hideTitle();
+    // #impacto: panel a pantalla completa sobre el mapa (js/impacto.js); otro destino lo cierra
+    if (t.kind === 'impacto') return import('./impacto.js').then(m => m.openImpacto()).catch(err => console.error('[Caudal] impacto:', err));
+    import('./impacto.js').then(m => m.closeImpacto({ keepHash: true })).catch(() => {});
     if (t.kind === 'zona') return stage.goZona(t.zona, opts);
     if (t.kind === 'caso') return stage.goCaso(t.expediente, opts);
     if (t.kind === 'lagoon') return stage.goLagoon(opts);

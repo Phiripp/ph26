@@ -54,7 +54,7 @@ Cada tarea entrega un script en `scripts/extract/` y un archivo en `data/process
 | D14 | Buscar con fuente: costo por m³ del agua de camión aljibe (Subdere, SENAPRED, órdenes de compra, estudio EURE 2022) y dotación en litros por persona al día | Mercado Público, Subdere, prensa | Z1 | Por asignar | — | valores con fuente en [Métricas de impacto](spec-v2.md#métricas-de-impacto) | ⬜ |
 | D15 | **Urgente.** Corregir la lectura Sentinel-2 de D1: `serie_sentinel2.py` resta el offset de −0,1 que declara Earth Search, pero los DN ya vienen corregidos. Verificado en `serie_predio_temporada_2025-26.parquet`: en las 57 escenas con menos de 1 % de nubes, la mediana de píxeles descartados por predio es del 88 % (la vegetación queda con rojo ≤ 0 y se descarta), y el predio de control `88-31` da NDVI 0,28 en vez de ≈ 0,1. Quitar la resta del offset (la lectura por tile ya está hecha); solo diciembre a marzo; percentil 90 o fracción de píxeles verdes en predios de más de 100 ha. Control: el predio `88-31` (FO-0501-462, suelo desnudo) debe dar NDVI ≈ 0,1 | Sentinel-2 L2A (STAC) | Z1, Z2 | Gabriela | — | ajuste del script de D1 y nota en `docs/pruebas-acceso-datos.md` |✅ |
 | D16 | Cruce de derechos versión 2: no asignar pozos compartidos, sumar por rol, filtrar por fecha de otorgamiento por temporada, tope anual con "Volumen", excluir duplicados VPC y caudales negativos, distancia a canal | D3 + D4 + canales CIREN | Z1, Z2 | Tomás | D3, D4 | `predio_derecho.parquet` por predio y temporada (columnas en `data/README.md`) | ✅ |
-| D17 | Clima: `clima.parquet` repite filas por `punto_id` y fecha (estaciones compartidas entre zonas): unir también por `zona` o deduplicar. La estación Zapallar Catapilco (asignada a 2.285 predios de Z1) registró 5 mm en 2020 contra 440 mm en Quintero sin marcarse como faltante: marcar como faltante y rellenar con Open-Meteo | DMC y Open-Meteo | Z1, Z2 | Gabriela | D2 | `clima.parquet` corregido | ⬜ |
+| D17 | Clima: `clima.parquet` repite filas por `punto_id` y fecha (estaciones compartidas entre zonas): unir también por `zona` o deduplicar. La estación Zapallar Catapilco (asignada a 2.285 predios de Z1) registró 5 mm en 2020 contra 440 mm en Quintero sin marcarse como faltante: marcar como faltante y rellenar con Open-Meteo | DMC y Open-Meteo | Z1, Z2 | Gabriela | D2 | `clima.parquet` corregido; `scripts/extract/d2_clima_unir.py` marca como faltante el año de una estación con total anual bajo el 10 % de la mediana de las otras (Zapallar 2020: 2 mm contra 247 mm). Los duplicados por `punto_id` y fecha son estaciones compartidas entre zonas: no hay duplicados por `zona`, así que quien lea `clima.parquet` debe unir también por `zona` | ✅ |
 | D18 | Set de validación limpio: marcar positivos ambiguos (otro predio a 30 m o menos del punto: el 49 %), predios con ambas etiquetas, positivos con recurso de reconsideración y positivos no detectables por verdor (suelo desnudo, p. ej. FO-0501-462). Evaluar por vecindario (predio y vecinos a 30 m) | `fiscalizacion.parquet` + D15 | Z1, Z2 | Tomás | D6, D15 | columnas `vecindario`, `ambiguo`, `predio_grande`, `etiquetas_mixtas`, `con_recurso` y `set_validacion` en `fiscalizacion.parquet` (✅): 10 positivos y 24 negativos limpios. Falta `detectable`, que necesita D15 | 🟡 |
 | D19 | Elegir el caso de la demo en vivo: reconocer un predio con datos hasta el último mes, armar la denuncia y enviarla; se decide después de tener toda la data de base (D15 y ranking de M5). El caso base con multa efectuada ya está fijado: FO-0504-95 (NDVI 0,88–0,91 en 2019–20 y 0,67–0,71 en 2022–24: el verde baja después de la fiscalización). FD-0501-181 queda como validación (NDVI estable 0,45–0,58 en 2019–2024, sin "inicio de riego"; el pozo está a 12 m del predio vecino `202-90`, que tiene un derecho a 51 m) | D15 | Z1, Z2 | Tomás | D15 | caso y relato fijados en el spec | ⬜ |
 | D20 | Opcional: probar si el Monitoreo de Extracciones Efectivas (MEE) de la DGA se puede descargar (verdad de terreno directa) y ESA WorldCover 10 m como referencia de secano (más rápido que CONAF 2001–2019) | DGA MEE, ESA WorldCover | Z1, Z2 | Por asignar | — | nota con el resultado | ⬜ |
@@ -101,8 +101,8 @@ Orden de trabajo al 21-11-2026, con la serie Sentinel-2 corregida (D15). Se actu
 | 2 | M2 a M4: anomalías, detector de riego, consumo FAO-56 | Tomás | ⬜ | Camino crítico; el código puede partir con la serie de la muestra |
 | 3 | D18 `detectable`, D19 caso de la demo, primera versión de M6 | Tomás | ⬜ | Cuando termine 1a |
 | 4 | M5 ranking, M8 ruta, M9 impacto | Tomás | ⬜ | Cuando estén 1b, 1c y 2 |
-| ✅ | D3 a D9, D15, D16 | Tomás, Gabriela | ✅ | Datos base, cruce versión 2, cauces, rutas OSRM y fix de Sentinel-2 |
-| — | D10, D12, D14, D17, D20 | Gabriela (D17) / Por asignar | ⬜ | No bloquean el camino crítico |
+| ✅ | D3 a D9, D15, D16, D17 | Tomás, Gabriela | ✅ | Datos base, cruce versión 2, cauces, rutas OSRM y fix de Sentinel-2 |
+| — | D10, D12, D14, D20 | Por asignar | ⬜ | No bloquean el camino crítico |
 
 ## Assessment de datos (21-11-2026)
 
@@ -117,7 +117,7 @@ Revisión independiente de los datos frente a lo que necesitan M2 a M9 y la demo
 | Caso de la demo frágil | Alto: demo | D19 | ⬜ |
 | Validación chica y ambigua | Alto: M6, M7, M9 | D18 | 🟡 set listo; falta `detectable` (D15) |
 | Duplicados VPC y caudales negativos | Medio-bajo | D16 | ✅ |
-| Clima con filas repetidas y una estación con lluvia faltante | Bajo a medio | D17 | ⬜ |
+| Clima con filas repetidas y una estación con lluvia faltante | Bajo a medio | D17 | ✅ |
 | Predios de más de 100 ha (86 % de la superficie elegible) diluyen la señal | Medio | D15 | ⬜ |
 
 ## Bloqueos

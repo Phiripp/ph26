@@ -46,6 +46,8 @@ UMBRAL_GARUA_MM = 0.2
 OM_MIN_MES_2026_MM = 1.0
 FACTOR_MAX_2026 = 3.0
 DIA_LLUVIOSO_MM = 1.0
+MAX_FALTANTES_ANIO = 0.2
+FRAC_MEDIANA_SOSPECHOSA = 0.1
 
 
 def km(lat1, lon1, lat2, lon2) -> float:
@@ -75,6 +77,36 @@ def lluvia_estaciones() -> pd.DataFrame:
     df = pd.concat(partes, ignore_index=True)
     # Si un día está en el histórico y en el acumulado, manda el acumulado (más reciente).
     return df.drop_duplicates(["punto_id", "fecha"], keep="last")
+
+
+def marcar_anios_sospechosos(est_dia: pd.DataFrame) -> pd.DataFrame:
+    """Marca como faltante el año completo de una estación cuya lluvia anual es implausible (tarea D17).
+
+    Caso conocido: Zapallar Catapilco (320063) registró 5 mm en 2020 contra 250-440 mm en las otras estaciones
+    sin ningún día marcado como faltante. Regla: estación con menos de 20 % de días faltantes en el año y total
+    anual bajo 10 % de la mediana de las otras estaciones (con menos de 20 % de faltantes). Los días pasan a
+    `lluvia_dato_faltante=True` y `lluvia_mm` queda vacío, para que la corrección use Open-Meteo.
+    """
+    df = est_dia[est_dia["fecha"] < "2026-01-01"].assign(anio=lambda d: d["fecha"].dt.year)
+    anual = df.groupby(["punto_id", "anio"]).agg(
+        mm=("lluvia_mm", "sum"), falt=("lluvia_dato_faltante", "mean")
+    ).reset_index()
+    buenas = anual[anual["falt"] < MAX_FALTANTES_ANIO]
+    sospechosas = []
+    for _, r in buenas.iterrows():
+        otras = buenas[(buenas["anio"] == r["anio"]) & (buenas["punto_id"] != r["punto_id"])]["mm"]
+        if len(otras) >= 3 and r["mm"] < FRAC_MEDIANA_SOSPECHOSA * otras.median():
+            sospechosas.append((r["punto_id"], r["anio"]))
+            print(f"Año sospechoso: estación {r['punto_id']} {int(r['anio'])}: {r['mm']:.0f} mm contra mediana {otras.median():.0f} mm")
+    if not sospechosas:
+        return est_dia
+    est_dia = est_dia.copy()
+    marca = pd.Series(
+        [(p, a) in set(sospechosas) for p, a in zip(est_dia["punto_id"], est_dia["fecha"].dt.year)], index=est_dia.index
+    )
+    est_dia.loc[marca, "lluvia_mm"] = np.nan
+    est_dia.loc[marca, "lluvia_dato_faltante"] = True
+    return est_dia
 
 
 def estacion_mas_cercana(celdas: pd.DataFrame, est: pd.DataFrame, dias_validos: pd.Series) -> dict[str, str]:
@@ -177,6 +209,7 @@ def main() -> int:
     est_ok = est[~est["descartada"]]
     est_dia = lluvia_estaciones()
     est_dia = est_dia[est_dia["punto_id"].isin(est_ok["punto_id"])]
+    est_dia = marcar_anios_sospechosos(est_dia)
     mensual_path = RAW / "dmc" / "2026_mensual.parquet"
     mensual = pd.read_parquet(mensual_path) if mensual_path.exists() else pd.DataFrame(columns=["punto_id", "mes", "lluvia_mm", "numero_datos"])
 

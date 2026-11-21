@@ -14,7 +14,8 @@
 4. Calcula las celdas ocupadas de cada tile (comun/celdas.py, las mismas que lee serie_sentinel2.py) y reparte los
    tiles en N partes con un reparto codicioso por costo: escenas del tile x celdas ocupadas. Los tiles se reparten
    por prioridad de región (primero el centro), así las primeras escenas que terminan son las de prioridad 1.
-5. Escribe plan/partes/<k>.jsonl con los ítems STAC serializados (las tareas no vuelven a consultar STAC) y
+5. Escribe plan/partes/<k>.jsonl con los ítems STAC serializados (las tareas no vuelven a consultar STAC),
+   plan/regiones_tiles.json (los tiles de cada región, para el control de completitud de la etapa region) y
    plan/escenas.parquet: escena_id, tile, fecha, nubes, parte, prioridad.
 
 Entradas: CAUDAL_ZONAS (config/regiones.json) y CAUDAL_DATA (/datos): base/predio/region=RXX.parquet y
@@ -172,7 +173,7 @@ def main() -> int:
 
     orden_region = {z: i for i, z in enumerate(zonas)}
     (plan / "poligonos_tile").mkdir(parents=True, exist_ok=True)
-    filas, por_tile = [], {}
+    filas, por_tile, tiles_region = [], {}, {}
     for t, item in sorted(tiles.items()):
         archivos = sorted(tmp.glob(f"{t}__*.parquet"), key=lambda f: orden_region[f.stem.split("__")[1]])
         if not archivos:
@@ -186,6 +187,8 @@ def main() -> int:
         prioridad = min(zonas[r]["prioridad"] for r in g["region"].unique())
         g.to_parquet(plan / "poligonos_tile" / f"{t}.parquet", index=False)
         por_tile[t] = {"escenas": escenas, "celdas": len(celdas), "prioridad": prioridad}
+        for r in g["region"].unique():
+            tiles_region.setdefault(r, []).append(t)
         print(f"tile {t}: {len(g)} polígonos, {len(celdas)} celdas ocupadas, {len(escenas)} escenas, prioridad {prioridad}", flush=True)
     if not por_tile:
         sys.exit("Ningún tile toca polígonos: ¿están base/predio y base/referencia_secano?")
@@ -202,8 +205,9 @@ def main() -> int:
                     f.write(json.dumps(it.to_dict()) + "\n")
                     filas.append({"escena_id": it.id, "tile": t, "fecha": pd.Timestamp(it.datetime).tz_localize(None).normalize(),
                                   "nubes": it.properties.get("eo:cloud_cover"), "parte": k, "prioridad": por_tile[t]["prioridad"]})
+    (plan / "regiones_tiles.json").write_text(json.dumps(tiles_region, indent=1), encoding="utf-8")  # control de completitud
     esc = pd.DataFrame(filas)
-    esc.to_parquet(plan / "escenas.parquet", index=False)
+    esc.to_parquet(plan / "escenas.parquet", index=False)  # al final: es la marca de plan terminado
 
     carga = [sum(costos[t] for t in lista) for lista in partes]
     print(f"\n{len(esc)} escenas en {len(por_tile)} tiles, {args.partes} partes; costo por parte: "

@@ -48,6 +48,7 @@ Datos de entrada de Caudal. Las zonas, las fuentes y las convenciones están en 
 | `processed/cauce.parquet` | Sí | 2.855 tramos de cauces de la DGA en Z1 y Z2 (río, estero, quebrada, etc.), con nombre, tipo y subsubcuenca | `scripts/extract/cauces_dga.py` |
 | `processed/consumo_predio.parquet`, `processed/consumo_predio_temporada.parquet` | Sí | Consumo de riego FAO-56 en rango de m³ por predio y mes, y por temporada (M4) | `scripts/models/consumo_fao56.py` |
 | `processed/ruta_ejemplo_z1.*`, `processed/ruta_ejemplo_z2.*` | Sí | Rutas de inspección de ejemplo (JSON, GeoJSON, GPX) con los casos de validación (M8) | `scripts/models/ruta_inspeccion.py --demo` |
+| `processed/anomalias_predio.parquet`, `processed/senal_riego.parquet` | Sí | Anomalías de verdor y humedad por predio y fecha (M2) y señal de riego por predio y temporada (M3) | `scripts/models/anomalias.py`, `scripts/models/detector_riego.py` |
 | `processed/predio_cauce.parquet` | Sí | Cauce, río o estero y canal más cercanos a cada predio elegible, con distancias. Para el campo "cauce cercano" del expediente (M12, M13) | `scripts/extract/cauces_dga.py` |
 | `processed/restriccion.parquet` | Sí | 57 sectores hidrogeológicos (SHAC) de la DGA que tocan Z1 o Z2, con `tipo_limite` (`prohibicion`, `restriccion`, `abierto`), resolución y fechas. Polígonos en EPSG:4326 | `scripts/extract/restriccion_dga.py` |
 | `processed/predio_restriccion.parquet` | Sí | Por predio elegible, el SHAC donde cae la mayor parte de su superficie: `cod_shac`, `sector`, `tipo_limite`, `resolucion_dga`, `fecha_resolucion`, `frac_en_shac`, `en_prohibicion` (SHAC dominante es de prohibición) y `toca_prohibicion` (intersecta algún SHAC de prohibición). Un predio sin SHAC queda vacío (1 de 7.911). Para el contexto y el expediente (M12, M13); no entra al ranking | `scripts/extract/restriccion_dga.py` |
@@ -214,6 +215,21 @@ Para regenerar: `uv run scripts/models/ruta_inspeccion.py --zona Z1 --puntajes d
 - Ejemplo Z1: 7 de 8 predios entre 08:30 y 15:20, 141 km. Ejemplo Z2: 6 de 6 entre 08:30 y 13:31, 110 km.
 - Caché de OSRM en `data/raw/osrm/` (no va a git). La demo sirve rutas precalculadas: el servidor público a veces tarda minutos.
 - Limitaciones: el perfil auto de OSRM no usa caminos de tierra; el último tramo hasta el predio (58–397 m, hasta 1,4 km en predios grandes) no se suma al tiempo. Los tiempos son optimistas.
+
+## Anomalías y detector de riego (M2, M3)
+
+Para regenerar (con la referencia real, cuando exista `serie_referencia.parquet`):
+
+```
+uv run scripts/models/anomalias.py --serie data/processed/serie_predio_elegibles_2025-26.parquet --referencia data/processed/serie_referencia.parquet
+uv run scripts/models/detector_riego.py [--umbral-verdor 2 --umbral-humedad 2 --dias-min 10]
+```
+
+- `anomalias_predio.parquet` (M2): por predio y fecha, `z_verdor` y `z_humedad` frente a los 30 polígonos de secano más cercanos (10 km o menos) con dato válido ese día. Escala robusta: max(1,4826 × MAD; 0,05). Con menos de 8 referencias, z queda vacío (`sin_referencia`).
+- `senal_riego.parquet` (M3): por predio y temporada, `frac_senal` (fechas con ambas anomalías ≥ 2 dentro de una ventana seca de M1 y con 10 o más días sin lluvia), `senal_riego` (frac_senal ≥ 0,5), medianas de z, `confianza` y `motivos_confianza`.
+- Se exigen las dos anomalías: el suelo desnudo puede tener NDMI más alto que el matorral seco (falso positivo si solo se mira la humedad).
+- Lo generado hoy usa la **muestra y una referencia provisional** (los predios oscuros de la misma muestra; columna `referencia = provisional`): sirve para ver el formato, no para calibrar. Con la referencia CONAF real de diciembre de 2019, el secano da NDVI 0,16 con MAD ≈ 0,02, así que el piso de escala 0,05 manda: z ≥ 2 equivale a 0,10 de NDVI y de NDMI sobre el secano. Esa escala y los umbrales se calibran en M7.
+- El detector marca riego, no ilegalidad: con z ≥ 2, el 42 % de los predios de los vecindarios de validación tendría señal en diciembre de 2019. M5 cruza la señal con el consumo (M4) y los derechos.
 
 ## Lo que hay que saber
 

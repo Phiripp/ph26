@@ -42,7 +42,6 @@ import { ringsOfChile, clipSatTile, clipDemTile } from './tile-clip.js';
 
 const URL_OF = (p) => new URL(p, import.meta.url).href;
 const CHILE_URL = URL_OF('../data/chile.geojson');
-const WORLD_URL = URL_OF('../data/world.geojson');
 const TILES_INDEX_URL = URL_OF('../tiles/index.json');
 const CASOS_URL = URL_OF('../data/zonas/casos.json');
 const FISC_URL = URL_OF('../data/zonas/fiscalizaciones.geojson');
@@ -61,7 +60,6 @@ const ESRI_TILES = ['https://server.arcgisonline.com/ArcGIS/rest/services/World_
 const ESRI_ATTR = 'Imagery © Esri, Maxar, Earthstar Geographics';
 const DEM_TILES = ['https://s3.amazonaws.com/elevation-tiles-prod/terrarium/{z}/{x}/{y}.png'];
 const DEM_ATTR = 'Relieve: <a href="https://registry.opendata.aws/terrain-tiles/" target="_blank" rel="noopener">AWS Terrain Tiles</a>';
-const BORDERS_ATTR = 'Límites: Natural Earth';
 
 // Relief: stronger at national zoom so the Andes read at a glance, easing off close up.
 const TERRAIN_EXAG_LOW = 1.8;       // at zoom <= TERRAIN_Z0
@@ -74,8 +72,6 @@ const terrainExag = (z) => {
 const HILLSHADE_EXAG = ['interpolate', ['linear'], ['zoom'], 4, 0.6, 8, 0.45, 11, 0.35];
 const BG = '#05080b';
 const OCEAN_GLOBE = '#0b1820';      // ocean on the far-out globe, a step above the space colour
-const LAND = '#0d1216';
-const LAND_LINE = '#24303a';
 const CYAN = '#45d6ee';
 const AMBER = '#ffa940';
 const RED = '#ff5b3d';
@@ -87,6 +83,10 @@ const RED = '#ff5b3d';
 const HOME_CENTER = [-70.5, -30.5];
 const HOME_PITCH = 40;
 const HOME_BEARING = 7;
+const HOME_X_FRAC = 0.66;          // wide screens: Chile sits right of the landing title (0.5 = centred)
+const HOME_WIDE_PX = 700;          // below this width the title goes on top and Chile stays centred
+const HOME_PAD_TOP = 0.1;          // fractions of the viewport height kept free above / below Chile
+const HOME_PAD_BOTTOM = 0.09;
 const FIT_NORTH = [-70.3, -17.6];   // Arica / límite norte
 const FIT_SOUTH = [-73.6, -43.4];   // Chiloé
 const MIN_ZOOM_FLOOR = 3.2;
@@ -361,7 +361,7 @@ function oceanFor(homeZoom, introZoom) {
   return ['interpolate', ['linear'], ['zoom'], globe, OCEAN_GLOBE, flat, BG];
 }
 
-function buildStyle({ chile, world, local, sitesFC }) {
+function buildStyle({ chile, local, sitesFC }) {
   const sources = {};
   const layers = [{ id: 'bg', type: 'background', paint: { 'background-color': oceanFor(4.6, 1.8) } }];
   const satPaint = {
@@ -407,14 +407,6 @@ function buildStyle({ chile, world, local, sitesFC }) {
     // No mask layer: outside Chile no imagery is ever loaded (caudal-sat clips it at the source).
   }
 
-  // ---- neighbouring countries as dark landmasses ----
-  if (world) {
-    sources.world = { type: 'geojson', data: world, attribution: BORDERS_ATTR };
-    layers.push(
-      { id: 'countries', type: 'fill', source: 'world', paint: { 'fill-color': LAND, 'fill-opacity': 1 } },
-      { id: 'country-lines', type: 'line', source: 'world', paint: { 'line-color': LAND_LINE, 'line-width': 1 } }
-    );
-  }
   if (!chile) {
     // no Chile boundary: never show imagery world-wide; keep a faint relief instead
     layers.push({
@@ -686,9 +678,8 @@ export async function initMap({ container, sites, casos: casosIn, onSelect } = {
   const coarse = window.matchMedia && window.matchMedia('(pointer: coarse)').matches;
 
   // Boundary files, tile-cache index, cases and zone index in parallel (all small, all local).
-  const [chileFC, world, idx, casosJ, zIndex, zBbox] = await Promise.all([
+  const [chileFC, idx, casosJ, zIndex, zBbox] = await Promise.all([
     fetchJSON(CHILE_URL, 8000),
-    fetchJSON(WORLD_URL, 8000),
     fetchJSON(TILES_INDEX_URL, 2500),
     Array.isArray(casosIn) ? Promise.resolve(null) : fetchJSON(CASOS_URL, 4000),
     fetchJSON(ZONAS_INDEX_URL, 3000),
@@ -764,7 +755,7 @@ export async function initMap({ container, sites, casos: casosIn, onSelect } = {
 
   const map = new maplibregl.Map({
     container,
-    style: buildStyle({ chile, world, local, sitesFC }),
+    style: buildStyle({ chile, local, sitesFC }),
     center: HOME_CENTER,
     zoom: 4.6,
     pitch: HOME_PITCH,
@@ -812,7 +803,8 @@ export async function initMap({ container, sites, casos: casosIn, onSelect } = {
   function homeCamera() {
     const c = map.getContainer();
     const w = c.clientWidth || innerWidth, h = c.clientHeight || innerHeight;
-    const padTop = Math.round(h * 0.13), padBottom = Math.round(h * 0.1), padX = 16;
+    const padTop = Math.round(h * HOME_PAD_TOP), padBottom = Math.round(h * HOME_PAD_BOTTOM), padX = 16;
+    const xFrac = w >= HOME_WIDE_PX ? HOME_X_FRAC : 0.5;
     let zoom = 4.6;
     let center = maplibregl.LngLat.convert(HOME_CENTER);
     try {
@@ -848,7 +840,7 @@ export async function initMap({ container, sites, casos: casosIn, onSelect } = {
         zoom = lo;
         set('zoom', zoom);
         const [n, s] = ends();
-        const wantY = (padTop + h - padBottom) / 2, wantX = w / 2;
+        const wantY = (padTop + h - padBottom) / 2, wantX = w * xFrac;
         const dy = (n.y + s.y) / 2 - wantY, dx = (n.x + s.x) / 2 - wantX;
         if (Math.abs(dy) < 2 && Math.abs(dx) < 2) break;
         center = toLngLat(new maplibregl.Point(w / 2 + dx, h / 2 + dy));

@@ -33,7 +33,7 @@ Para el despliegue automático desde el repo espejo, el disparador debe usar `fr
 - `nginx.conf.template` — escucha en `PORT` (8080 en Cloud Run), comprime JSON/JS/CSS, `tiles/` y
   `assets/` con caché de 24 h, y el resto (`sw.js`, código, datos) siempre revalida, para que un
   despliegue se vea al recargar.
-- `.dockerignore` / `.gcloudignore` — dejan fuera `scripts/`, el README y las páginas `*-test.html`.
+- `.dockerignore` / `.gcloudignore` — dejan fuera `scripts/` y el README.
 - Probar en local: `docker build -t caudal-web frontend-demo && docker run --rm -p 8080:8080 caudal-web`.
 - Probado en la URL real: recorrido completo, service worker y segunda visita sin red.
 - El despliegue es manual (comando de arriba) hasta que se conecte el repo espejo al proyecto.
@@ -194,7 +194,6 @@ tiles/                    caché local de tiles satelitales y de relieve de Chil
 scripts/                  scripts que descargan y procesan todo lo anterior
 scripts/build_zonas_web.py   archivos livianos que carga la página (resumen, scores.lite, series por bloque)
 scripts/perf/measure.cjs  medición de rendimiento
-valle-test.html, panels-test.html   páginas de prueba de módulos sueltos
 ```
 
 ## Datos

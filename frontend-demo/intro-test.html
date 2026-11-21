@@ -1,0 +1,123 @@
+<!doctype html>
+<html lang="es-CL">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Caudal · intro test</title>
+<meta name="theme-color" content="#05080b">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,400..900&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<link rel="stylesheet" href="https://unpkg.com/maplibre-gl@5.24.0/dist/maplibre-gl.css">
+<link rel="stylesheet" href="css/styles.css">
+<link rel="stylesheet" href="css/intro.css">
+<script type="importmap">
+{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.min.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"}}
+</script>
+<script src="https://unpkg.com/maplibre-gl@5.24.0/dist/maplibre-gl.js"></script>
+<style>
+  /* test-only controls, outside the stage */
+  .t-ctl{position:fixed;left:12px;bottom:12px;z-index:50;display:flex;gap:6px;flex-wrap:wrap;font:500 11px/1 'IBM Plex Mono',monospace}
+  .t-ctl a,.t-ctl span{padding:7px 9px;background:rgba(5,8,11,.8);border:1px solid #24303a;color:#8b9ba4;text-decoration:none}
+  .t-ctl a:hover{color:#e4ebee;border-color:#45d6ee}
+</style>
+</head>
+<body>
+<!--
+  Standalone check for js/intro.js (globe intro on the live map -> landing home view -> title).
+  Query params:
+    ?map=simple   plain MapLibre 5 globe (local tiles + Chile outline) instead of the real js/map.js
+    #anything     a hash skips the intro and the title, like the real page
+  prefers-reduced-motion (OS setting / devtools emulation): no flight, static title.
+-->
+<header class="stage" id="top" data-mode="landing">
+  <div id="map" aria-label="Mapa satelital de Chile"></div>
+  <div class="stage-scrim" aria-hidden="true"></div>
+  <div class="hud-frame" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
+  <div class="nav">
+    <div class="wrap">
+      <a class="brand" href="#top"><i></i>CAUDAL</a>
+      <nav aria-label="Principal">
+        <a href="#como">Cómo funciona</a>
+        <a href="#valles">Valles priorizados</a>
+        <span class="chip"><span class="rec"></span>Prototipo · Platanus Hack 26</span>
+      </nav>
+    </div>
+  </div>
+  <div class="hud-meta"><div class="wrap"><span class="for-landing">Priorización de fiscalización · <b>intro test</b></span></div></div>
+  <div class="stage-bottom">
+    <div class="wrap">
+      <div class="map-legend for-landing" aria-hidden="true">
+        <span><i style="background:var(--water)"></i>Valle priorizado</span>
+        <span><i style="background:var(--loss)"></i>Señal en observación</span>
+      </div>
+    </div>
+  </div>
+</header>
+<div class="t-ctl">
+  <a href="intro-test.html">Reproducir</a>
+  <a href="intro-test.html?map=simple">Mapa simple</a>
+  <a href="intro-test.html#z1">Con hash (sin intro)</a>
+  <span id="t-state">…</span>
+</div>
+
+<script type="module">
+import { initIntro } from './js/intro.js';
+
+const $ = (id) => document.getElementById(id);
+const stage = $('top');
+const params = new URLSearchParams(location.search);
+const state = (s) => { $('t-state').textContent = s; console.log('[intro-test]', s); };
+
+/** Minimal controller with the same contract as js/map.js (map + getHomeCamera + introStartCamera). */
+async function simpleMap() {
+  const maplibregl = globalThis.maplibregl;
+  const chile = await fetch('data/chile.geojson').then((r) => r.json()).catch(() => null);
+  const tile = (p) => new URL(p, location.href).href.replace(/%7B/g, '{').replace(/%7D/g, '}');
+  const map = new maplibregl.Map({
+    container: 'map',
+    style: {
+      version: 8,
+      projection: { type: 'globe' },
+      sources: {
+        s2: { type: 'raster', tiles: [tile('tiles/s2/{z}/{x}/{y}.jpg')], tileSize: 256, minzoom: 3, maxzoom: 9 },
+        ...(chile ? { chile: { type: 'geojson', data: chile } } : {}),
+      },
+      layers: [
+        { id: 'bg', type: 'background', paint: { 'background-color': '#0b1116' } },
+        { id: 's2', type: 'raster', source: 's2' },
+        ...(chile ? [{ id: 'chile-line', type: 'line', source: 'chile', paint: { 'line-color': '#45d6ee', 'line-width': 1, 'line-opacity': 0.7 } }] : []),
+      ],
+    },
+    center: [-70.6, -31.5], zoom: 4.4, pitch: 40, bearing: 7, maxPitch: 60, dragRotate: false, attributionControl: false,
+  });
+  map.on('error', () => {}); // tiles outside Chile are missing on purpose
+  await new Promise((r) => map.once('load', r));
+  return {
+    map,
+    getHomeCamera: () => ({ center: [-70.6, -31.5], zoom: 4.4, pitch: 40, bearing: 7 }),
+    introStartCamera: () => ({ center: [-62, -22], zoom: 1.8, pitch: 0, bearing: 0 }),
+  };
+}
+
+async function realMap() {
+  const sites = await fetch('data/sites.json').then((r) => r.json());
+  const { initMap } = await import('./js/map.js');
+  return initMap({ container: $('map'), sites: sites.sites || sites, casos: sites.casos, onSelect: () => {} });
+}
+
+const t0 = performance.now();
+const mapCtl = await (params.get('map') === 'simple' ? simpleMap() : realMap().catch((e) => {
+  console.warn('real map failed, using simple map', e); $('map').innerHTML = ''; return simpleMap();
+}));
+globalThis.__introMapCtl = mapCtl;
+const intro = initIntro({ stage, mapCtl, skip: !!location.hash.slice(1) });
+globalThis.__intro = intro;
+state(`intro: ${stage.dataset.intro || 'n/a'}`);
+intro.done.then(({ title, reason }) => {
+  state(`intro done (${reason}) at ${Math.round(performance.now() - t0)} ms · title ${title ? 'shown' : 'none'}`);
+  if (title) title.hidden.then(() => state(`title hidden · intro ${reason}`));
+});
+</script>
+</body>
+</html>

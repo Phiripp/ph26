@@ -1,0 +1,20 @@
+{
+  "note": "Puntos de entrada del mapa nacional. Zonas Z1/Z2 según docs/spec-v2.md (data/zonas.json del equipo); lat/lon = centro del área de predios muestra + casos (map.js usa data/zonas/index.json centro si existe). Aculeo: superficie medida con MNDWI sobre Sentinel-2 cloudless de EOX, 2018–2024. `casos` es respaldo de data/zonas/casos.json (10 casos de validación, resueltos por la DGA con multa).",
+  "sites": [
+    {"id": "z1", "kind": "zona", "zona": "z1", "codigo": "Z1", "name": "Petorca", "type": "Zona", "region": "Valparaíso", "lat": -32.4405, "lon": -71.1993, "casos": 7, "comunas": ["PETORCA", "CABILDO", "LA LIGUA", "PAPUDO", "ZAPALLAR"], "note": "Demo principal · priorización de inspección"},
+    {"id": "z2", "kind": "zona", "zona": "z2", "codigo": "Z2", "name": "Aconcagua bajo", "type": "Zona", "region": "Valparaíso", "lat": -32.8208, "lon": -71.1226, "casos": 3, "comunas": ["HIJUELAS", "LA CRUZ", "QUILLOTA", "NOGALES", "LA CALERA"], "note": "Validación · segunda demo"},
+    {"id": "aculeo", "name": "Laguna de Aculeo", "type": "Laguna", "region": "Región Metropolitana", "lat": -33.843, "lon": -70.914, "loss": 99, "since": "2019", "affected": "4,5 km² (2018)", "note": "Se secó casi por completo en 2019–2020; recuperación parcial en 2024"}
+  ],
+  "casos": [
+    {"expediente": "FD-0501-181", "zona": "z1", "comuna": "CABILDO", "lon": -71.02377, "lat": -32.41082, "fecha_inspeccion": "2024-04-02", "decision": "Acoge", "multa_utm": 710.6, "papel": "demo_principal"},
+    {"expediente": "FO-0501-462", "zona": "z1", "comuna": "LA LIGUA", "lon": -71.21551, "lat": -32.44641, "fecha_inspeccion": "2025-05-07", "decision": "Constata infracción", "multa_utm": 778.07, "papel": "validacion"},
+    {"expediente": "FD-0501-191", "zona": "z1", "comuna": "CABILDO", "lon": -71.11354, "lat": -32.46201, "fecha_inspeccion": "2025-03-31", "decision": "Acoge denuncia", "multa_utm": 990.5, "papel": "validacion"},
+    {"expediente": "FD-0501-189", "zona": "z1", "comuna": "CABILDO", "lon": -71.10598, "lat": -32.4548, "fecha_inspeccion": "2025-02-25", "decision": "Acoge", "multa_utm": 501, "papel": "validacion"},
+    {"expediente": "FO-0501-376", "zona": "z1", "comuna": "LA LIGUA", "lon": -71.34394, "lat": -32.42944, "fecha_inspeccion": "2022-12-27", "decision": "Constata infracción", "multa_utm": 931.6, "papel": "validacion"},
+    {"expediente": "FO-0501-380", "zona": "z1", "comuna": "CABILDO", "lon": -71.02119, "lat": -32.42704, "fecha_inspeccion": "2022-08-04", "decision": "Constata infracción", "multa_utm": 1069, "papel": "validacion"},
+    {"expediente": "FO-0501-386", "zona": "z1", "comuna": "PAPUDO", "lon": -71.34153, "lat": -32.43003, "fecha_inspeccion": "2022-12-27", "decision": "Constata infracción", "multa_utm": 931.6, "papel": "validacion"},
+    {"expediente": "FD-0504-257", "zona": "z2", "comuna": "LA CRUZ", "lon": -71.22005, "lat": -32.81092, "fecha_inspeccion": "2024-07-09", "decision": "Acoge", "multa_utm": 1144, "papel": "validacion"},
+    {"expediente": "FO-0504-95", "zona": "z2", "comuna": "HIJUELAS", "lon": -71.01774, "lat": -32.82257, "fecha_inspeccion": "2021-11-23", "decision": "Constata infracción", "multa_utm": 1983.9, "papel": "antecedente_satelital"},
+    {"expediente": "FO-0504-157", "zona": "z2", "comuna": "HIJUELAS", "lon": -71.15307, "lat": -32.80977, "fecha_inspeccion": "2025-05-14", "decision": "Constata infracción", "multa_utm": 688.87, "papel": "validacion"}
+  ]
+}

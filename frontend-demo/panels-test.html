@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="es-CL">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Caudal · panels test</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,400..800&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/styles.css">
+<link rel="stylesheet" href="css/panels.css">
+<style>
+  body{padding:16px}
+  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(380px,400px));gap:16px;align-items:start}
+  .col{height:calc(100vh - 80px);overflow:auto;border:1px solid var(--rule);background:rgba(5,8,11,.9);padding:14px}
+  h1{font:500 12px var(--f-mono);color:var(--dim);margin:0 0 12px;text-transform:uppercase;letter-spacing:.1em}
+  h1 a{color:var(--water);margin-left:10px}
+  .chart-demo{margin-top:16px}
+</style>
+</head>
+<body>
+<h1>panels-test · ranking | casos | ficha | caso | expediente | ruta <a href="?z=z1">z1</a><a href="?z=z2">z2</a></h1>
+<div class="grid">
+  <div class="col pn" id="rank"></div>
+  <div class="col pn" id="casos"></div>
+  <div class="col pn" id="ficha"></div>
+  <div class="col pn" id="caso"></div>
+  <div class="col pn" id="exp"></div>
+  <div class="col pn" id="ruta"></div>
+</div>
+<figure class="chart hud chart-demo"><figcaption><span>old caption</span></figcaption><div class="chart-scroll"><svg id="chart" viewBox="0 0 960 300"></svg></div></figure>
+<p class="callout" id="callout"></p>
+<script type="module">
+import { loadZona, loadZonas } from './js/zona-data.js';
+import { renderRanking, renderFicha } from './js/ficha.js';
+import { renderExpediente } from './js/expediente.js';
+import { renderRuta } from './js/ruta-panel.js';
+import { renderCaso, renderCasosList } from './js/caso.js';
+import { renderChart } from './js/chart.js';
+const $ = id => document.getElementById(id);
+const q = new URLSearchParams(location.search);
+await loadZonas();
+const data = await loadZona(q.get('z') || 'z1');
+window.data = data;
+const showCaso = exp => {
+  const c = data.casos.find(x => x.expediente === exp);
+  renderCaso($('caso'), c, data, { onPredio: id => show(id), onExpediente: id => renderExpediente($('exp'), data.byId.get(id), data, {}), onBack: () => {} });
+};
+const show = id => {
+  const f = data.byId.get(id);
+  if (!f) return;
+  renderFicha($('ficha'), f, data, { onExpediente: i => renderExpediente($('exp'), data.byId.get(i), data, { onBack: () => {} }), onBack: () => {}, onCaso: showCaso });
+  renderExpediente($('exp'), f, data, { onBack: () => {} });
+};
+const caso0 = q.get('caso') ? data.casos.find(c => c.expediente === q.get('caso')) : (data.casos.find(c => c.papel === 'demo_principal') || data.casos.find(c => c.imagenes?.length) || data.casos[0]);
+const top = data.predios.filter(f => ['alta', 'media'].includes(f.properties.banda)).sort((a, b) => (b.properties.indice ?? 0) - (a.properties.indice ?? 0))[0];
+const firstId = q.get('id') || (q.get('ficha') === 'top' ? top?.properties.id : caso0?.predio_id) || top?.properties.id || data.predios[0].properties.id;
+renderRanking($('rank'), data, { onSelect: show, selectedId: firstId });
+renderCasosList($('casos'), data, { onSelect: showCaso, selected: caso0?.expediente });
+show(firstId);
+if (caso0) showCaso(caso0.expediente);
+let ruta;
+ruta = renderRuta($('ruta'), data, {
+  onPlay: () => new Promise(res => {
+    let o = 0; const n = data.ruta.paradas.length;
+    const tick = () => { o++; ruta.setActiveStop(o); ruta.setProgress(o / n); if (o < n) setTimeout(tick, 200); else res(); };
+    tick();
+  }),
+  onStop: id => show(id),
+});
+window.ruta = ruta;
+await renderChart($('chart'), $('callout'));
+window.ready = true;
+</script>
+</body>
+</html>

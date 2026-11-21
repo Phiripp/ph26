@@ -1,0 +1,35 @@
+{
+  "name": "Valle de Petorca",
+  "bbox": {
+    "west": -71.035,
+    "south": -32.288,
+    "east": -70.792,
+    "north": -32.175
+  },
+  "size": {
+    "w": 2048,
+    "h": 1126
+  },
+  "years": [
+    2018,
+    2019,
+    2020,
+    2021,
+    2022,
+    2023,
+    2024
+  ],
+  "baselineYear": 2018,
+  "dem": {
+    "file": "dem.png",
+    "encoding": "terrarium",
+    "w": 512,
+    "h": 282,
+    "minM": 373.8,
+    "maxM": 1833.0
+  },
+  "water": {},
+  "synthetic": false,
+  "notes": "sat-*.jpg son composiciones anuales true-color sin nubes (EOX s2cloudless), no escenas individuales; no incluyen banda NIR, por eso no hay capa NDVI real. baselineYear = primer año disponible (no se calcula agua en este valle).",
+  "attribution": "Sentinel-2 cloudless - https://s2maps.eu by EOX IT Services GmbH (contains modified Copernicus Sentinel data). Elevación: AWS Terrain Tiles (Mapzen/Terrarium; SRTM, NASA y otros)."
+}

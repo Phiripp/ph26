@@ -12,3 +12,6 @@ __pycache__/
 
 # Worktrees de agentes de Claude Code
 .claude/worktrees/
+
+# Frontend demo: caché de descargas de los scripts (se regenera)
+frontend-demo/scripts/.cache/

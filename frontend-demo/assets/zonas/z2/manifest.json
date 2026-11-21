@@ -1,0 +1,36 @@
+{
+  "name": "Z2 · Aconcagua bajo",
+  "bbox": {
+    "west": -71.257,
+    "south": -32.853,
+    "east": -70.988,
+    "north": -32.789
+  },
+  "size": {
+    "w": 2048,
+    "h": 580
+  },
+  "years": [
+    2018,
+    2019,
+    2020,
+    2021,
+    2022,
+    2023,
+    2024
+  ],
+  "baselineYear": 2018,
+  "dem": {
+    "file": "dem.png",
+    "encoding": "terrarium",
+    "w": 512,
+    "h": 145,
+    "minM": 142.3,
+    "maxM": 1300.0
+  },
+  "water": {},
+  "synthetic": false,
+  "satZoom": 14,
+  "notes": "sat-*.jpg son composiciones anuales true-color sin nubes (EOX s2cloudless), no escenas individuales; no incluyen banda NIR, por eso no hay capa NDVI real. bbox = casos de validación + predios de muestra de la zona + 1.5 km.",
+  "attribution": "Sentinel-2 cloudless - https://s2maps.eu by EOX IT Services GmbH (contains modified Copernicus Sentinel data). Elevación: AWS Terrain Tiles (Mapzen/Terrarium; SRTM, NASA y otros)."
+}

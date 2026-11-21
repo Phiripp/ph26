@@ -48,3 +48,13 @@ Nota: 762 mm anuales es alto para Petorca (secano, zona semiárida); sin estaci�
 - [ ] CSV de lluvia DGA de una estación de la zona.
 - [ ] Correo a info@agromet.cl.
 - [ ] Confirmar zona final del valle en un mapa.
+
+## Imágenes de mayor calidad (2026-11-21)
+
+Decisión: **Sentinel-2 para el análisis y Esri World Imagery solo como fondo visual.**
+
+- Esri World Imagery (`services.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer`): sin clave, 0,31 m por píxel sobre el predio 88-31 (fuente Vivid de Vantor, captura del 2025-09-08, exactitud ~5 m). Cada zona tiene su propia fecha de captura; se consulta en `MapServer/4/query`.
+- Solo color real: sin infrarrojo, así que no sirve para NDVI ni NDMI. Es un mosaico con color corregido, sin reflectancia comparable entre fechas.
+- Licencia (según los resultados de búsqueda; falta leer el texto completo): Esri no permite usarla como entrada directa de extracción automática; lo exportado y lo derivado queda para uso no comercial dentro de ArcGIS. Por eso **no se guardan recortes de Esri en el repo ni se procesan con código**.
+- Para el frontend: cargar Esri como capa de tiles raster en el mapa (con su atribución), directo desde Esri, y dibujar encima el polígono del predio y las capas de NDVI/NDMI derivadas de Sentinel-2 (`data/processed/imagenes/`).
+- Si hace falta análisis en alta resolución: imágenes comerciales (Planet, Maxar) o una ortofoto pública de CIREN. No se encontró un servicio de CIREN accesible.

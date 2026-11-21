@@ -66,6 +66,7 @@ from scipy.spatial import cKDTree
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from comun.rutas import PROC, RAIZ  # noqa: E402
+
 CRS_M = "EPSG:32719"
 MAD_A_SIGMA = 1.4826
 NDVI_PSEUDO_SECANO = 0.30

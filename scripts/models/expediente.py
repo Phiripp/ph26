@@ -48,6 +48,7 @@ from jinja2 import Environment, FileSystemLoader, select_autoescape  # noqa: E40
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from comun.rutas import PROC, RAIZ, mostrar  # noqa: E402
+
 PLANTILLAS = Path(__file__).resolve().parent / "plantillas"
 CRS_M = 32719
 STAC = "https://earth-search.aws.element84.com/v1"

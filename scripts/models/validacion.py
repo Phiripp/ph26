@@ -49,6 +49,7 @@ from sklearn.metrics import roc_auc_score
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from comun.rutas import PROC, RAIZ  # noqa: E402
+
 ORDEN = {"alta": 3, "media": 2, "baja": 1, "sin_alerta": 0}
 NIVELES = {"alta": ["alta"], "alta o media": ["alta", "media"], "cualquier alerta": ["alta", "media", "baja"]}
 CASOS_CLAVE = ["FO-0504-95", "FD-0501-181", "FO-0504-157", "FD-0504-257"]

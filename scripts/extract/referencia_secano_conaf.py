@@ -190,6 +190,7 @@ def main() -> int:
     gdf["clase"] = gdf["uso_cod"].map(CLASES)
     gdf = gdf[gdf["clase"].notna()].copy()
     metros = gdf.to_crs(CRS_METROS)
+    metros = metros.set_geometry(metros.make_valid())  # la generalización del servidor deja polígonos inválidos
     mascara = huertos.buffer(MARGEN_HUERTO_M).union_all()
     recortado = metros.difference(mascara)
     gdf["recortado_fruta"] = ~recortado.geom_equals(metros.geometry)

@@ -36,6 +36,7 @@ import pandas as pd
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from comun.rutas import PROC, RAIZ  # noqa: E402
+
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from validacion import casos, wilson  # noqa: E402
 

@@ -38,7 +38,7 @@ Cada tarea entrega un script en `scripts/extract/` y un archivo en `data/process
 
 | ID | Tarea | Fuente | Zonas | Responsable | Depende de | Entrega | Estado |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| D1 | Series mensuales de NDVI, NDWI y NDMI por predio, con máscara de nubes SCL; desde enero de 2020 hasta la última escena limpia (periodos prioritarios en `data/zonas.json`: Z1 desde diciembre de 2024; Z2 en 2021–2022 y de diciembre de 2024 a mayo de 2025) | Sentinel-2 L2A (STAC) | Z1, Z2 | Gabriela | D3 (geometrías) | `serie_predio.parquet` | ⬜ |
+| D1 | Series mensuales de NDVI, NDWI y NDMI por predio, con máscara de nubes SCL; desde enero de 2020 hasta la última escena limpia (periodos prioritarios en `data/zonas.json`: Z1 desde diciembre de 2024; Z2 en 2021–2022 y de diciembre de 2024 a mayo de 2025). Solo predios `elegible` (7.911) | Sentinel-2 L2A (STAC) | Z1, Z2 | Gabriela | D3 (geometrías) | `serie_predio.parquet` | ⬜ |
 | D2 | Lluvia diaria y ET0 en grilla; estaciones DMC, DGA e INIA donde existan | Open-Meteo y estaciones | Z1, Z2 | Gabriela | — | `clima.parquet`, `predio_clima.parquet` y `estacion_clima.parquet` (plan: [d2-clima.md](plans/d2-clima.md)) | ✅ |
 | D3 | Descargar los predios de las comunas de cada zona y calcular el área en EPSG:32719. Entregar primero una muestra de 50 predios por zona para desbloquear D1 | CIREN Propiedades Rurales | Z1, Z2 | Tomás | — | `scripts/extract/predios_ciren.py` → `predio.parquet` (local) y `predio_muestra.geojson` (en git) | ✅ |
 | D4 | Descargar el Excel de derechos de Valparaíso; convertir datums; normalizar a m³ por mes; marcar los eventuales y las "Acciones" | DGA derechos registrados | Z1, Z2 | Tomás | — | `scripts/extract/derechos_dga.py` → `derecho.parquet` (en git, sin nombres); Excel y titulares en `data/raw/dga/` (local) | ✅ |
@@ -63,7 +63,7 @@ Cada tarea entrega código en el repo y un archivo de resultados en `data/proces
 | M2 | Anomalías `z_verdor` y `z_humedad` por predio frente a la referencia de secano o a la historia del predio | Z1, Z2 | Por asignar | D1, D11 | columnas en `serie_predio.parquet` | ⬜ |
 | M3 | Detector de riego: ambas anomalías sobre su umbral dentro de una ventana seca | Z1, Z2 | Por asignar | M1, M2 | `senal_riego.parquet` | ⬜ |
 | M4 | Consumo estimado con FAO-56: Kc(NDVI), con ajuste por especie si existe; resultado en rango de m³ | Z1, Z2 | Por asignar | D1, D2, D7 | `consumo.parquet` | ⬜ |
-| M5 | Índice de sospecha, confianza y bandas (alta, media, baja) | Z1, Z2 | Por asignar | M3, M4, D5 | `puntaje.parquet` | ⬜ |
+| M5 | Índice de sospecha, confianza y bandas (alta, media, baja). Mide el exceso del consumo sobre los derechos propios y del entorno (`predio_derecho.parquet`), no "tiene o no tiene derechos": el 78 % de los multados tiene derechos | Z1, Z2 | Por asignar | M3, M4, D5 | `puntaje.parquet` | ⬜ |
 | M6 | Validación: posición en el ranking de los positivos de D6; métrica precisión en los k primeros. Casos clave: FO-0501-462 (demo, La Ligua 2025) y FO-0504-95 (antecedente satelital, Hijuelas 2021) | Z1 y Z2 | Por asignar | M5, D6 | `validacion.md` con la métrica y el mapa | ⬜ |
 | M7 | Calibrar N, los umbrales de anomalía y los pesos de la confianza con el resultado de M6 | Z2 | Por asignar | M6 | valores fijados en el spec | ⬜ |
 | M8 | Ruta de inspección con OR-Tools: un vehículo, cada predio como parada opcional con premio según su puntaje, jornada de 8 h; exportar GPX | Z1, Z2 | Por asignar | M5, D9 | `ruta.py` y GPX de ejemplo | ⬜ |
@@ -110,6 +110,7 @@ Orden de trabajo al 21-11-2026. Se actualiza cuando cambia lo que bloquea.
 | 21-11-2026 | Gabriela extrae satélite (D1), clima (D2) y referencia de secano (D11) en ambas zonas | Equipo |
 | 21-11-2026 | Los nombres de titulares y los datos descargados no se suben a git | Equipo |
 | 21-11-2026 | `predio_id` = `mslink` de CIREN, no el rol (el rol se repite y a veces no es un rol) | Tomás |
+| 21-11-2026 | Universo elegible: rol válido y 1 ha o más (7.911 predios); cubre el 91 % de los multados por extracción | Tomás |
 | 21-11-2026 | D5 entrega `predio_derecho.parquet` con `m3_anual_derecho_entorno_500m`: M5 baja la confianza (no sube la sospecha) si el predio tiene poco derecho propio y mucho en el entorno (lotes de pozo) | Tomás |
 | 21-11-2026 | Métrica de impacto: candidatos no fiscalizados × acierto medido, en rango de m³ y pesos; un candidato no es un caso | Tomás |
 | 21-11-2026 | Datos lo más recientes posible. Caso de la demo: FO-0501-462 (La Ligua, 2025). El ranking usa la temporada seca 2025-26 y la ficha muestra la escena más reciente (octubre de 2026 fue lluvioso) | Tomás |

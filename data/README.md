@@ -42,11 +42,12 @@ Datos de entrada de Caudal. Las zonas, las fuentes y las convenciones están en 
 | `zona` | str | `Z1` o `Z2` |
 | `comuna` | str | Nombre de la comuna en mayúsculas, sin tildes |
 | `rol` | str | Rol SII. Se repite dentro de una comuna (un predio puede tener varios polígonos) |
+| `elegible` | bool | `rol_valido` y 1 ha o más: 7.911 predios. Es el universo del análisis satelital, el ranking y la ruta (ver [Zonas de estudio](../docs/spec-v2.md#zonas-de-estudio)) |
 | `rol_valido` | bool | `True` si el rol tiene formato `manzana-predio` (p. ej. `87-3`). `False` en ríos, caminos, vialidad (`VP-*`, `RV-*`), sin rol (`SR`) y bienes comunes (`BC`): unos 1.800 polígonos que no son predios agrícolas |
 | `area_ha` | float | Área en hectáreas, calculada en EPSG:32719 |
 | `geometry` | Polygon | EPSG:4326 |
 
-La muestra tiene además `caso_cercano` (expediente del caso más cercano) y `dist_caso_m` (distancia en metros). Solo incluye predios con `rol_valido` y área de 0,5 ha o más.
+La muestra tiene además `caso_cercano` (expediente del caso más cercano) y `dist_caso_m` (distancia en metros). Solo incluye predios `elegible`.
 
 ## Columnas de `derecho`
 
@@ -105,7 +106,7 @@ Tres cosas para M5 y M6:
 - Derechos: hay 7.295 derechos sumables, menores de 100 l/s y con punto, para cruzar con predios (D5); el 92 % son subterráneos.
 - Derechos, prueba con casos: el pozo de FO-0504-95 (multado por "2 pozos sin derechos") no tiene ningún derecho a menos de 500 m; el más cercano está a 1.280 m. El de FO-0501-462 tiene 11 derechos a menos de 500 m, así que ahí la infracción sería extraer más de lo autorizado.
 
-- Filtra `rol_valido = True` antes de calcular series; los demás polígonos son cauces, caminos o cerros sin rol.
+- Filtra `elegible = True` antes de calcular series: deja fuera cauces, caminos y polígonos sin rol, y también parcelas y lotes de pozo de menos de 1 ha.
 - Hay polígonos muy grandes (hasta unas 1.000 ha) que son cerros o fundos enteros. Su NDVI promedio diluye la señal de riego.
 - El punto del caso es el pozo o la captación, no el centro del predio. El punto cae dentro de un predio válido en FO-0501-462 (`88-31`, 6,1 ha), FO-0504-95 (`61-6`, 5,7 ha), FO-0504-157 (`46-25`, 29,8 ha) y FO-0501-376 (`101-12`, 993 ha: demasiado grande para una señal clara). En los otros 4 casos cae fuera, a entre 5 y 24 m del predio más cercano.
 - Solo se usan casos resueltos. Hay expedientes "En trámite" en las zonas; no se muestran como infractores en la demo.

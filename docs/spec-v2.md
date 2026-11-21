@@ -36,6 +36,17 @@ Las zonas se definen en esta sección y en ningún otro lugar. Toda extracción 
 | Z1 Petorca | Petorca, Cabildo, La Ligua, Papudo, Zapallar | -71.5421, -32.7328, -70.4104, -32.0200 | Demo principal: sequía y camiones aljibe | 9.331 | 6.104 | 487 (74) |
 | Z2 Aconcagua bajo | Hijuelas, La Cruz, Quillota, Nogales, La Calera | -71.5008, -32.9905, -70.9708, -32.5897 | Validación con casos sancionados y segunda demo | 10.719 | 3.034 | 302 (103) |
 
+- Universo elegible: predios con rol válido y 1 ha o más (columna `elegible` en `predio.parquet`). Son 7.911 predios (4.272 en Z1 y 3.639 en Z2). Todo el análisis satelital, el ranking y la ruta usan solo predios elegibles. Motivo: de las 538 fiscalizaciones por extracción ubicadas en predios de Z1 y Z2, los multados miden 9,6 ha en mediana (el predio típico de la capa, 0,7 ha), y los predios de 1 ha o más cubren el 91 % de los multados. Los de menos de 1 ha son el 57 % de la capa: parcelas residenciales y lotes de pozo, con 100 píxeles o menos.
+
+  | Tamaño | Todos los predios | Multados |
+  | --- | --- | --- |
+  | Menos de 1 ha | 57 % | 9 % |
+  | 1 a 5 ha | 25 % | 22 % |
+  | 5 a 20 ha | 12 % | 29 % |
+  | 20 a 100 ha | 4 % | 26 % |
+  | Más de 100 ha | 2 % | 13 % |
+
+- El 78 % de los predios multados tiene derechos inscritos: la infracción típica es extraer más de lo autorizado o usar un pozo no inscrito, no regar sin ningún derecho. Por eso el índice (M5) mide el exceso del consumo estimado sobre los derechos propios y del entorno, y no usa "tiene o no tiene derechos" como señal. Entre los fiscalizados, la tasa de infracción es parecida con derechos (18 % de 419) y con derechos cerca de otro predio (19 % de 98): el estado de derechos solo no distingue al infractor.
 - La pertenencia a una zona se decide por comuna, no por bounding box. Los bounding boxes se solapan entre las latitudes -32.73 y -32.59. El bounding box es la extensión de los predios CIREN de esas comunas y sirve solo para filtrar descargas.
 - Los bounding boxes incluyen cordillera y cerros. Para Sentinel-2, se recorta con las geometrías de los predios, no con el bounding box.
 - Periodo de análisis: desde enero de 2020 hasta la última escena limpia antes de la demo. Mientras más reciente el dato, más fuerte la demo. Periodos prioritarios:

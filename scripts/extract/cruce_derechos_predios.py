@@ -59,7 +59,7 @@ def main() -> None:
             sys.exit(f"Falta data/processed/{f}: corre antes predios_ciren.py y derechos_dga.py")
 
     predios = gpd.read_parquet(DATA / "processed" / "predio.parquet")
-    predios = predios[predios["rol_valido"]].to_crs(CRS_METROS)[["predio_id", "zona", "comuna", "area_ha", "geometry"]]
+    predios = predios[predios["rol_valido"]].to_crs(CRS_METROS)[["predio_id", "zona", "comuna", "area_ha", "elegible", "geometry"]]
     derechos = gpd.read_parquet(DATA / "processed" / "derecho.parquet").to_crs(CRS_METROS)
 
     res = pd.DataFrame({

@@ -31,7 +31,9 @@ CRS_METROS = "EPSG:32719"
 # SR (sin rol), BC (bien común), ríos, caminos, vialidad (VP-*, RV-*), reservas.
 PATRON_ROL = r"\d+-\d+"
 MUESTRA_POR_ZONA = 50
-AREA_MIN_MUESTRA_HA = 0.5  # unos 50 píxeles de 10 m
+# Universo elegible: rol válido y 1 ha o más (100 píxeles de 10 m). Cubre el 91 % de los predios
+# multados por extracción en Z1 y Z2 y deja fuera el 57 % de los predios (parcelas y lotes de pozo).
+ELEGIBLE_MIN_HA = 1.0
 
 
 def descargar_comuna(comuna: str, destino: Path) -> None:
@@ -88,12 +90,13 @@ def cargar_predios(zonas: dict, refrescar: bool) -> gpd.GeoDataFrame:
     )
     if salida["predio_id"].duplicated().any():
         sys.exit("predio_id (mslink) duplicado; revisa la descarga")
+    salida.insert(6, "elegible", salida["rol_valido"] & (salida["area_ha"] >= ELEGIBLE_MIN_HA))
     return salida
 
 
 def armar_muestra(predios: gpd.GeoDataFrame, casos: gpd.GeoDataFrame) -> gpd.GeoDataFrame:
     """Los predios más cercanos a cada caso de validación, MUESTRA_POR_ZONA por zona."""
-    p = predios[predios["rol_valido"] & (predios["area_ha"] >= AREA_MIN_MUESTRA_HA)].to_crs(CRS_METROS)
+    p = predios[predios["elegible"]].to_crs(CRS_METROS)
     c = casos.to_crs(CRS_METROS)
     elegidos = []
     for zona_id, casos_zona in c.groupby("zona"):
@@ -138,6 +141,7 @@ def main() -> None:
 
     print("\nResumen:")
     print(predios.groupby("zona").agg(predios=("predio_id", "size"), rol_valido=("rol_valido", "sum"),
+                                      elegibles=("elegible", "sum"),
                                       area_ha=("area_ha", "sum")).round(0).to_string())
     print(f"\nMuestra: {len(muestra)} predios -> {procesados / 'predio_muestra.geojson'}")
     print(muestra.groupby(["zona", "caso_cercano"]).size().to_string())

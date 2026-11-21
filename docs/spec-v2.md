@@ -1,6 +1,8 @@
 # Caudal — Spec técnico v2 (satélite + clima)
 
-Nov 21, 2026 · @gabi
+Nov 21, 2026 · @gabi · Zonas, fuentes verificadas y convenciones de datos: Nov 21, 2026 · @Tomas
+
+Seguimiento de tareas de datos y modelos: [tareas-datos-modelos.md](tareas-datos-modelos.md).
 
 ## Resumen y alcance
 
@@ -8,7 +10,7 @@ Caudal v2 decide qué predios fiscalizar primero combinando imágenes satelitale
 
 - Qué cambia respecto a v1: se incorporan estaciones y humedad directa, y la salida principal pasa a ser una ruta de inspección. Se mantiene el modelo FAO-56 y el cruce con derechos de agua.
 - Principio: el sistema prioriza, no acusa. Los m³ son un indicio para ordenar visitas, no una prueba.
-- Dentro del alcance: un valle, un ranking, una ficha por predio, un expediente generado en vivo y una ruta de visita.
+- Dentro del alcance: dos zonas de la Región de Valparaíso (Z1 Petorca para la demo y Z2 Aconcagua bajo para validar; ver [Zonas de estudio](#zonas-de-estudio)), un ranking por zona, una ficha por predio, un expediente generado en vivo y una ruta de visita.
 - Fuera del alcance: modelo entrenado de detección de tranques (se usan índices espectrales con umbral), presentar la denuncia de forma automática (la presenta una persona con Clave Única), m³ exactos, un segundo caso de uso y construir un sensor o dispositivo propio.
 
 ## Encaje con el track Physical World
@@ -25,6 +27,22 @@ El track exige contacto directo: la entrada debe ser una señal física (cámara
 
 Riesgo abierto: no está confirmado que el jurado considere las imágenes satelitales como contacto directo. Por eso la ruta de inspección es la salida principal del sistema y conviene preguntarlo al mentor o a la organización. Fuente: descripción del track compartida por el equipo.
 
+## Zonas de estudio
+
+Las zonas se definen en esta sección y en ningún otro lugar. Toda extracción de datos usa estas zonas. Para cambiar una zona, se edita esta tabla y se avisa al equipo.
+
+| Zona | Comunas | Bounding box WGS84 (lon mín, lat mín, lon máx, lat máx) | Uso | Predios CIREN | Derechos DGA | Fiscalizaciones por extracción (con multa) |
+| --- | --- | --- | --- | --- | --- | --- |
+| Z1 Petorca | Petorca, Cabildo, La Ligua, Papudo, Zapallar | -71.5421, -32.7328, -70.4104, -32.0200 | Demo principal: sequía y camiones aljibe | 9.331 | 6.104 | 487 (74) |
+| Z2 Aconcagua bajo | Hijuelas, La Cruz, Quillota, Nogales, La Calera | -71.5008, -32.9905, -70.9708, -32.5897 | Validación con casos sancionados y segunda demo | 10.719 | 3.034 | 302 (103) |
+
+- La pertenencia a una zona se decide por comuna, no por bounding box. Los bounding boxes se solapan entre las latitudes -32.73 y -32.59. El bounding box es la extensión de los predios CIREN de esas comunas y sirve solo para filtrar descargas.
+- Los bounding boxes incluyen cordillera y cerros. Para Sentinel-2, se recorta con las geometrías de los predios, no con el bounding box.
+- Periodo de análisis: de enero de 2020 a octubre de 2026 en ambas zonas. Si no hay tiempo, se prioriza 2021–2022 en Z2 (caso de validación) y 2024–2026 en Z1 (demo).
+- Caso de validación principal: expediente FO-0504-95, Hijuelas (Z2), lat -32.82257, lon -71.01774; inspección el 23-11-2021; multa de 1.983,9 UTM (unos $127 millones); la DGA dice que lo detectó con imágenes satelitales ([nota de la DGA](https://dga.mop.gob.cl/dga-valparaiso-multa-a-empresario-agricola-por-extraccion-no-autorizada-de-aguas-en-la-comuna-de-hijuelas/)).
+- Casos de validación en Z1: expedientes FO-0501-386 y FO-0501-376 (Pullally, 2023) y FO-0501-380 (Cabildo, 2023).
+- Los conteos vienen de las fuentes del 21-11-2026. Las fiscalizaciones se cuentan por coordenada dentro del bounding box, así que los totales de Z1 y Z2 pueden repetir casos de la franja que se solapa.
+
 ## Flujo de datos
 
 &#91;embedded content: flujo de datos · 3 entradas, 1 detector, 2 salidas\]
@@ -40,7 +58,7 @@ El núcleo usa Sentinel-2 y estaciones meteorológicas; el radar y el térmico q
 | Sentinel-2 L2A (STAC) | NDVI, NDWI y NDMI (SWIR, B8A y B11), máscara de nubes SCL, 10 a 20 m | Verdor, tranques y humedad por predio | MVP |
 | Estaciones DMC, DGA e INIA Agromet | Lluvia diaria, temperatura, humedad relativa, viento y radiación cuando existan | Ventana seca y ET0 local | MVP, sujeto a cobertura en la zona |
 | Open-Meteo | ET0 y lluvia histórica en grilla | Base y relleno donde no hay estación | MVP |
-| Predios y derechos DGA | Polígonos y derechos registrados | Unidad de análisis y cruce | MVP |
+| Predios CIREN y derechos DGA | Polígonos y derechos registrados (ver [Fuentes de datos verificadas](#fuentes-de-datos-verificadas)) | Unidad de análisis y cruce | MVP |
 | Sentinel-1 | Retrodispersión VV y VH, 10 m | Señal de humedad que atraviesa nubes | Opcional |
 | Landsat 8 y 9 (térmico) | Temperatura superficial | Predio más frío que sus vecinos en día seco | Opcional |
 
@@ -50,6 +68,38 @@ Features por predio y fecha: `ndvi`, `ndwi`, `ndmi`, `nubosidad_pct`, `dias_sin_
 - Referencia: polígonos de secano cercanos o la propia historia del predio en años secos. Sin referencia, no se calcula la anomalía y el predio queda con confianza baja.
 - Estaciones: la cobertura en valles como Petorca o La Ligua suele ser rala. La grilla de Open-Meteo es la base y las estaciones la corrigen donde existan. Qué estaciones hay y si tienen API está por verificar en las primeras horas.
 - Humedad directa: SMAP y SMOS son demasiado gruesos (9 a 36 km) y solo sirven de contexto regional.
+
+## Fuentes de datos verificadas
+
+Las fuentes de esta tabla se probaron el 21-11-2026 con una consulta o una descarga real. Todas son públicas y no piden login.
+
+| Dato | Fuente y acceso | Formato | Llave | Notas |
+| --- | --- | --- | --- | --- |
+| Polígonos de predios | CIREN Propiedades Rurales 2022, ArcGIS REST: `https://esri.ciren.cl/server/rest/services/IDEMINAGRI/PROPIEDADES_RURALES/MapServer/4/query` | GeoJSON (`f=geojson`), hasta 10.000 por consulta | `rol` | No trae propietario ni superficie; la superficie se calcula en EPSG:32719. No se encontraron términos de uso: citar "CIREN 2022 vía IDE Minagri" y no redistribuir la capa completa |
+| Derechos de agua | DGA, [derechos registrados](https://dga.mop.gob.cl/derechos-de-agua/derechos-registrados/): un `.xls` por región, actualización mensual | Excel, encabezados en la fila 7 | Coordenada de captación | Datums mixtos (PSAD56, SAD69, WGS84, vacío); 99 % en l/s; sin RUT; trae nombres de titulares |
+| Fiscalizaciones | DGA, [planilla de seguimiento de fiscalización](https://dga.mop.gob.cl/tramites/denunciar/fiscalizacion/), actualización mensual | Excel, hoja "Planilla" | Código de expediente | Coordenadas UTM del acta de terreno (pozo o captación, no el predio); el campo "Comuna" a veces está mal; sin nombres |
+| Especie plantada | CIREN Catastro Frutícola 2025, capa 59: `https://esri.ciren.cl/server/rest/services/IDEMINAGRI/CATASTRO_FRUTICOLA/MapServer/59` | GeoJSON, hasta 2.000 por consulta | `rol` | Especies 1 a 4; sin superficie ni tipo de riego; sirve para el Kc |
+| Cauces | DGA, red de drenajes en el servidor de la SMA: `https://ideserver.sma.gob.cl/arcgis/rest/services/IDE/Recursos_hidricos_glaciares/MapServer/2` | Esri JSON (`f=json`; GeoJSON no funciona) | Geometría | Respaldo: Red_Hidrografica.zip de la BCN u OSM `waterway` |
+| Canales de riego | CNR y CIREN: `https://esri.ciren.cl/server/rest/services/IDEMINAGRI/INFRAESTRUCTURA_RIEGO/MapServer/0` | GeoJSON | Geometría | Opcional, para el expediente |
+| Zonas de prohibición y restricción | Servicios de la DGA en `https://rest-sit.mop.gob.cl/arcgis/rest/services/DGA/` (capa `Areas_de_Restriccion_y_Zonas_de_Prohibicion`) | Esri JSON | `COD_SHAC` | Todos los sectores de Z1 y Nogales-Hijuelas son zona de prohibición. Hoy no hay decreto de escasez vigente en Z1 (el último caducó el 13-08-2024) |
+| Referencia de secano | CONAF, uso de la tierra 2001–2019, en IDE Minagri (servicio `USO_DE_LA_TIERRA_CUT_CONAF`, capa 5) | GeoJSON | Geometría | No separa riego de secano; se usan los polígonos de matorral y pradera |
+| Red vial | OpenStreetMap con osmnx (`network_type="drive"`); respaldo offline: Geofabrik `chile-latest.osm.pbf` | GraphML | Nodo más cercano | El 49 % de los caminos no tiene superficie; usar 25 km/h en `track` |
+| APR (opcional) | DOH, en el servidor IDE de la SMA | Puntos | — | Dato de enero de 2017; solo para el pitch |
+
+No hay fuente pública para: propietario del predio, camiones aljibe por comuna en formato abierto y una capa que separe riego de secano.
+
+## Convenciones de datos
+
+Estas reglas permiten que cada persona extraiga datos por su cuenta y que todo se pueda unir después.
+
+- CRS de trabajo: EPSG:32719 (UTM 19S) para calcular áreas y distancias. Los archivos se guardan en EPSG:4326.
+- Datums de los derechos: cada fila se convierte según su columna "Datum": 1956 → EPSG:24879, 1969 → EPSG:29189 y 1984 → EPSG:32719. Si el datum viene vacío, se usa EPSG:24879 y la fila se marca con confianza baja. Las filas con huso 18 o coordenadas fuera de la región se descartan.
+- Unidades de los derechos: se normaliza a m³ por mes con 1 l/s = 2.592 m³ en 30 días, a partir de la columna de cada mes. Los m³/año, m³/día y l/min se convierten. Las "Acciones" y los "%" quedan sin cifra. Los derechos eventuales se marcan y no se suman.
+- Cruce de derechos con predios: el punto de captación dentro del predio, o en un radio de 500 m. Si falla, por nombre del titular dentro de la comuna. Cada cruce guarda `metodo_cruce` y `confianza_cruce`.
+- Llaves: `predio_id` = `rol` de CIREN con prefijo de comuna (por ejemplo `HIJUELAS:87-3`), porque el rol se repite entre comunas. Toda tabla lleva `zona` (`Z1` o `Z2`).
+- Carpetas: `scripts/extract/` para los scripts de descarga, uno por fuente; `data/raw/` para lo descargado; `data/processed/` para las salidas en GeoParquet o Parquet, una tabla por entidad del modelo de datos y con la columna `zona`.
+- Git: `data/raw/` no se sube. Los nombres de titulares de derechos y otros datos personales tampoco se suben; el expediente los lee del archivo local. Lo que se sube son los scripts, que deben poder regenerar todo.
+- Antes de extraer algo nuevo, se registra la tarea en [tareas-datos-modelos.md](tareas-datos-modelos.md) para no duplicar trabajo.
 
 ## Fusión y detector de riego
 
@@ -107,10 +157,11 @@ Modelo de datos:
 
 | Entidad | Campos clave |
 | --- | --- |
-| predio | id, geometría, área en hectáreas |
+| predio | id (`comuna:rol`), zona, comuna, rol, geometría, área en hectáreas, especie (catastro frutícola, si existe) |
 | serie\_predio | predio\_id, fecha, ndvi, ndwi, ndmi, nubosidad\_pct, escena\_id |
 | clima | estación o celda, fecha, lluvia\_mm, et0\_mm |
-| derecho | id, predio\_id, caudal autorizado (unidad según el registro DGA; normalizar a m³ por mes) |
+| derecho | código de expediente DGA, predio\_id, zona, naturaleza (superficial o subterránea), ejercicio (permanente o eventual), caudal\_ls, m3\_mes, datum\_origen, metodo\_cruce, confianza\_cruce |
+| fiscalizacion | código de expediente, zona, geometría (punto), fecha de inspección, tipo de infracción, decisión, multa en UTM, etiqueta (positivo o negativo) |
 | puntaje | predio\_id, fecha\_corte, m3\_estimado (rango), m3\_derecho, índice, banda, confianza |
 | expediente | id, predio\_id, url\_pdf, fecha\_creación |
 
@@ -125,7 +176,7 @@ Endpoints mínimos:
 
 Se trabaja por bloques en este orden; hay que ajustarlos a las horas reales que queden, que este spec no asume. Lo indispensable llega de punta a punta, aunque sea feo, antes de agregar nada opcional.
 
-1. Zona y verificaciones: elegir el valle, confirmar escenas sin nubes, derechos descargables, polígonos de predios y qué estaciones existen.
+1. Zona y verificaciones: zonas definidas (Z1 y Z2) y fuentes de predios, derechos y fiscalizaciones verificadas. Falta confirmar escenas sin nubes y qué estaciones existen.
 2. Pipeline base: series de NDVI y NDMI por predio, clima y ventana seca, con datos reales.
 3. Detector, índice y ranking: m³ estimados contra derechos, bandas y confianza; validar con un caso sancionado.
 4. Ruta de inspección: predios top en orden de visita con OR-Tools, y mapa de la ruta.
@@ -154,7 +205,10 @@ Guion de demo (3 minutos), con la ruta de inspección como cierre:
 | --- | --- |
 | El jurado no considera el satélite como contacto directo | La ruta de inspección es la decisión física central; la entrada real son las imágenes satelitales y el clima; preguntar al mentor o a la organización |
 | Falsos positivos que acusen a inocentes | Bandas y rangos, no cifras únicas; el sistema prioriza, no acusa |
-| Derechos de la DGA no vinculables a predios | Cruzar por titular o usar un subconjunto verificado a mano |
+| Derechos de la DGA no vinculables a predios | Cruce por coordenada de captación con radio de 500 m; luego por titular; si no, un subconjunto verificado a mano |
+| El pozo está fuera del predio que riega | Radio de búsqueda y `confianza_cruce` baja; revisar a mano los predios top |
+| Se cae un servicio de CIREN o de la DGA durante la demo | Descargar todo apenas se acuerdan las zonas y servir copias locales |
+| Datos personales en el repo | Los nombres de titulares quedan fuera de git (ver [Convenciones de datos](#convenciones-de-datos)) |
 | Pocas estaciones en la zona | Grilla de Open-Meteo como base y estaciones como corrección |
 | Nubes o escenas faltantes | Composiciones mensuales; cambiar de zona temprano |
 | Falla en vivo | Demo en producción desde temprano y video de respaldo |
@@ -162,8 +216,9 @@ Guion de demo (3 minutos), con la ruta de inspección como cierre:
 Preguntas abiertas:
 
 - [ ] ¿Las imágenes satelitales cuentan como señal física para el track? Preguntar al mentor o a la organización.
-- [ ] Zona final del caso de demo.
+- [x] Zona final del caso de demo: Z1 Petorca para la demo y Z2 Aconcagua bajo para validar (ver [Zonas de estudio](#zonas-de-estudio)).
 - [ ] ¿Hay dron y operador disponibles, o el plan de vuelo queda fuera?
 - [ ] Valor inicial de N días para la ventana seca y umbrales de anomalía.
-- [ ] Qué estaciones existen en la zona y si tienen API.
-- [ ] Disponibilidad de polígonos de predios y de derechos descargables.
+- [ ] Qué estaciones existen en Z1 y Z2 y si tienen API.
+- [x] Disponibilidad de polígonos de predios y de derechos descargables: sí, CIREN y DGA (ver [Fuentes de datos verificadas](#fuentes-de-datos-verificadas)).
+- [ ] ¿Se puede usar y mostrar la capa de CIREN en una demo pública? No se encontraron términos de uso.

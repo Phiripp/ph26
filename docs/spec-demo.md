@@ -324,13 +324,13 @@ Ya corregido: la cifra de validación del pitch (2,6) y las equivalencias (perso
 | ID | Tarea | Prioridad | Responsable sugerido | Depende de | Listo cuando |
 | --- | --- | --- | --- | --- | --- |
 | T0 | ~~Decidir almacenamiento y transporte~~ Decidido: API con DuckDB y respaldo estático ([Almacenamiento y transporte](#almacenamiento-y-transporte)) | P0 | — | — | Hecho |
-| T1 | `explicacion.py`: razones, confianza y límites por predio, con fuentes | P0 | Tomás | — | Devuelve el contrato de la explicación para `5301984` y para el caso FO-0504-95 |
-| T2 | `api/datos.py` (funciones de lectura con DuckDB) y `build_m5_web.py`, que escribe `data/respaldo/` con ellas | P0 | Felipe, con apoyo de Tomás | T1 | La zona Z2 muestra las bandas de M5 leyendo el respaldo |
-| T2b | Rutas `GET` de lectura en `caudal-api`, llamando a `api/datos.py` | P0 | Tomás | T2, T6 | `GET /api/predios/5301984` responde en local lo mismo que su archivo del respaldo |
+| T1 | `explicacion.py`: razones, confianza y límites por predio, con fuentes | P0 | Tomás 🟡 | — | Devuelve el contrato de la explicación para `5301984` y para el caso FO-0504-95 |
+| T2 | `api/datos.py` (funciones de lectura con DuckDB) y `build_m5_web.py`, que escribe `data/respaldo/` con ellas | P0 | Felipe, con apoyo de Tomás (🟡 Tomás: `api/datos.py`) | T1 | La zona Z2 muestra las bandas de M5 leyendo el respaldo |
+| T2b | Rutas `GET` de lectura en `caudal-api`, llamando a `api/datos.py` | P0 | Tomás 🟡 | T2, T6 | `GET /api/predios/5301984` responde en local lo mismo que su archivo del respaldo |
 | T3 | F1 y F2: página con datos de M5 y ficha con "Por qué está en alerta" | P0 | Nico | T1, T2 | El predio `5301984` muestra sus razones con fuente |
 | T4 | F4: línea de tiempo y adelanto en la ficha del caso | P0 | Nico | T2 | FO-0504-95 muestra su primera alerta y los años de adelanto |
 | T5 | F5 y F6: ruta de M8 y panel de impacto leídos del dato | P0 | Felipe | T2 | `#impacto` muestra las 5 cifras sin números en el código |
-| T6 | `caudal-api`: `health` y `expediente` | P0 | Tomás | — | `POST /api/expediente` devuelve un PDF en local |
+| T6 | `caudal-api`: `health` y `expediente` | P0 | Tomás 🟡 | — | `POST /api/expediente` devuelve un PDF en local |
 | T7 | Desplegar `caudal-api` con los Parquet y generar el expediente del candidato | P0 | Gabi | T2b | `/api/predios/5301984` y el expediente responden en producción en menos de 2 s |
 | T8 | F3: botón que llama al backend, visor de PDF y respaldo | P0 | Nico | T6 | El clic abre el PDF en producción; con el backend apagado abre el respaldo |
 | T9 | Desplegar `caudal-web` y llenar `platanus-hack-project.jsonc` | P0 | Nico | T3 a T8 | El recorrido completo funciona en la URL pública, también con `caudal-api` apagado |

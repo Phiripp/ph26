@@ -20,7 +20,7 @@ Vista rápida de qué datos están listos en cada zona. Se actualiza al cerrar u
 
 | Dato | Tarea | Z1 Petorca | Z2 Aconcagua bajo |
 | --- | --- | --- | --- |
-| Series Sentinel-2 por predio | D1 | 🟡 muestra lista | 🟡 muestra corriendo |
+| Series Sentinel-2 por predio | D1 | 🟡 muestra lista | 🟡 muestra lista |
 | Clima (lluvia y ET0) | D2 | ✅ | ✅ |
 | Predios | D3 | ✅ | ✅ |
 | Derechos normalizados | D4 | ✅ | ✅ |
@@ -38,7 +38,7 @@ Cada tarea entrega un script en `scripts/extract/` y un archivo en `data/process
 
 | ID | Tarea | Fuente | Zonas | Responsable | Depende de | Entrega | Estado |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| D1 | Series mensuales de NDVI, NDWI y NDMI por predio, con máscara de nubes SCL; desde enero de 2020 hasta la última escena limpia (periodos prioritarios en `data/zonas.json`: Z1 de julio de 2023 a abril de 2024 y desde diciembre de 2024; Z2 en 2021–2022 y de julio de 2023 a mayo de 2025). Solo predios `elegible` (7.911). Modos de `serie_sentinel2.py`: `--elegibles` (ranking), `--validacion` (vecindarios de D18), `--referencia` (secano de D11), `--predios archivo`; `--temporadas 2019-20:2025-26` toma diciembre a marzo de cada temporada | Sentinel-2 L2A (STAC) | Z1, Z2 | Gabriela | D3 (geometrías) | `serie_predio.parquet`. Muestra sin offset (D15): `serie_predio_temporada_2025-26.parquet` (Z1 y Z2, en git) y `serie_predio.parquet` con periodos prioritarios (Z1 en git; Z2 corriendo) | 🟡 |
+| D1 | Series mensuales de NDVI, NDWI y NDMI por predio, con máscara de nubes SCL; desde enero de 2020 hasta la última escena limpia (periodos prioritarios en `data/zonas.json`: Z1 de julio de 2023 a abril de 2024 y desde diciembre de 2024; Z2 en 2021–2022 y de julio de 2023 a mayo de 2025). Solo predios `elegible` (7.911). Modos de `serie_sentinel2.py`: `--elegibles` (ranking), `--validacion` (vecindarios de D18), `--referencia` (secano de D11), `--predios archivo`; `--temporadas 2019-20:2025-26` toma diciembre a marzo de cada temporada | Sentinel-2 L2A (STAC) | Z1, Z2 | Gabriela | D3 (geometrías) | `serie_predio.parquet`. Muestra sin offset (D15): `serie_predio_temporada_2025-26.parquet` (Z1 y Z2, en git) y `serie_predio.parquet` con periodos prioritarios (Z1 y Z2, en git) | 🟡 |
 | D2 | Lluvia diaria y ET0 en grilla; estaciones DMC, DGA e INIA donde existan | Open-Meteo y estaciones | Z1, Z2 | Gabriela | — | `clima.parquet`, `predio_clima.parquet` y `estacion_clima.parquet` (plan: [d2-clima.md](plans/d2-clima.md)) | ✅ |
 | D3 | Descargar los predios de las comunas de cada zona y calcular el área en EPSG:32719. Entregar primero una muestra de 50 predios por zona para desbloquear D1 | CIREN Propiedades Rurales | Z1, Z2 | Tomás | — | `scripts/extract/predios_ciren.py` → `predio.parquet` (local) y `predio_muestra.geojson` (en git) | ✅ |
 | D4 | Descargar el Excel de derechos de Valparaíso; convertir datums; normalizar a m³ por mes; marcar los eventuales y las "Acciones" | DGA derechos registrados | Z1, Z2 | Tomás | — | `scripts/extract/derechos_dga.py` → `derecho.parquet` (en git, sin nombres); Excel y titulares en `data/raw/dga/` (local) | ✅ |
@@ -98,7 +98,7 @@ Orden de trabajo al 21-11-2026, con la serie Sentinel-2 corregida (D15). Se actu
 | 1a | D1 corrida de validación: 159 predios, diciembre a marzo de 2019-20 a 2025-26 (`--validacion`) | Tomás | 🟡 corriendo | Desbloquea D18 `detectable`, D19 y M6 |
 | 1b | D1 corrida de ranking: 7.911 elegibles, 2025-26 (`--elegibles`) | Tomás | ✅ `serie_predio_elegibles_2025-26.parquet`: 7.911 predios, 97 escenas, mediana de 18 fechas válidas por predio | Universo del ranking de la demo; es la corrida más larga |
 | 1c | D1 corrida de referencia de secano, mismas temporadas (`--referencia`) | Tomás | ⬜ | M2 necesita la referencia para las anomalías |
-| 2 | M2 a M4: anomalías, detector de riego, consumo FAO-56 | Tomás | ⬜ | Camino crítico; el código puede partir con la serie de la muestra (sin offset, en git: temporada 2025-26 de Z1 y Z2 y periodos prioritarios de Z1) |
+| 2 | M2 a M4: anomalías, detector de riego, consumo FAO-56 | Tomás | ⬜ | Camino crítico; el código puede partir con la serie de la muestra (sin offset, en git: temporada 2025-26 y periodos prioritarios de Z1 y Z2) |
 | 3 | D18 `detectable`, D19 caso de la demo, primera versión de M6 | Tomás | ⬜ | Cuando termine 1a |
 | 4 | M5 ranking, M8 ruta, M9 impacto | Tomás | ⬜ | Cuando estén 1b, 1c y 2 |
 | ✅ | D3 a D10, D15, D16, D17 | Tomás, Gabriela | ✅ | Datos base, cruce versión 2, cauces, rutas OSRM y fix de Sentinel-2 |

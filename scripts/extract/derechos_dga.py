@@ -14,6 +14,8 @@ Normalización (ver docs/spec-v2.md#convenciones-de-datos):
   como PSAD56 y se marca. Si la coordenada cae fuera de la región, se prueba el otro huso.
 - Caudal: a l/s y a m³ por año usando las columnas de cada mes (días reales del mes).
   m3_mes = m3_anual / 12. "Acciones" y "%" no tienen equivalencia y quedan sin cifra.
+  m3_max_dic, m3_max_ene, m3_max_feb, m3_max_mar: máximo extraíble en ese mes según el caudal mensual autorizado
+  (columna del mes si las 12 están completas; si no, caudal promedio). Para comparar con el consumo del mes (M5).
 - sumable = consuntivo, no eventual y con cifra. Solo los sumables cuentan como derecho del predio.
 
 Uso: uv run scripts/extract/derechos_dga.py [--refrescar]
@@ -134,6 +136,15 @@ def caudales(df: pd.DataFrame) -> pd.DataFrame:
     volumen_aplicado = (volumen > 0) & (m3_continuo > 0) & razon.between(VOL_RAZON_MIN, VOL_RAZON_MAX)
     m3_anual = m3_anual.where(~volumen_aplicado, volumen)
 
+    # Máximo extraíble en cada mes de la temporada seca (diciembre a marzo): caudal autorizado de ese mes x días.
+    # Usa la columna del mes si las 12 están completas; si no, el caudal promedio. "Volumen" es un tope anual y no
+    # limita un mes; m3/año no tiene caudal mensual (queda el promedio).
+    por_mes = {}
+    for nombre, i in (("dic", 11), ("ene", 0), ("feb", 1), ("mar", 2)):
+        ls_mes = pd.Series(meses[:, i], index=df.index) * factor
+        ls_mes = ls_mes.where(pd.Series(usar_meses, index=df.index), caudal_ls)
+        por_mes[f"m3_max_{nombre}"] = (ls_mes * DIAS_MES[i] * SEG_DIA / 1000).round(1)
+
     return pd.DataFrame({
         "unidad_origen": df["Unidad de Caudal"],
         "caudal_origen": prom,
@@ -143,6 +154,7 @@ def caudales(df: pd.DataFrame) -> pd.DataFrame:
         "m3_anual_continuo": m3_continuo.round(1),
         "m3_anual": m3_anual.round(1),
         "m3_mes": (m3_anual / 12).round(1),
+        **por_mes,
         "unidad_sin_equivalencia": unidad.isin(SIN_EQUIVALENCIA) | unidad.eq(""),
     }, index=df.index)
 

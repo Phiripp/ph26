@@ -51,8 +51,17 @@ Cálculo:
    canal (acciones) no aparece en los derechos. M9 lo usa para el rango de candidatos.
 7. Puntaje 0–100 para ordenar y para el premio de la ruta (M8): base de la banda (alta 75, media 50, baja 25,
    sin_alerta 0) + 25 x frac_senal x peso de la confianza (alta 1, media 0,7, baja 0,4) x percentil del exceso
-   central en la zona y temporada. Todo predio alto queda sobre todo predio medio; dentro de la banda sube con la
-   señal, la confianza y el volumen en juego.
+   central por hectárea en la zona y temporada (--orden intensidad). Todo predio alto queda sobre todo predio
+   medio; dentro de la banda sube con la señal, la confianza y la intensidad del exceso.
+
+Exceso mensual (--exceso mensual, por defecto): el exceso de cada rango es el mayor entre el anual (paso 3) y la
+suma, de diciembre a marzo, del consumo bruto del mes sobre el máximo extraíble ese mes (caudal mensual
+autorizado x días, `m3_max_*` de derecho.parquet). Capta el peak de verano: el tope anual "Volumen" no limita un mes.
+
+Elección de variantes (prueba del 21-11-2026, 19 positivos y 48 negativos detectables de la validación): mensual +
+intensidad dio el mayor AUC entre fiscalizados (0,558 contra 0,532 del anual + volumen; mejor en el 88 % de los
+remuestreos, no significativo) con el mismo recall (6 de 19 en alta, 11 de 19 en alta o media). Descontar derechos
+ajenos en el orden (intensidad_ajenos) no mejoró.
 
 Privacidad: la salida no tiene nombres. En la demo los candidatos se muestran agregados; una fiscalización "en
 trámite" no es una infracción (solo se marca fiscalizado_dga, sin resultado).
@@ -128,6 +137,36 @@ def derechos_ajenos(base: pd.DataFrame, pd_t: pd.DataFrame, consumo_bruto: pd.Se
     return j[j["predio_id"].isin(base["predio_id"])].groupby("predio_id")["parte"].sum()
 
 
+MESES_SECOS = {12: "dic", 1: "ene", 2: "feb", 3: "mar"}
+
+
+def exceso_mensual(b: pd.DataFrame, pd_t: pd.DataFrame, consumo_m: pd.DataFrame, derechos: pd.DataFrame,
+                   asignacion: pd.DataFrame, corte: pd.Timestamp) -> pd.DataFrame:
+    """Suma, sobre diciembre a marzo, del consumo bruto del mes que supera el máximo extraíble ese mes (caudal
+    mensual autorizado del rol x días, repartido por superficie). Capta el peak de verano y los derechos cuyo tope
+    anual ("Volumen") es bajo pero cuyo caudal no lo es."""
+    rol_de = pd_t.set_index("predio_id")["rol_id"]
+    vig = derechos["sumable"] & (derechos["fecha_resolucion"].isna() | (derechos["fecha_resolucion"] < corte))
+    d = derechos.loc[vig, ["derecho_id", *[f"m3_max_{m}" for m in MESES_SECOS.values()]]].merge(asignacion, on="derecho_id")
+    d["rol_id"] = d["predio_id"].map(rol_de)
+    der_rol = d.groupby("rol_id")[[f"m3_max_{m}" for m in MESES_SECOS.values()]].sum()
+
+    c = consumo_m.loc[consumo_m["predio_id"].isin(b["predio_id"]) & (consumo_m["temporada"] == b["temporada"].iloc[0]),
+                      ["predio_id", "mes", "m3_min", "m3_central", "m3_max"]].copy()
+    c["m"] = pd.to_datetime(c["mes"]).dt.month.map(MESES_SECOS)
+    c = c.dropna(subset=["m"]).merge(b[["predio_id", "rol_id", "area_ha", "area_rol_ha", "predio_grande"]], on="predio_id")
+    share = (c["area_ha"] / c["area_rol_ha"]).clip(upper=1).fillna(1)
+    lim = pd.Series([der_rol.at[r, f"m3_max_{m}"] if r in der_rol.index else 0.0 for r, m in zip(c["rol_id"], c["m"])],
+                    index=c.index) * share
+    out = {}
+    for k, ef in EFICIENCIA.items():
+        bruto = c[f"m3_{k}"].fillna(0) / ef
+        if k == "central":  # predios grandes: el central es el mínimo (como en el anual)
+            bruto = bruto.where(~c["predio_grande"].fillna(False).astype(bool), c["m3_min"].fillna(0) / EFICIENCIA["min"])
+        out[f"m3_exceso_mensual_{k}"] = (bruto - lim).clip(lower=0).groupby(c["predio_id"]).sum()
+    return pd.DataFrame(out).round(0)
+
+
 def fiscalizados() -> pd.Series:
     f = pd.read_parquet(PROC / "fiscalizacion.parquet", columns=["extraccion", "vecindario", "predio_id"])
     f = f[f["extraccion"].fillna(False).astype(bool)]
@@ -140,16 +179,25 @@ def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     ap.add_argument("--senal", default="data/processed/senal_riego_elegibles_2025-26.parquet")
     ap.add_argument("--consumo", default="data/processed/consumo_predio_elegibles_2025-26_temporada.parquet")
+    ap.add_argument("--consumo-mensual", help="M4 por mes (por defecto, --consumo sin '_temporada')")
     ap.add_argument("--salida", default="data/processed/puntaje.parquet")
+    ap.add_argument("--exceso", choices=["anual", "mensual"], default="mensual",
+                    help="mensual: el exceso es el mayor entre el anual y la suma de excesos de diciembre a marzo")
+    ap.add_argument("--orden", choices=["volumen", "intensidad", "intensidad_ajenos"], default="intensidad",
+                    help="qué ordena dentro de la banda: m³ de exceso, m³/ha, o m³/ha descontando derechos ajenos")
     args = ap.parse_args()
     if not (PROC / "predio.parquet").exists():
         sys.exit("Falta data/processed/predio.parquet: corre antes scripts/extract/predios_ciren.py")
 
     senal = pd.read_parquet(ruta(args.senal))
     consumo = pd.read_parquet(ruta(args.consumo))
+    consumo_m = None
+    if args.exceso == "mensual":
+        consumo_m = pd.read_parquet(ruta(args.consumo_mensual or args.consumo.replace("_temporada", "")))
     pder = pd.read_parquet(PROC / "predio_derecho.parquet")
     predios = gpd.read_parquet(PROC / "predio.parquet", columns=["predio_id", "elegible", "geometry"]).to_crs(CRS_METROS)
     derechos = gpd.read_parquet(PROC / "derecho.parquet").to_crs(CRS_METROS)
+    derechos_todos = pd.DataFrame(derechos.drop(columns="geometry"))
     derechos = derechos[derechos["sumable"] & ~derechos["gran_derecho"] & ~derechos["uso"].isin(USOS_NO_RIEGO)
                         & derechos.geometry.notna() & ~derechos.geometry.is_empty]
     asignacion = pd.read_parquet(PROC / "derecho_predio.parquet", columns=["derecho_id", "predio_id"])
@@ -183,6 +231,11 @@ def main() -> int:
                                     * (b["area_ha"] / b["area_rol_ha"]).clip(upper=1).fillna(1)).round(0)
         for k in EFICIENCIA:
             b[f"m3_exceso_{k}"] = (b[f"m3_consumo_bruto_{k}"] - b["m3_derecho_asignado"]).clip(lower=0)
+        if consumo_m is not None:
+            em = exceso_mensual(b, pd_t, consumo_m, derechos_todos, asignacion, pd_t["corte"].iloc[0])
+            for k in EFICIENCIA:
+                b[f"m3_exceso_mensual_{k}"] = b["predio_id"].map(em[f"m3_exceso_mensual_{k}"]).fillna(0)
+                b[f"m3_exceso_{k}"] = np.maximum(b[f"m3_exceso_{k}"], b[f"m3_exceso_mensual_{k}"])
         b["frac_sin_derecho"] = (b["m3_exceso_central"] / b["m3_consumo_bruto_central"]).where(
             b["m3_consumo_bruto_central"] > 0, 0.0).round(3)
 
@@ -229,8 +282,14 @@ def main() -> int:
         b["motivos"] = b["motivos"].str.strip(";")
 
         # Puntaje.
-        pct = b.groupby("zona")["m3_exceso_central"].rank(pct=True, method="average")
-        pct = pct.where(b["m3_exceso_central"] > 0, 0.0)
+        orden = b["m3_exceso_central"].copy()
+        if args.orden != "volumen":
+            orden = orden / b["area_ha"]
+        if args.orden == "intensidad_ajenos":
+            orden = orden / (1 + b["m3_derecho_ajeno_disponible_500m"] / b["m3_exceso_central"].where(
+                b["m3_exceso_central"] > 0))
+        pct = orden.groupby(b["zona"]).rank(pct=True, method="average")
+        pct = pct.where(b["m3_exceso_central"] > 0, 0.0).fillna(0.0)
         b["puntaje"] = (b["banda"].map(BASE_BANDA)
                         + 25 * b["frac_senal"].fillna(0) * b["confianza"].map(PESO_CONFIANZA) * pct).round(2)
         b["fiscalizado_dga"] = b["predio_id"].isin(fisc)

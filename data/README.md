@@ -89,6 +89,7 @@ Para regenerar: `uv run scripts/extract/derechos_dga.py` (usa el Excel local; `-
 | `consuntivo`, `eventual`, `provisional` | Tipo y ejercicio del derecho |
 | `unidad_origen`, `caudal_origen` | Como vienen en el Excel |
 | `caudal_ls`, `m3_anual`, `m3_mes` | Normalizados; `m3_mes` = `m3_anual` / 12. Vacíos si la unidad es "Acciones" o "%" |
+| `m3_max_dic`, `m3_max_ene`, `m3_max_feb`, `m3_max_mar` | Máximo extraíble en ese mes: caudal mensual autorizado × días (columna del mes del Excel si las 12 están completas; si no, caudal promedio). No aplica el tope anual "Volumen". Lo usa el exceso mensual de M5 |
 | `m3_anual_continuo`, `volumen_origen`, `volumen_aplicado` | `m3_anual` usa la columna "Volumen" del Excel (tope anual autorizado) cuando está entre el 5 % y el 105 % del volumen continuo: 3.910 derechos, la mayoría con un tope del 20 % o del 100 %. Si no, `m3_anual` = `m3_anual_continuo` |
 | `caudal_negativo` | 31 filas con caudal negativo (cesiones o errores de carga; una de −41.666 l/s). No se suman |
 | `duplicado_de` | 56 derechos no VPC que repiten un VPC (mismo titular, comuna y caudal, a 600 m o menos): `derecho_id` del VPC. No se suman |
@@ -222,7 +223,7 @@ Para regenerar: `uv run scripts/models/consumo_fao56.py` (muestra) o con `--seri
 Para regenerar: `uv run scripts/models/ruta_inspeccion.py --zona Z1 --puntajes data/processed/puntaje.parquet` (o `--demo`, que usa los positivos limpios y los casos de validación con puntaje 1). Desde el backend: `from scripts.models.ruta_inspeccion import ruta`.
 
 - Prize-collecting TSP con OR-Tools sobre la matriz de tiempos de OSRM: sale y vuelve a la plaza de La Ligua (Z1) o de Quillota (Z2), jornada de 8 h, 30 min por visita, 40 predios de mayor puntaje como máximo.
-- Con M5 (`ruta_z1`, `ruta_z2`): Z1 visita 8 de 40 predios (08:30 a 16:12, 195 km); Z2, 12 de 40 (08:30 a 16:28, 100 km).
+- Con M5 (`ruta_z1`, `ruta_z2`): Z1 visita 10 de 40 predios (08:30 a 16:25, 143 km); Z2, 12 de 40 (08:30 a 16:28, 82 km).
 - Salidas `ruta_ejemplo_z1` y `ruta_ejemplo_z2`: `.json` (orden, horas, km, punto de acceso al camino, enlace a Google Maps, predios fuera y motivo), `.geojson` y `.gpx` (válido contra el esquema GPX 1.1).
 - Ejemplo Z1: 7 de 8 predios entre 08:30 y 15:20, 141 km. Ejemplo Z2: 6 de 6 entre 08:30 y 13:31, 110 km.
 - Caché de OSRM en `data/raw/osrm/` (no va a git). La demo sirve rutas precalculadas: el servidor público a veces tarda minutos.
@@ -232,14 +233,16 @@ Para regenerar: `uv run scripts/models/ruta_inspeccion.py --zona Z1 --puntajes d
 
 Para regenerar: `uv run scripts/models/indice_sospecha.py` (elegibles 2025-26 → `puntaje.parquet`). Para la validación: `--senal data/processed/senal_riego_validacion.parquet --consumo data/processed/consumo_predio_validacion_temporada.parquet --salida data/processed/puntaje_validacion.parquet`. Necesita `predio.parquet` (local).
 
-- La sospecha sale de la señal satelital (M3); los derechos dimensionan el exceso. Exceso = consumo bruto (M4 / eficiencia 0,90, 0,85 o 0,75) − derecho asignado (`m3_anual_derecho_rol` de la temporada × `area_ha` / `area_rol_ha`), en mínimo, central y máximo. En predios de más de 100 ha el central es el mínimo.
+- La sospecha sale de la señal satelital (M3); los derechos dimensionan el exceso. Exceso anual = consumo bruto (M4 / eficiencia 0,90, 0,85 o 0,75) − derecho asignado (`m3_anual_derecho_rol` de la temporada × `area_ha` / `area_rol_ha`), en mínimo, central y máximo. En predios de más de 100 ha el central es el mínimo.
+- Exceso mensual (por defecto): el exceso es el mayor entre el anual y la suma, de diciembre a marzo, del consumo bruto del mes sobre el máximo extraíble ese mes (`m3_max_*` de `derecho`, columnas `m3_exceso_mensual_*`). Capta el peak de verano: en enero se consume cerca del 15 % del año y el tope "Volumen" no limita un mes.
 - `banda`: `alta` (señal y exceso mínimo > 0), `media` (exceso central > 0), `baja` (exceso máximo > 0), `sin_alerta`. Con confianza baja la banda baja un nivel.
 - `confianza`: la peor entre la de M3, la del cruce de derechos, `media` sin derechos propios ubicados, `baja` si los derechos ajenos disponibles a 500 m cubren el exceso central, y `media` si M4 no tiene la temporada completa. `motivos` dice por qué. `canal_300m` es solo un motivo: lo tiene el 81 % de los predios positivos y el 76 % de los que tienen señal, así que no discrimina.
 - `m3_derecho_ajeno_disponible_500m`: derechos de riego de otros roles a 500 m o menos, por la fracción que su rol no usa según M4, repartidos en partes iguales entre los predios elegibles a 500 m del punto. Un pozo compartido sin asignar cuenta entero antes de repartirse.
-- `puntaje`: base de la banda (75, 50, 25 o 0) + 25 × `frac_senal` × peso de la confianza (1; 0,7; 0,4) × percentil del exceso central en la zona. `rank_zona` ordena por banda y puntaje.
+- `puntaje`: base de la banda (75, 50, 25 o 0) + 25 × `frac_senal` × peso de la confianza (1; 0,7; 0,4) × percentil del exceso central **por hectárea** en la zona (intensidad, no tamaño: los positivos tienden a ser predios más chicos). `rank_zona` ordena por banda y puntaje.
 - `fiscalizado_dga`: el predio está en el vecindario de una fiscalización por extracción de aguas (cualquier resultado; no dice si hubo infracción).
-- 2025-26: alta 896 (11 %), media 1.073 (14 %), baja 185, sin alerta 5.757. Casos: FD-0501-181 puesto 71 de Z1 y FO-0504-95 puesto 147 de Z2, ambos en banda alta. FO-0504-157 queda sin alerta, porque sus derechos superan su consumo.
-- Primera lectura de la validación (temporada previa a la inspección, vecindario): 11 de 19 positivos detectables (58 %) caen en alta o media, contra el 25 % del universo (2,3 veces el azar); en alta, 32 % contra 11 % (2,8 veces). Entre fiscalizados el AUC es 0,53: la DGA ya elige predios regados. M6 lo formaliza.
+- 2025-26: alta 908 (11 %), media 1.118 (14 %), baja 210, sin alerta 5.675. Casos: FD-0501-181 puesto 41 de Z1 y FO-0504-95 puesto 74 de Z2, ambos en banda alta. FO-0504-157 queda sin alerta, porque sus derechos superan su consumo.
+- Primera lectura de la validación (temporada previa a la inspección, vecindario): 11 de 19 positivos detectables (58 %) caen en alta o media, contra el 26 % del universo (2,3 veces el azar); en alta, 32 % contra 11,5 % (2,8 veces). Entre fiscalizados el AUC es 0,56 (IC 95 % 0,40–0,72): la DGA ya elige predios regados. M6 lo formaliza.
+- Prueba de variantes (21-11-2026): anual o mensual × orden por volumen, por intensidad o por intensidad descontando derechos ajenos. Mensual + intensidad dio el mayor AUC (0,558 contra 0,532 del índice original; mejor en el 88 % de los remuestreos, no significativo) con el mismo recall; es la que queda. Con solo los negativos "No acoge" (21) el AUC es 0,59. Se reproduce con `--exceso anual|mensual --orden volumen|intensidad|intensidad_ajenos`.
 - Limitación para M9: 64 predios de más de 100 ha suman 77 de los 122 millones de m³/año de exceso mínimo de las bandas alta y media. M9 debe reportarlos aparte.
 
 ## Anomalías y detector de riego (M2, M3)

@@ -59,7 +59,13 @@ PROVINCIA = {"PETORCA": "Petorca", "CABILDO": "Petorca", "LA LIGUA": "Petorca", 
              "LA CALERA": "Quillota", "CALERA": "Quillota"}
 MOTIVOS = {"pocas_fechas": "pocas imágenes válidas", "sin_clima": "sin dato de clima", "sin_referencia": "sin secano de referencia",
            "nubosidad": "mucha nubosidad", "pocos_pixeles": "predio chico para 20 m", "predio_grande": "predio grande (el promedio diluye)",
-           "referencia_provisional": "referencia provisional"}
+           "referencia_provisional": "referencia provisional",
+           "sin_derechos_propios_ubicados": "sin derechos propios ubicados", "canal_300m": "canal a 300 m o menos",
+           "derechos_ajenos_cubren_exceso": "derechos de otros roles a 500 m cubren el exceso",
+           "temporada_incompleta_m4": "consumo con temporada incompleta", "sin_consumo_m4": "sin estimación de consumo",
+           "cruce_derechos_media": "cruce de derechos con confianza media", "cruce_derechos_baja": "cruce de derechos con confianza baja",
+           "clima_climatologia": "clima completado con climatología"}
+BANDA = {"alta": "alta", "media": "media", "baja": "baja", "sin_alerta": "sin alerta"}
 TIPO_POI = {"captacion": "Captación (expediente DGA)", "zona_riego": "Zona con verdor y humedad", "posible_tranque": "Posible tranque",
             "pozo_derecho": "Pozo con derecho", "bocatoma": "Bocatoma", "cauce": "Cauce natural", "canal": "Canal"}
 ESTADO_DER = {"sin_derechos_cerca": "ninguno a 500 m", "derechos_cerca_de_otro_rol": "solo en otros roles", "con_derechos": "con derechos"}
@@ -111,6 +117,21 @@ def del_predio(base: str, pid: int, clave: str, sufijo_extra: str = "") -> tuple
     if not partes:
         return pd.DataFrame(), usados
     return pd.concat(partes, ignore_index=True).drop_duplicates(clave).sort_values(clave).reset_index(drop=True), usados
+
+
+def puntaje_m5(pid: int, t: str) -> tuple[pd.Series | None, int | None, Path | None]:
+    """Fila de M5 del predio en la temporada t. El puesto en la zona solo vale en puntaje.parquet (los 7.911 elegibles);
+    en puntaje_validacion el rank es entre los predios de validación y no se muestra."""
+    for nombre, con_rank in (("puntaje", True), ("puntaje_validacion", False)):
+        f = PROC / f"{nombre}.parquet"
+        if not f.exists():
+            continue
+        d = pd.read_parquet(f)
+        x = d[(d.predio_id == pid) & (d.temporada == t)]
+        if len(x):
+            n = int((d[d.temporada == t].zona == x.zona.iloc[0]).sum()) if con_rank else None
+            return x.iloc[0], n, f
+    return None, None, None
 
 
 def predio_geom(pid: int | None, rol: str | None) -> gpd.GeoDataFrame:
@@ -343,11 +364,11 @@ def motivos_txt(m) -> str:
     out = []
     for x in m.split(";"):
         base, _, det = x.partition("(")
-        out.append(MOTIVOS.get(base, base) + (f" ({det.rstrip(')')})" if det else ""))
+        out.append(MOTIVOS.get(base, base.replace("_", " ")) + (f" ({det.rstrip(')')})" if det else ""))
     return "; ".join(out)
 
 
-def hechos(p, r, a_t, cons, der, cauce, cultivo, fisc, todas) -> tuple[list[str], dict]:
+def hechos(p, r, a_t, cons, der, cauce, cultivo, fisc, todas, m5=None) -> tuple[list[str], dict]:
     t = r.temporada
     sen = a_t[a_t.senal]
     ref_ndvi = a_t.loc[a_t.estado == "ok", "ref_ndvi_mediana"].median()
@@ -380,6 +401,11 @@ def hechos(p, r, a_t, cons, der, cauce, cultivo, fisc, todas) -> tuple[list[str]
                             f"({redondo(cons.m3_anual_min)}–{redondo(cons.m3_anual_max)} m³/año)")
     else:
         corto["consumo"] = "sin estimación para esta temporada"
+    if m5 is not None and pd.notna(m5.m3_exceso_max) and m5.m3_exceso_max > 0:
+        par.append(f"Sumando las pérdidas propias del riego (eficiencia de 75 % a 90 %), el agua que el predio necesitaría captar se estima "
+                   f"entre {redondo(m5.m3_consumo_bruto_min)} y {redondo(m5.m3_consumo_bruto_max)} m³ al año. Descontados los derechos "
+                   f"asignados al predio ({redondo(m5.m3_derecho_asignado)} m³/año), quedan entre {redondo(max(m5.m3_exceso_min, 0))} y "
+                   f"{redondo(m5.m3_exceso_max)} m³ al año sin un derecho registrado que los respalde.")
     if der is not None:
         al = fecha(der.corte)
         if der.estado_derechos == "sin_derechos_cerca":
@@ -529,7 +555,16 @@ def main() -> int:
             fig_chip(geom, bounds, ch, out / nombre)
             imagenes.append({"src": nombre, "titulo": f"Temporada {tt}: {fecha(e.fecha)}, NDVI {num(e.ndvi, 2)} (escena {e.escena_id})"})
 
-    parrafos, corto = hechos(pg.iloc[0], r, a_t, cons, der, cauce, cultivo, fisc, senal)
+    m5, n_zona, f_m5 = puntaje_m5(pid, t)
+    parrafos, corto = hechos(pg.iloc[0], r, a_t, cons, der, cauce, cultivo, fisc, senal, m5)
+    if m5 is not None:
+        puesto = f" · puesto {int(m5.rank_zona)} de {num(n_zona)} predios de {m5.zona}" if n_zona else ""
+        indice = {"banda": BANDA.get(m5.banda, m5.banda), "puntaje": num(m5.puntaje, 0), "puesto": puesto,
+                  "confianza": m5.confianza, "motivos_txt": motivos_txt(m5.motivos),
+                  "exceso": f"{redondo(max(m5.m3_exceso_min, 0))}–{redondo(m5.m3_exceso_max)} m³/año"
+                            if pd.notna(m5.m3_exceso_max) and m5.m3_exceso_max > 0 else "sin exceso estimado"}
+    else:
+        indice = None
 
     utm = cen.iloc[0]
     comuna = str(pg.comuna.iloc[0]).upper()
@@ -542,6 +577,7 @@ def main() -> int:
               "nublado": f"{num(100 * r.frac_nublado)} %",
               "ref_txt": (f"polígonos de matorral y pradera estables de CONAF (D11), hasta 30 por fecha a {num(a_t.ref_dist_km.median(), 1)} km "
                           f"de mediana" if r.referencia == "conaf" else "provisional (no es secano real)")},
+        "m5": indice,
         "h": {"hechos": parrafos, "indicio": corto["indicio"], "consumo_corto": corto["consumo"],
               "derechos_corto": corto["derechos"], "fuentes_corto": corto["fuentes"], "antecedentes": corto["antecedentes"]},
         "c": {"cauce_txt": (f"{titulo(cauce.cauce_nombre)} ({str(cauce.cauce_tipo).lower()}), a {num(cauce.dist_cauce_m)} m"
@@ -572,6 +608,8 @@ def main() -> int:
             "estado": ESTADO_DER.get(d.estado_derechos, str(d.estado_derechos)) if d is not None else "s/d"})
 
     insumos = {"Señal de riego (M3)": f_senal, "Anomalías (M2)": f_anom, "Consumo (M4)": f_cons}
+    if f_m5 is not None:
+        insumos["Índice de sospecha (M5)"] = [f_m5]
     fijos = [("Derechos por predio (D5)", "DGA, derechos registrados", "predio_derecho"),
              ("Cauce y canal cercanos (D8)", "DGA red de drenajes; CNR y CIREN canales", "predio_cauce"),
              ("Puntos de interés (M10)", "Caudal", "poi"), ("Frutales (D7)", "CIREN Catastro Frutícola 2025", "predio_cultivo"),
@@ -580,7 +618,8 @@ def main() -> int:
     fuentes, rutas = [], []
     for dato, ps in insumos.items():  # una fila por dato, con todas las series donde se buscó el predio
         if ps:
-            fuentes.append({"dato": dato, "fuente": "Sentinel-2 L2A y secano CONAF (D11)" if "M4" not in dato else "Sentinel-2 y Open-Meteo",
+            fuentes.append({"dato": dato, "fuente": {"M4": "Sentinel-2 y Open-Meteo", "M5": "M3, M4 y derechos DGA"}.get(dato[-3:-1],
+                                                                                                 "Sentinel-2 L2A y secano CONAF (D11)"),
                             "archivo": ", ".join(p.name for p in ps), "version": ", ".join(sorted({version_de(p) for p in ps}))})
             rutas += ps
     for dato, fuente, nombre in fijos:
@@ -604,10 +643,14 @@ def main() -> int:
     pdf = (out / "expediente.pdf").resolve()
     ruta_pdf = str(pdf.relative_to(RAIZ)) if pdf.is_relative_to(RAIZ) else str(pdf)
     fila = pd.DataFrame([{"id": eid, "predio_id": pid, "rol": f"{comuna}:{pg.rol.iloc[0]}", "temporada": t, "confianza": r.confianza,
+                          "banda_m5": m5.banda if m5 is not None else "", "puntaje_m5": m5.puntaje if m5 is not None else None,
                           "version": VERSION, "hash_insumos": huella, "ruta_pdf": ruta_pdf,
                           "fecha_creacion": datetime.now().isoformat(timespec="seconds")}])
-    fila.to_csv(reg, mode="a", header=not reg.exists(), index=False)
-    print(f"{eid}: {comuna}:{pg.rol.iloc[0]}, temporada {t}, confianza {r.confianza}, {len(poi)} POI, "
+    if reg.exists():  # se reescribe entero: si cambian las columnas, las filas antiguas quedan vacías en las nuevas
+        fila = pd.concat([pd.read_csv(reg), fila], ignore_index=True)
+    fila.to_csv(reg, index=False)
+    print(f"{eid}: {comuna}:{pg.rol.iloc[0]}, temporada {t}, confianza {r.confianza}, "
+          f"M5 {('banda ' + m5.banda + ' ' + num(m5.puntaje)) if m5 is not None else 'sin puntaje'}, {len(poi)} POI, "
           f"{'con' if fondo is not None else 'sin'} imagen -> {out / 'expediente.pdf'} ({time.time() - t0:.1f} s)")
     return 0
 

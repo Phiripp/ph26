@@ -62,15 +62,19 @@
 
 {% if r.confianza == "baja" %}
 <div class="alerta">Confianza BAJA del análisis satelital ({{ r.motivos_txt }}). Revise los antecedentes con especial cuidado antes de usarlos.</div>
+{% elif m5 and m5.confianza == "baja" %}
+<div class="alerta">Confianza BAJA del índice de sospecha ({{ m5.motivos_txt }}). Revise los antecedentes con especial cuidado antes de usarlos.</div>
 {% endif %}
 
 <h2>Resumen</h2>
 <table class="resumen">
+  {% if m5 %}<tr><td>Prioridad de fiscalización (M5)</td><td><b>Banda {{ m5.banda }}</b> · puntaje {{ m5.puntaje }} de 100{{ m5.puesto }}</td></tr>{% endif %}
   <tr><td>Indicio principal</td><td>{{ h.indicio }}</td></tr>
   <tr><td>Consumo estimado (FAO-56)</td><td>{{ h.consumo_corto }}</td></tr>
   <tr><td>Derechos inscritos encontrados</td><td>{{ h.derechos_corto }}</td></tr>
+  {% if m5 %}<tr><td>Agua sin derecho que la respalde</td><td>{{ m5.exceso }} (incluye pérdidas de riego)</td></tr>{% endif %}
   <tr><td>Fuentes de agua cercanas</td><td>{{ h.fuentes_corto }}</td></tr>
-  <tr><td>Confianza del análisis</td><td><b>{{ r.confianza|upper }}</b>{% if r.motivos_txt %} · {{ r.motivos_txt }}{% endif %}</td></tr>
+  <tr><td>Confianza</td><td>Señal satelital: <b>{{ r.confianza }}</b>{% if r.motivos_txt %} ({{ r.motivos_txt }}){% endif %}{% if m5 %}<br>Índice con derechos: <b>{{ m5.confianza }}</b>{% if m5.motivos_txt %} ({{ m5.motivos_txt }}){% endif %}{% endif %}</td></tr>
   {% if h.antecedentes %}<tr><td>Fiscalizaciones previas (DGA)</td><td>{{ h.antecedentes }}</td></tr>{% endif %}
 </table>
 <p class="fuente">Lo que este documento no afirma: que exista una infracción, que el agua se haya extraído sin derecho ni el volumen exacto.
@@ -185,7 +189,8 @@ la eventual infracción descrita.</p>
 
 <h2>A5. Calidad y limitaciones</h2>
 <ul>
-  <li>Confianza: <b>{{ r.confianza }}</b>{% if r.motivos_txt %} ({{ r.motivos_txt }}){% endif %}. Píxeles válidos por imagen (mediana): {{ r.pix }} de 20 m.</li>
+  <li>Confianza de la señal satelital (M3): <b>{{ r.confianza }}</b>{% if r.motivos_txt %} ({{ r.motivos_txt }}){% endif %}. Píxeles válidos por imagen (mediana): {{ r.pix }} de 20 m.</li>
+  {% if m5 %}<li>Índice de sospecha (M5): banda {{ m5.banda }}, puntaje {{ m5.puntaje }} de 100{{ m5.puesto }}, confianza <b>{{ m5.confianza }}</b>{% if m5.motivos_txt %} ({{ m5.motivos_txt }}){% endif %}. El puntaje ordena los predios para priorizar la fiscalización; no es una probabilidad de infracción.</li>{% endif %}
   <li>Referencia de secano: {{ r.ref_txt }}.</li>
   <li>Nubes: {{ r.nublado }} de las fechas en ventana seca se descartaron por nubosidad.</li>
   <li>La señal indica riego en período seco, no su origen: puede venir de un derecho no registrado en el polígono, de un canal, de un pozo o de una napa somera.</li>

@@ -294,7 +294,8 @@ uv run scripts/models/expediente.py --rol CABILDO:390-80 --temporada 2025-26
 - Anexo técnico: A1 POI, A2 series NDVI y NDMI frente al secano con ventanas secas y señal, A3 imágenes de la primera y la última temporada, A4 consumo en rango y derechos por temporada, A5 calidad y limitaciones, A6 archivos usados con su commit.
 - Busca el predio en las salidas de M2 a M4 en este orden: `_elegibles_2025-26`, `_validacion` y la muestra. Sirve para cualquier predio que esté en alguna de ellas.
 - Lenguaje: "indicios" y "eventual infracción"; los m³ van en rango y redondeados a 2 cifras. Si el predio no tiene señal de riego, el borrador no pide fiscalizar. Con confianza baja, la primera página lo advierte. Si hay un canal a 300 m o menos, el texto lo menciona como posible fuente.
-- Pendiente: endpoint `POST /expediente/{id}`, versión post-visita (fotos del retorno de campo, M15), campo "sector" (no está en las fuentes) y el puntaje de M5 en el resumen.
+- Índice de sospecha (M5): el resumen muestra banda, puntaje, puesto en la zona (solo con `puntaje.parquet`, los elegibles 2025-26; en otras temporadas usa `puntaje_validacion.parquet` sin puesto) y la confianza de M5 junto a la de M3. Los hechos agregan el agua sin derecho que la respalde (exceso de M5, con pérdidas de riego). La alerta de la primera página sale si M3 o M5 tienen confianza baja.
+- Pendiente: endpoint `POST /expediente/{id}`, versión post-visita (fotos del retorno de campo, M15) y campo "sector" (no está en las fuentes).
 
 ## Lo que hay que saber
 

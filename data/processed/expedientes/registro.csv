@@ -1,2 +1,2 @@
-id,predio_id,rol,temporada,confianza,version,hash_insumos,ruta_pdf,fecha_creacion
-CAU-5301413-202611210800,5301413,HIJUELAS:61-6,2025-26,alta,pre-visita,87ce2853a267,data/processed/expedientes/CAU-5301413-202611210800/expediente.pdf,2026-11-21T08:00:22
+id,predio_id,rol,temporada,confianza,banda_m5,puntaje_m5,version,hash_insumos,ruta_pdf,fecha_creacion
+CAU-5301413-202611210843,5301413,HIJUELAS:61-6,2025-26,alta,alta,90.82,pre-visita,abffc9ffe218,data/processed/expedientes/CAU-5301413-202611210843/expediente.pdf,2026-11-21T08:43:37

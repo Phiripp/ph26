@@ -89,31 +89,6 @@ function showFallback(host, text) {
   host.appendChild(d);
 }
 
-function loadImage(src) {
-  return new Promise((res, rej) => {
-    const im = new Image();
-    im.decoding = 'async';
-    im.onload = () => res(im);
-    im.onerror = () => rej(new Error('No se pudo cargar ' + src));
-    im.src = src;
-  });
-}
-
-/* ---------- reveal on scroll (content visible at rest without JS) ---------- */
-function setupReveal() {
-  if (RM || !('IntersectionObserver' in window)) return;
-  document.documentElement.classList.add('reveal-ready');
-  const io = new IntersectionObserver(es => es.forEach(e => {
-    if (e.isIntersecting) { e.target.classList.add('in'); io.unobserve(e.target); }
-  }), { threshold: .12, rootMargin: '0px 0px -5% 0px' });
-  document.querySelectorAll('.reveal').forEach(el => io.observe(el));
-  // Safety net: never leave content hidden.
-  setTimeout(() => document.querySelectorAll('.reveal:not(.in)').forEach(el => {
-    const r = el.getBoundingClientRect();
-    if (r.top < innerHeight) el.classList.add('in');
-  }), 2500);
-}
-
 /* ---------- manifest (shared by hero labels + Aculeo thumbnails) ---------- */
 let manifestP = null;
 const getManifest = () => (manifestP ??= fetch(MANIFEST_URL).then(r => {
@@ -264,170 +239,6 @@ function setupWaterHistory(years, onPick) {
     yrEls.forEach((s, k) => s.classList.toggle('on', years[k] === yr));
   }
   return { update };
-}
-
-/* ---------- Aculeo context thumbnails (before / driest year) ---------- */
-let cropP = null;
-async function getCrop(m) {
-  const W = m.size.w, H = m.size.h, aspect = 16 / 9;
-  const fallback = () => {
-    const w = Math.min(W * .7, H * .7 * aspect), h = w / aspect;
-    return { x: (W - w) / 2, y: (H - h) / 2, w, h };
-  };
-  try {
-    const wInfo = m.water && m.water[String(m.baselineYear)];
-    if (!wInfo || !wInfo.maskFile) return fallback();
-    const im = await loadImage(ASSET_DIR + wInfo.maskFile);
-    const mw = 256, mh = Math.max(1, Math.round(256 * im.naturalHeight / im.naturalWidth));
-    const c = document.createElement('canvas'); c.width = mw; c.height = mh;
-    const g = c.getContext('2d', { willReadFrequently: true }); g.drawImage(im, 0, 0, mw, mh);
-    const d = g.getImageData(0, 0, mw, mh).data;
-    let x0 = mw, y0 = mh, x1 = -1, y1 = -1;
-    for (let y = 0; y < mh; y++) for (let x = 0; x < mw; x++) {
-      if (d[(y * mw + x) * 4] > 127) { if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y; }
-    }
-    if (x1 < 0) return fallback();
-    const sx = W / mw, sy = H / mh;
-    const cx = (x0 + x1 + 1) / 2 * sx, cy = (y0 + y1 + 1) / 2 * sy;
-    let w = Math.max((x1 - x0 + 1) * sx, (y1 - y0 + 1) * sy * aspect) * 1.35;
-    w = Math.min(w, W, H * aspect); const h = w / aspect;
-    return { x: Math.min(Math.max(0, cx - w / 2), W - w), y: Math.min(Math.max(0, cy - h / 2), H - h), w, h };
-  } catch { return fallback(); }
-}
-
-/* "After" = the driest year (2020 for Aculeo), not the last one: the lagoon partially recovered by 2024. */
-function driestYear(m) {
-  let best = null, bestKm = Infinity;
-  for (const y of m.years) {
-    const km = m.water?.[y]?.km2;
-    if (Number.isFinite(km) && km < bestKm) { bestKm = km; best = y; }
-  }
-  return best ?? m.years[m.years.length - 1];
-}
-
-async function drawThumbs() {
-  const ca = $('th-a'), cb = $('th-b'), capA = $('th-a-c'), capB = $('th-b-c'), msg = $('ac-msg');
-  try {
-    const m = await getManifest();
-    const base = m.baselineYear ?? m.years[0];
-    const low = driestYear(m);
-    const lastY = m.years[m.years.length - 1];
-    capA.textContent = `Línea base · ${base}`;
-    capB.textContent = `Mínimo · ${low}`;
-    const [ia, ib, crop] = await Promise.all([
-      loadImage(`${ASSET_DIR}sat-${base}.jpg`),
-      loadImage(`${ASSET_DIR}sat-${low}.jpg`),
-      (cropP ??= getCrop(m)),
-    ]);
-    for (const [cv, im, yr, km] of [[ca, ia, base, m.water?.[base]?.km2], [cb, ib, low, m.water?.[low]?.km2]]) {
-      const g = cv.getContext('2d');
-      g.imageSmoothingQuality = 'high';
-      const kx = im.naturalWidth / m.size.w, ky = im.naturalHeight / m.size.h;
-      g.drawImage(im, crop.x * kx, crop.y * ky, crop.w * kx, crop.h * ky, 0, 0, cv.width, cv.height);
-      stamp(g, cv, `${yr}${Number.isFinite(km) ? ' · ' + nf1.format(km) + ' km²' : ''}`);
-    }
-    const lastKm = m.water?.[lastY]?.km2;
-    msg.textContent = m.synthetic
-      ? 'Imágenes sintéticas de respaldo en este prototipo.'
-      : `Imágenes Sentinel-2 cloudless reales (EOX), superficie medida con MNDWI. En ${lastY} la laguna recuperó parte del agua${Number.isFinite(lastKm) ? ` (${nf1.format(lastKm)} km²)` : ''}.`;
-  } catch (err) {
-    console.error('[Caudal] thumbnails:', err);
-    for (const cv of [ca, cb]) {
-      const g = cv.getContext('2d');
-      g.fillStyle = '#0a1015'; g.fillRect(0, 0, cv.width, cv.height);
-      g.fillStyle = '#8b9ba4'; g.font = '500 20px "IBM Plex Mono", monospace'; g.textAlign = 'center';
-      g.fillText('Imagen no disponible', cv.width / 2, cv.height / 2);
-    }
-  }
-}
-
-function stamp(g, cv, text) {
-  g.save();
-  g.font = '500 18px "IBM Plex Mono", monospace';
-  const w = g.measureText(text).width + 18;
-  g.fillStyle = 'rgba(5,8,11,.78)'; g.fillRect(10, cv.height - 40, w, 30);
-  g.fillStyle = '#e4ebee'; g.textBaseline = 'middle'; g.fillText(text, 19, cv.height - 25);
-  g.strokeStyle = 'rgba(69,214,238,.8)'; g.lineWidth = 2;
-  const L = 22, p = 8;
-  g.beginPath();
-  g.moveTo(p, p + L); g.lineTo(p, p); g.lineTo(p + L, p);
-  g.moveTo(cv.width - p - L, p); g.lineTo(cv.width - p, p); g.lineTo(cv.width - p, p + L);
-  g.stroke();
-  g.restore();
-}
-
-function lazyOnView(el, fn) {
-  if (!el) return;
-  if (!('IntersectionObserver' in window)) { fn(); return; }
-  const io = new IntersectionObserver(es => { if (es.some(e => e.isIntersecting)) { io.disconnect(); fn(); } }, { rootMargin: '200px' });
-  io.observe(el);
-}
-
-/* ---------- section 02: Zonas summary (Z1/Z2 cards + the 10-case list) ---------- */
-async function setupZonasSummary() {
-  const cards = $('zonas-cards'), list = $('casos-list');
-  let index = null, casos = [];
-  try { [index, casos] = await Promise.all([getIndex(), getCasos()]); }
-  catch (err) { console.error('[Caudal] zonas summary:', err); }
-
-  // 10-case list (links enter the zone and open the case)
-  if (list) {
-    const rows = (casos || []).slice().sort((a, b) => (a.zona || '').localeCompare(b.zona || '') || String(b.fecha_inspeccion).localeCompare(String(a.fecha_inspeccion)));
-    list.innerHTML = rows.length ? rows.map(c => `<li><a href="#caso-${esc(c.expediente)}" data-caso="${esc(c.expediente)}">
-        <span class="cl-z">${esc(String(c.zona || '').toUpperCase())}</span>
-        <span class="cl-exp">${esc(c.expediente)}${c.papel === 'demo_principal' ? '<i>demo</i>' : ''}</span>
-        <span class="cl-c">${esc(comunaFmt(c.comuna))} · inspección ${esc(dateNum(c.fecha_inspeccion))} · ${esc(c.decision || '—')}</span>
-        <span class="cl-m">${Number.isFinite(+c.multa_utm) ? nf1.format(+c.multa_utm) : '—'} UTM</span>
-      </a></li>`).join('') : '<li class="note">No se pudieron cargar los casos.</li>';
-    const n = $('casos-n'); if (n) n.textContent = rows.length || '—';
-  }
-
-  if (!cards) return;
-  const zonas = index?.zonas || [];
-  if (!zonas.length) { cards.innerHTML = '<p class="note">No se pudieron cargar las zonas.</p>'; return; }
-  cards.innerHTML = zonas.map(z => {
-    const id = zkey(z.id);
-    const nCasos = (casos || []).filter(c => zkey(c.zona) === id).length || (z.casos || []).length;
-    return `<article class="panel zc" id="zc-${esc(id)}" aria-labelledby="zc-${esc(id)}-t">
-      <span class="badge water">Zona ${esc(z.codigo || id.toUpperCase())}</span>
-      <h3 id="zc-${esc(id)}-t">${esc(z.nombre || id)}</h3>
-      <p class="p-loc">${esc((z.comunas || []).map(comunaFmt).join(' · '))}</p>
-      <p class="zc-meta"><span data-k="predios">— predios</span> · <b>${nCasos} casos DGA</b></p>
-      <dl class="stats stats-4" aria-label="Predios por banda (provisional)">
-        <div><dt>Alta</dt><dd class="b-alta" data-k="alta">—</dd></div>
-        <div><dt>Media</dt><dd class="b-media" data-k="media">—</dd></div>
-        <div><dt>Baja</dt><dd class="b-baja" data-k="baja">—</dd></div>
-        <div><dt>Sin indicio</dt><dd data-k="sin">—</dd></div>
-      </dl>
-      <p class="vs-route" data-k="ruta">Ruta de inspección: —</p>
-      <div class="row"><a class="btn primary" href="#${esc(id)}" data-zona="${esc(id)}">Ver zona en 3D ↑</a></div>
-    </article>`;
-  }).join('');
-
-  // fill counts per zone from the small summary file; without it, from the full zone data
-  // (a zone that fails keeps its dashes)
-  const resumen = await Zmod().then(Z => Z.loadResumen()).catch(() => null);
-  const fromZona = d => ({
-    predios: d.predios.length, counts: d.counts || {},
-    ruta: d.ruta && Array.isArray(d.ruta.paradas) && d.ruta.paradas.length
-      ? { paradas: d.ruta.paradas.length, distancia_km: d.ruta.distancia_km, duracion_min: d.ruta.duracion_min, inicio: d.ruta.inicio }
-      : null,
-  });
-  for (const z of zonas) {
-    const id = zkey(z.id), card = $('zc-' + id);
-    const known = resumen?.zonas?.[id];
-    (known ? Promise.resolve(known) : loadZonaData(id).then(fromZona)).then(d => {
-      const c = d.counts || {}, set = (k, v) => { const e = card.querySelector(`[data-k="${k}"]`); if (e) e.textContent = v; };
-      set('predios', `${d.predios} predios`);
-      set('alta', c.alta ?? 0); set('media', c.media ?? 0); set('baja', c.baja ?? 0);
-      set('sin', (c.sin_alerta || 0) + (c.sin_dato || 0));
-      const r = d.ruta;
-      if (r && r.paradas) {
-        const h = Math.floor(r.duracion_min / 60), m = Math.round(r.duracion_min % 60);
-        set('ruta', `Ruta: ${r.paradas} paradas · ${nf1.format(r.distancia_km)} km · ${h} h ${String(m).padStart(2, '0')} min · desde ${r.inicio?.nombre || 'la plaza'}`);
-      } else set('ruta', 'Ruta de inspección: en preparación');
-    }).catch(err => console.error(`[Caudal] zona ${id} summary:`, err));
-  }
 }
 
 /* ---------- zone side panel: Predios (ranking -> ficha -> expediente) | Casos (lista -> caso) | Ruta ---------- */
@@ -783,7 +594,6 @@ function setupStage({ getHero }) {
   });
   const preloadHero = () => { ensureHero().catch(() => {}); };
   $('map').addEventListener('pointerover', e => { if (e.target.closest?.(`[data-id="${LAGOON_ID}"]`)) preloadHero(); });
-  for (const ev of ['pointerenter', 'focus']) $('ac-open')?.addEventListener(ev, preloadHero);
 
   function updateHint() {
     hint.innerHTML = '<span class="rec" aria-hidden="true"></span>' + (valleFailed
@@ -1200,7 +1010,6 @@ async function setupServiceWorker() {
 
 /* ---------- boot ---------- */
 async function boot() {
-  setupReveal();
   setupServiceWorker();
 
   try {
@@ -1213,14 +1022,6 @@ async function boot() {
     showFallback($('map'), 'No se pudieron cargar los sitios. Sirve la carpeta con un servidor local (python3 -m http.server).');
   }
   getCasos().then(c => { $('hud-count').textContent = c.length || '—'; }).catch(() => {});
-
-  // "Cómo funciona" chart: the demo case predio vs secano, with its inspection date (chart.js).
-  import('./chart.js')
-    .then(m => m.renderChart($('chart'), $('callout')))
-    .catch(err => console.error('[Caudal] chart:', err));
-
-  setupZonasSummary();
-  lazyOnView($('th-a'), drawThumbs);
 
   // The lagoon scene is not part of the landing: it used to load here (3.7 MB of imagery + a WebGL
   // context) for a view most visits never open.

@@ -21,7 +21,6 @@
 <script type="module" src="js/main.js"></script>
 </head>
 <body>
-<a class="skip" href="#como">Saltar al contenido</a>
 
 <header class="stage" id="top" data-mode="landing">
   <script>
@@ -43,11 +42,6 @@
   <div class="nav">
     <div class="wrap">
       <a class="brand" href="#top"><svg viewBox="0 0 64 64" aria-hidden="true"><defs><mask id="brand-gap" maskUnits="userSpaceOnUse" x="0" y="0" width="64" height="64"><rect width="64" height="64" fill="#fff"/><path d="M3 38A29 9 0 0 0 61 38" transform="rotate(-20 32 38)" fill="none" stroke="#000" stroke-width="8"/></mask></defs><path d="M3 38A29 9 0 0 1 61 38" transform="rotate(-20 32 38)" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round"/><g mask="url(#brand-gap)"><path fill="currentColor" transform="translate(32 34) scale(.76) translate(-32 -34)" d="M32 3C26 15 11 27 11 40a21 21 0 0 0 42 0C53 27 38 15 32 3Z"/></g><path d="M3 38A29 9 0 0 0 61 38" transform="rotate(-20 32 38)" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round"/><circle cx="59.25" cy="28.08" r="4" fill="#ffa940"/></svg>CAUDAL</a>
-      <nav aria-label="Principal">
-        <a href="#como">Cómo funciona</a>
-        <a href="#zonas">Zonas</a>
-        <span class="chip"><span class="rec"></span>Prototipo · Platanus Hack 26</span>
-      </nav>
     </div>
   </div>
 
@@ -111,7 +105,6 @@
         <p class="c-note" id="c-note">Cifras ilustrativas en este prototipo.</p>
         <div class="c-actions">
           <button class="btn primary" id="c-enter" type="button" hidden>Ver laguna en 3D</button>
-          <a class="btn" href="#zonas" id="c-case">Ver zonas ↓</a>
         </div>
       </div>
 
@@ -136,74 +129,6 @@
   </div>
 </header>
 
-<main>
-<section id="como">
-  <div class="wrap">
-    <p class="kicker reveal">01 · Cómo funciona</p>
-    <h2 class="reveal">Qué predio inspeccionar primero, y en qué orden.</h2>
-    <p class="lede reveal">Un fiscalizador no puede recorrer toda una zona. Caudal cruza imágenes satelitales con el clima para ordenar los predios por sospecha y armar una ruta de inspección de un día. El sistema prioriza; la decisión y la denuncia son de una persona.</p>
-    <div class="steps steps-4 reveal">
-      <div class="step"><b>1 · VENTANA SECA</b><h3>Cuándo no debería haber verde</h3><p>Con lluvia y evapotranspiración diarias (estaciones DMC + Open-Meteo corregido) marcamos los periodos de 10 días o más sin lluvia efectiva, cuando un cultivo solo sigue verde si alguien lo riega.</p></div>
-      <div class="step"><b>2 · VERDOR Y HUMEDAD</b><h3>Sentinel-2 por predio</h3><p>NDVI y NDMI mensuales de cada predio, comparados con una referencia de secano cercana. Verde en ventana seca = riego probable.</p></div>
-      <div class="step"><b>3 · CONSUMO VS DERECHO</b><h3>Un rango, nunca una cifra</h3><p>Estimamos el consumo con FAO-56 como rango de m³/año y lo comparamos con el derecho del rol en la DGA. El exceso define la banda: alta, media o baja.</p></div>
-      <div class="step"><b>4 · RUTA</b><h3>La decisión física</h3><p>Los predios de banda alta y media entran a una ruta optimizada (OR-Tools sobre caminos reales OSRM) que el inspector recorre en una jornada.</p></div>
-    </div>
-    <figure class="chart hud reveal">
-      <figcaption>
-        <span id="chart-cap">Caso FD-0501-181 · Cabildo · NDVI mensual Sentinel-2 L2A del predio vs referencia de secano, con la fecha de inspección DGA</span>
-        <span class="keys"><span class="key"><i class="k-band"></i>Ventana seca</span><span class="key"><i class="k-ok"></i>NDVI predio</span><span class="key"><i class="k-ref"></i>Referencia secano</span></span>
-      </figcaption>
-      <div class="chart-scroll"><svg id="chart" viewBox="0 0 960 300" role="img" aria-label="Serie NDVI mensual del predio del caso FD-0501-181 comparada con una referencia de secano, con las ventanas secas sombreadas y la fecha de inspección DGA"></svg></div>
-    </figure>
-    <p class="callout reveal" id="callout"></p>
-  </div>
-</section>
-
-<section id="zonas">
-  <div class="wrap">
-    <p class="kicker reveal">02 · Zonas</p>
-    <h2 class="reveal">Dos zonas, diez casos ya sancionados por la DGA.</h2>
-    <p class="lede reveal">Predios del catastro CIREN en Petorca (Z1) y Aconcagua bajo (Z2), ordenados por banda de sospecha con rangos de consumo y nivel de confianza. Los 10 casos resueltos por la DGA sirven para comprobar si la señal satelital aparecía antes de la inspección.</p>
-    <div class="valles-grid reveal">
-      <div class="zonas-main">
-        <div class="zonas-cards" id="zonas-cards">
-          <article class="panel zc"><span class="badge water">Zona Z1</span><h3>Petorca</h3><p class="p-loc">Petorca · Cabildo · La Ligua · Papudo · Zapallar</p><div class="row"><a class="btn primary" href="#z1">Ver zona en 3D ↑</a></div></article>
-          <article class="panel zc"><span class="badge water">Zona Z2</span><h3>Aconcagua bajo</h3><p class="p-loc">Hijuelas · La Cruz · Quillota · Nogales · La Calera</p><div class="row"><a class="btn primary" href="#z2">Ver zona en 3D ↑</a></div></article>
-        </div>
-        <article class="panel casos-card" aria-labelledby="casos-title">
-          <h3 id="casos-title">Casos sancionados por la DGA · <span id="casos-n">10</span></h3>
-          <p class="note">Expedientes de fiscalización resueltos con multa. Cada uno abre su zona, la serie del predio con la fecha de inspección y, en 3 casos, recortes Sentinel-2 antes y después.</p>
-          <ol class="caso-list" id="casos-list"><li class="note">Cargando…</li></ol>
-        </article>
-        <p class="note">Bandas e índice provisionales hasta el modelo M5 del equipo. Caudal muestra rangos, nunca una cifra única, y no identifica dueños.</p>
-      </div>
-
-      <div class="vs-side">
-        <article class="panel vs-context" aria-labelledby="ac-title">
-          <span class="badge warn">Contexto · lo que ya pasó</span>
-          <h3 id="ac-title">Laguna de Aculeo</h3>
-          <p class="p-loc">Región Metropolitana · se secó casi por completo en 2019–2020</p>
-          <div class="thumbs">
-            <figure><canvas id="th-a" width="480" height="270"></canvas><figcaption id="th-a-c">Línea base</figcaption></figure>
-            <figure><canvas id="th-b" width="480" height="270"></canvas><figcaption id="th-b-c">Mínimo</figcaption></figure>
-          </div>
-          <p class="note" id="ac-msg">Imágenes reales Sentinel-2 cloudless (EOX). Superficie medida con MNDWI.</p>
-          <div class="row"><a class="btn" href="#aculeo" id="ac-open">Ver Aculeo en 3D ↑</a></div>
-        </article>
-
-        <article class="panel vs-flow" aria-labelledby="flow-title">
-          <h3 id="flow-title">Caudal prepara. Una persona presenta.</h3>
-          <ol class="flow">
-            <li><b>Ficha</b> del predio: banda provisional, confianza y por qué, derecho del rol en la DGA, series NDVI/NDMI con ventanas secas.</li>
-            <li><b>Expediente</b> en borrador con los campos de la guía de denuncias de la DGA. La afectación y los datos del denunciante los escribe la persona.</li>
-            <li>Se presenta en la <b>Oficina Virtual DGA (SNIA) con Clave Única</b>. Caudal no presenta nada.</li>
-          </ol>
-        </article>
-      </div>
-    </div>
-  </div>
-</section>
-</main>
 
 <footer>
   <div class="wrap">

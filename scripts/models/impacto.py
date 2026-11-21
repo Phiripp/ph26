@@ -43,11 +43,22 @@ import pandas as pd
 RAIZ = Path(__file__).resolve().parents[2]
 PROC = RAIZ / "data" / "processed"
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from validacion import casos, wilson  # noqa: E402
+from validacion import casos, lift_sin_calibrar, wilson  # noqa: E402
 
 CLP_M3 = {"bajo": 2_600, "central": 4_300, "alto": 14_000}
 M3_PERSONA = {"bajo": 62.0, "central": 36.5, "alto": 18.25}  # más m³ por persona = menos personas
 UTM_CLP = 72_450
+# Equivalencias para comunicar volúmenes (pitch y panel de impacto). Cada una con su fuente.
+EQUIVALENCIAS = {
+    "m3_persona_ano": {"valor": 36.5, "nota": "100 litros por persona al día",
+                       "fuente": "Corte Suprema, 2021 (dotación mínima para Petorca)",
+                       "url": "https://www.24horas.cl/regiones/valparaiso/corte-suprema-determina-100-litros-de-agua-por-habitantes-de-petorca-4708851"},
+    "lata_monster_ml": {"valor": 473, "nota": "lata de Monster Energy",
+                        "fuente": "ficha del producto", "url": "https://andina.micoca-cola.cl/monster-energy-green-473-ml/p"},
+    "torre_costanera_m3": {"valor": 107_125 * 4.2, "nota": "estimación propia: 107.125 m² construidos x 4,2 m por piso; "
+                           "ninguna fuente publica el volumen", "fuente": "WikiArquitectura (superficie y alturas de piso)",
+                           "url": "https://es.wikiarquitectura.com/edificio/gran-torre-santiago-torre-gran-costanera/"},
+}
 ESC = {"bajo": "bajo", "dga": "central", "alto": "alto"}  # nivel de acierto -> nivel de precio y dotación
 
 
@@ -247,7 +258,17 @@ def main() -> None:
           "candidatos_mas_100ha": res["candidatos_grandes"], "acierto_dga": ac["dga"],
           "acierto_caudal": {k: ac[k] for k in ("bajo", "central", "alto")}, "lift_alta": ac["lift_alta"], "auc_fiscalizados": ac["auc"],
           "escenarios": e, "adelanto_mediana_anos": float(det["anos_adelanto"].median()) if len(det) else None,
-          "adelanto_casos": len(det), "supuestos": {"clp_m3": CLP_M3, "m3_persona_ano": M3_PERSONA, "utm_clp": UTM_CLP}}
+          "adelanto_casos": len(det), "supuestos": {"clp_m3": CLP_M3, "m3_persona_ano": M3_PERSONA, "utm_clp": UTM_CLP},
+          # Cifra de validación para comunicar: la medida con los umbrales fijados antes de calibrar (M7).
+          "lift_alta_sin_calibrar": lift_sin_calibrar(),
+          "capacidad": {"fiscalizaciones_por_ano": insp_ano, "candidatos_hasta_100ha": res["candidatos_chicos"],
+                        "anos": res["candidatos_chicos"] / insp_ano},
+          "equivalencias": EQUIVALENCIAS,
+          "torres_costanera_ano": {k: e[k]["m3_ano"] / EQUIVALENCIAS["torre_costanera_m3"]["valor"]
+                                   for k in ("conservador", "central")},
+          "generado": pd.Timestamp.now().isoformat(timespec="seconds"),
+          "fuentes": ["data/processed/puntaje.parquet", "data/processed/puntaje_validacion.parquet",
+                      "data/processed/fiscalizacion.parquet", "data/processed/calibracion_grilla.csv"]}
     (PROC / "impacto.json").write_text(json.dumps(js, ensure_ascii=False, indent=2, default=float), encoding="utf-8")
     print("\n".join(L[:12]))
     print("-> docs/impacto.md\n-> data/processed/impacto.json")

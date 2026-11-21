@@ -1,0 +1,32 @@
+# Construye la imagen de los jobs y la sube a Artifact Registry. La lanza infra/imagen/construir.sh:
+#   gcloud builds submit --region us-west1 --config infra/imagen/cloudbuild.yaml --substitutions _VERSION=<sha> .
+substitutions:
+  _REPOSITORIO: us-west1-docker.pkg.dev/ph-26-caudal/caudal-jobs
+  _VERSION: manual
+
+steps:
+  - name: gcr.io/cloud-builders/docker
+    args:
+      - build
+      - --file=infra/imagen/Dockerfile
+      - --tag=${_REPOSITORIO}/pipeline:${_VERSION}
+      - .
+
+  # Prueba de humo: las bibliotecas nativas (GDAL de rasterio, GEOS de shapely) cargan y el código está en /app.
+  - name: gcr.io/cloud-builders/docker
+    args:
+      - run
+      - --rm
+      - --entrypoint=python
+      - ${_REPOSITORIO}/pipeline:${_VERSION}
+      - -c
+      - >-
+        import geopandas, rasterio, shapely, pystac_client, xarray, zarr, scipy, sklearn, pyproj, python_calamine;
+        import pathlib; assert pathlib.Path('/app/scripts/cloud/chile/entrada.py').is_file();
+        print('ok', rasterio.__gdal_version__)
+
+images:
+  - ${_REPOSITORIO}/pipeline:${_VERSION}
+
+options:
+  logging: CLOUD_LOGGING_ONLY

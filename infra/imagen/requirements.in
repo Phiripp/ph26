@@ -1,0 +1,21 @@
+# Dependencias de los jobs de la corrida nacional: la unión de los encabezados PEP 723 de los scripts que corren en
+# Cloud Run (scripts/extract, scripts/models, scripts/cloud/chile y frontend-demo/scripts/build_m5_web.py).
+# requirements.txt se genera con: uv pip compile infra/imagen/requirements.in --python-version 3.12 -o infra/imagen/requirements.txt
+geopandas>=1.0
+shapely>=2.0
+pyarrow
+pandas
+numpy
+scipy
+scikit-learn
+pyproj
+rasterio
+pystac-client
+requests
+python-calamine
+truststore
+xarray
+zarr
+dask
+fsspec
+aiohttp

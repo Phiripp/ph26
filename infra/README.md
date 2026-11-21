@@ -8,6 +8,11 @@ Infraestructura de la corrida nacional de [spec-chile.md](../docs/spec-chile.md)
 infra/
 ├── bootstrap/
 │   └── estado.sh            bucket del estado remoto (ph-26-caudal-tfstate); se corre una vez
+├── imagen/                  imagen Docker de los jobs
+│   ├── Dockerfile           Python 3.12, dependencias fijadas y el código en /app
+│   ├── requirements.in      dependencias directas; requirements.txt es la versión fijada
+│   ├── cloudbuild.yaml      build y prueba de humo en Cloud Build
+│   └── construir.sh         construye con la etiqueta del commit actual
 ├── entornos/
 │   └── prod/                raíz de Terraform: aquí se corre init, plan y apply
 │       ├── main.tf          compone los módulos
@@ -21,6 +26,7 @@ infra/
     ├── identidad/           cuenta de servicio caudal-jobs
     ├── almacenamiento/      bucket ph-26-caudal-chile y sus permisos (jobs escriben, caudal-web lee)
     ├── secretos/            secreto CDS_API_KEY (valor provisorio PENDIENTE) y acceso de caudal-jobs
+    ├── artefactos/          repositorio caudal-jobs de Artifact Registry y sus permisos
     ├── jobs/                Cloud Run Jobs de datos, satélite (4 regiones) y predicción
     └── cuota/               solicitud de cuota de Cloud Run en us-west1 (opcional)
 ```
@@ -38,7 +44,7 @@ infra/
 | `caudal-chile-satelite` | us-west1, us-west2, us-west4, us-central1 | 2 vCPU, 4 GiB | 6 h | 2 | `satelite` (`HILOS=10`, `PARTE_BASE` = 0, 10, 20, 30) |
 | `caudal-chile-prediccion` | us-west1 | 8 vCPU, 32 GiB | 3 h | 1 | `region` |
 
-Todos usan la imagen pública `mirror.gcr.io/library/python:3.12-slim` (no hay Cloud Build), ejecutan `bash /datos/codigo/arranque.sh`, corren como `caudal-jobs` en gen2 y montan el bucket en `/datos` (caché de metadatos de 600 s). Variables de entorno: `CAUDAL_DATA=/datos`, `CORRIDA`, `ETAPA`, `HILOS` y `PARTE_BASE` (solo satélite), más `CDS_API_KEY` desde Secret Manager. Los jobs pueden crearse antes de que exista `codigo/arranque.sh`; fallan recién al ejecutarlos.
+Todos usan la imagen `us-west1-docker.pkg.dev/ph-26-caudal/caudal-jobs/pipeline:<version>` (ver [Imagen de los jobs](#imagen-de-los-jobs)), corren como `caudal-jobs` en gen2 y montan el bucket en `/datos` (caché de metadatos de 600 s). Variables de entorno: `CAUDAL_DATA=/datos`, `CORRIDA`, `ETAPA`, `HILOS` y `PARTE_BASE` (solo satélite), más `CDS_API_KEY` desde Secret Manager.
 
 ## Uso
 
@@ -74,12 +80,30 @@ Ver `entornos/prod/variables.tf`; todas tienen valor por defecto salvo que se in
 | `regiones_satelite` | Regiones de la etapa satelital y su `PARTE_BASE` |
 | `correo_contacto` | Correo que Google exige para pedir cuota. Sin él no se pide. Se pasa con `TF_VAR_correo_contacto=...` para no guardarlo en git |
 
+## Imagen de los jobs
+
+El código y las dependencias van dentro de la imagen: un cambio de código es una imagen nueva y un `apply`.
+
+```bash
+# 1. Construir (desde develop, con el árbol limpio): etiqueta = commit corto
+infra/imagen/construir.sh
+
+# 2. Apuntar los jobs a esa versión
+cd infra/entornos/prod
+terraform apply -var version_imagen=<commit>
+```
+
+- `construir.sh` corre `gcloud builds submit` con `cloudbuild.yaml`. El build tiene una prueba de humo: importa las bibliotecas con partes nativas (rasterio, shapely, pyproj) y comprueba que `entrada.py` esté en `/app`.
+- `.gcloudignore`, en la raíz del repo, sube a Cloud Build solo lo que copia el Dockerfile (unos 40 archivos), no los datos ni el frontend.
+- Para cambiar dependencias se edita `requirements.in` y se regenera el archivo fijado: `uv pip compile infra/imagen/requirements.in --python-version 3.12 --python-platform x86_64-manylinux_2_28 -o infra/imagen/requirements.txt`.
+- El repositorio guarda las 10 imágenes más recientes y borra las de más de 7 días.
+
 ## Pendientes manuales
 
 **Clave de CDS.** Terraform deja `PENDIENTE` como valor inicial y no vuelve a tocar el secreto. Para cargar la clave real:
 
 ```bash
-printf '%s' "<uid>:<api-key>" | gcloud secrets versions add CDS_API_KEY --data-file=- --project ph-26-caudal
+printf '%s' "<token>" | gcloud secrets versions add CDS_API_KEY --data-file=- --project ph-26-caudal
 ```
 
 Los jobs leen la versión `latest`, así que no hay que redesplegar.

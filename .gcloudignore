@@ -1,0 +1,32 @@
+# Qué sube `gcloud builds submit` desde la raíz (infra/imagen/construir.sh): solo lo que copia infra/imagen/Dockerfile.
+# Todo lo demás (datos grandes, frontend, worktrees, .git) queda fuera.
+/*
+!/infra/
+/infra/*
+!/infra/imagen/
+
+!/scripts/
+/scripts/pruebas_datos/
+
+!/data/
+/data/*
+!/data/zonas.json
+!/data/regiones.json
+!/data/casos_validacion.geojson
+!/data/processed/
+/data/processed/*
+!/data/processed/puntaje.parquet
+
+!/frontend-demo/
+/frontend-demo/*
+!/frontend-demo/scripts/
+/frontend-demo/scripts/*
+!/frontend-demo/scripts/build_m5_web.py
+!/frontend-demo/scripts/build_zonas_web.py
+!/frontend-demo/data/
+/frontend-demo/data/*
+!/frontend-demo/data/zonas/
+/frontend-demo/data/zonas/*
+!/frontend-demo/data/zonas/casos.json
+
+__pycache__/

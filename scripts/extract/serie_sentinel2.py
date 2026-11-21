@@ -42,6 +42,7 @@ Uso:
 import argparse
 import json
 import sys
+import time
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
@@ -65,6 +66,8 @@ SCL_VALIDO = [4, 5, 6, 7]
 BANDAS = ["green", "red", "nir", "nir08", "swir16", "scl"]
 AREA_MIN_HA = 0.5
 HILOS = 6
+ESPERA_BASE = 15  # s; reintento k espera ESPERA_BASE * 2**k
+PAUSA_FINAL = 120  # s antes de la pasada final de escenas fallidas
 
 
 def nd(a, b):
@@ -232,11 +235,12 @@ def main():
     sel.add_argument("--predios", help="archivo con predio_id (una por línea, o CSV/Parquet con columna predio_id)")
     ap.add_argument("--temporadas", help="rango de temporadas secas, p. ej. 2019-20:2024-25 (diciembre a marzo de cada una)")
     ap.add_argument("--limite", type=int, help="procesar solo las primeras N escenas por zona (pruebas)")
+    ap.add_argument("--reintentos", type=int, default=3, help="reintentos por escena ante errores de lectura (espera 15, 30, 60 s...)")
     ap.add_argument("--salida", default=str(DATA / "processed/serie_predio.parquet"))
     args = ap.parse_args()
 
     zonas = json.loads((DATA / "zonas.json").read_text())
-    resultados = []
+    resultados, fallidas = [], []
     for zid in args.zona or ["Z1", "Z2"]:
         z = zonas["zonas"][zid]
         if args.temporadas:
@@ -276,20 +280,39 @@ def main():
 
         def trabajo(a):
             it, tile, f = a
-            try:
-                df = procesar_escena(it, tile)
-            except Exception as e:  # una escena rota no debe tumbar la corrida
-                print(f"  ERROR {it.id}: {e}", file=sys.stderr, flush=True)
-                return None
+            for intento in range(args.reintentos + 1):
+                try:
+                    df = procesar_escena(it, tile)
+                    break
+                except Exception as e:  # una escena rota no debe tumbar la corrida; la red falla a ratos
+                    if intento == args.reintentos:
+                        print(f"  ERROR {it.id} (sin más reintentos): {e}", file=sys.stderr, flush=True)
+                        return a, None
+                    espera = ESPERA_BASE * 2**intento
+                    print(f"  reintento {intento + 1}/{args.reintentos} de {it.id} en {espera} s: {e}", file=sys.stderr, flush=True)
+                    time.sleep(espera)
             df.to_parquet(f, index=False)
-            return df.assign(zona=zid)
+            return a, df.assign(zona=zid)
 
-        with ThreadPoolExecutor(HILOS) as ex:
-            for i, df in enumerate(ex.map(trabajo, pend), 1):
-                if df is not None:
-                    resultados.append(df)
-                if i % 10 == 0 or i == len(pend):
-                    print(f"  {zid}: {i}/{len(pend)} escenas", flush=True)
+        def pasada(lista):
+            malas = []
+            with ThreadPoolExecutor(HILOS) as ex:
+                for i, (a, df) in enumerate(ex.map(trabajo, lista), 1):
+                    if df is None:
+                        malas.append(a)
+                    else:
+                        resultados.append(df)
+                    if i % 10 == 0 or i == len(lista):
+                        print(f"  {zid}: {i}/{len(lista)} escenas", flush=True)
+            return malas
+
+        malas = pasada(pend)
+        if malas:
+            # un corte de red largo agota los reintentos por escena: una pasada más al final, después de una pausa
+            print(f"  {zid}: {len(malas)} escenas fallidas; pasada final en {PAUSA_FINAL} s", file=sys.stderr, flush=True)
+            time.sleep(PAUSA_FINAL)
+            malas = pasada(malas)
+        fallidas += [it.id for it, _, _ in malas]
 
     if not resultados:
         sys.exit("Sin resultados")
@@ -305,6 +328,11 @@ def main():
     ok = s.n_pix_validos > 0
     print(f"{len(s)} filas, {s.predio_id.nunique()} predios, {s.escena_id.nunique()} escenas; "
           f"{ok.mean():.0%} con píxeles válidos -> {args.salida}")
+    if fallidas:
+        # la salida queda escrita, pero incompleta: volver a correr el mismo comando lee el caché y pide solo estas
+        print(f"INCOMPLETO: {len(fallidas)} escenas fallaron después de los reintentos; vuelve a correr el mismo comando:\n  "
+              + "\n  ".join(fallidas), file=sys.stderr, flush=True)
+        sys.exit(1)
 
 
 if __name__ == "__main__":

@@ -21,6 +21,10 @@ Etiqueta (de "Decisión de la Resolución" y "Estado de tramitación"):
 Coordenadas: UTM; la planilla no trae datum, se supone WGS84 (EPSG:32718/32719 según huso).
 Zona: la del predio con rol válido a 50 m o menos del punto; si no hay, la de la comuna declarada.
 
+Corrida nacional: la planilla ya es nacional. Con una zona de data/regiones.json (`dga`) no se filtra por Valparaíso:
+solo quedan los expedientes cuyo punto cae en el predio de la región o cuya comuna es de la región, así que cada
+región produce su propio fiscalizacion.parquet y la zona es el código de la región.
+
 Uso: uv run scripts/extract/fiscalizaciones_dga.py [--refrescar]
 """
 
@@ -39,8 +43,9 @@ import truststore
 
 truststore.inject_into_ssl()  # dga.mop.gob.cl: ver derechos_dga.py
 
-RAIZ = Path(__file__).resolve().parents[2]
-DATA = RAIZ / "data"
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from comun.rutas import DATA, ZONAS  # noqa: E402
+
 PAGINA = "https://dga.mop.gob.cl/tramites/denunciar/fiscalizacion/"
 UA = {"User-Agent": "Mozilla/5.0 (caudal-hackathon/0.1)"}
 CRS_METROS = "EPSG:32719"
@@ -195,7 +200,13 @@ def main() -> None:
     if faltan:
         sys.exit(f"La planilla cambió de formato; faltan columnas: {sorted(faltan)}")
     df = df[list(COLUMNAS.values())].set_axis(list(COLUMNAS), axis=1)
-    df = df[df["region"].astype(str).map(sin_tildes).str.upper().str.contains("VALPARAISO")].copy()
+    zonas = json.loads(ZONAS.read_text(encoding="utf-8"))["zonas"]
+    regional = [d for d in zonas.values() if "dga" in d]
+    if len(regional) > 1:
+        sys.exit("fiscalizaciones_dga.py procesa una región por ejecución (una zona con `dga` en CAUDAL_ZONAS)")
+    if not regional:
+        df = df[df["region"].astype(str).map(sin_tildes).str.upper().str.contains("VALPARAISO")].copy()
+    region = tuple(regional[0]["bbox"]) if regional else REGION
 
     for c in ("expediente", "tipo_ingreso", "tipo_infraccion", "decision", "estado_tramitacion", "recurso"):
         df[c] = df[c].astype("string").str.strip().str.replace(r"\s+", " ", regex=True)
@@ -220,14 +231,13 @@ def main() -> None:
         if sel.any():
             pts = gpd.GeoSeries(gpd.points_from_xy(df.loc[sel, "utm_este"], df.loc[sel, "utm_norte"]), crs=epsg).to_crs(4326)
             lon[sel], lat[sel] = pts.x.to_numpy(), pts.y.to_numpy()
-    fuera = ~(lon.between(REGION[0], REGION[2]) & lat.between(REGION[1], REGION[3]))
+    fuera = ~(lon.between(region[0], region[2]) & lat.between(region[1], region[3]))
     lon[fuera], lat[fuera] = np.nan, np.nan
     gdf = gpd.GeoDataFrame(df, geometry=gpd.points_from_xy(lon, lat), crs="EPSG:4326")
     gdf.loc[lon.isna(), "geometry"] = None
 
     # Predio y zona.
-    zonas = json.loads((DATA / "zonas.json").read_text(encoding="utf-8"))["zonas"]
-    comuna_zona = {c: z for z, d in zonas.items() for c in d["comunas"]}
+    comuna_zona = {sin_tildes(c).upper(): z for z, d in zonas.items() for c in d["comunas"]}
     predios = gpd.read_parquet(DATA / "processed" / "predio.parquet")
     predios = predios[predios["rol_valido"]].to_crs(CRS_METROS)[["predio_id", "zona", "elegible", "area_ha", "geometry"]]
     con_punto = gdf.geometry.notna()

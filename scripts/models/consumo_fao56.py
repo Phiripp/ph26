@@ -85,8 +85,8 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-RAIZ = Path(__file__).resolve().parents[2]
-PROC = RAIZ / "data" / "processed"
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from comun.rutas import PROC  # noqa: E402
 
 MESES_TEMPORADA = [12, 1, 2, 3]
 NUBOSIDAD_MAX = 20.0
@@ -176,7 +176,7 @@ def interpolar(g: pd.DataFrame) -> pd.DataFrame:
 
 def clima_mensual() -> pd.DataFrame:
     c = pd.read_parquet(PROC / "clima.parquet", columns=["punto_id", "fuente", "fecha", "lluvia_corr_mm", "et0_mm"])
-    c = c[c["fuente"] == "openmeteo"].drop_duplicates(["punto_id", "fecha"])  # D17
+    c = c[c["fuente"].isin(["openmeteo", "era5land"])].drop_duplicates(["punto_id", "fecha"])  # D17
     c["mes"] = c["fecha"].dt.to_period("M").dt.to_timestamp()
     m = c.groupby(["punto_id", "mes"]).agg(et0_mm=("et0_mm", "sum"), lluvia_mm=("lluvia_corr_mm", "sum"),
                                            dias=("fecha", "size")).reset_index()

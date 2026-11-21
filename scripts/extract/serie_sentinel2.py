@@ -7,9 +7,17 @@
 Para cada escena que cruza una zona, lee las bandas recortadas a los predios (a 20 m),
 enmascara nubes con SCL y promedia los índices dentro de cada predio.
 
-Entradas: data/zonas.json y data/processed/predio_muestra.geojson (o predio.parquet con --todos).
-Caché: data/raw/s2/<zona>/<escena>_<muestra|todos>_v2.parquet, una por escena (se puede cortar y reanudar; no va a git).
-Salida: data/processed/serie_predio.parquet, una fila por (predio_id, escena_id).
+Entradas: data/zonas.json y, según el modo, data/processed/predio_muestra.geojson, predio.parquet,
+fiscalizacion.parquet o referencia_secano.parquet.
+Caché: data/raw/s2/<zona>/<escena>_<modo>_v2.parquet, una por escena y modo (se puede cortar y reanudar; no va a git).
+Salida: data/processed/serie_predio.parquet (o --salida), una fila por (predio_id, escena_id).
+
+Modos (qué polígonos se procesan; por defecto, la muestra):
+- --elegibles: los 7.911 predios elegibles (rol válido y 1 ha o más), universo del ranking.
+- --validacion: predios elegibles de los vecindarios del set de validación (D18: set_validacion != "fuera").
+- --referencia: polígonos de referencia de secano (D11). La columna predio_id lleva el ref_id.
+- --predios ARCHIVO: lista de predio_id (una por línea, o CSV/Parquet con columna predio_id).
+- --todos: todos los polígonos con rol válido y 0,5 ha o más (20.050 en la capa; lento).
 
 Reflectancia = DN * 1e-4, sin offset (D15). Los COG de Earth Search ya traen el -0.1 aplicado en todos los baselines,
 aunque raster:bands declare offset -0.1 y aunque earthsearch:boa_offset_applied diga False: el mar frente a La Ligua
@@ -27,6 +35,8 @@ Uso:
   uv run scripts/extract/serie_sentinel2.py --zona Z2 --periodo completo
   uv run scripts/extract/serie_sentinel2.py --inicio 2025-12-01 --fin 2026-03-31   # temporada seca 2025-26
   uv run scripts/extract/serie_sentinel2.py --todos              # los 20.050 predios (lento)
+  uv run scripts/extract/serie_sentinel2.py --validacion --temporadas 2019-20:2024-25 \
+      --salida data/processed/serie_predio_validacion.parquet       # diciembre a marzo de cada temporada
 """
 
 import argparse
@@ -62,14 +72,52 @@ def nd(a, b):
         return (a - b) / (a + b)
 
 
-def cargar_predios(zona: str, todos: bool) -> gpd.GeoDataFrame:
-    if todos:
-        g = gpd.read_parquet(DATA / "processed/predio.parquet")
-        g = g[g.rol_valido & (g.area_ha >= AREA_MIN_HA)]
-    else:
+def leer_ids(ruta: str) -> set[int]:
+    f = Path(ruta)
+    if f.suffix == ".parquet":
+        return set(pd.read_parquet(f, columns=["predio_id"])["predio_id"].astype(int))
+    if f.suffix == ".csv":
+        return set(pd.read_csv(f)["predio_id"].astype(int))
+    return {int(x) for x in f.read_text().split() if x.strip()}
+
+
+def ids_validacion() -> set[int]:
+    """Predios de los vecindarios del set de validación (D18), solo los elegibles."""
+    f = gpd.read_parquet(DATA / "processed/fiscalizacion.parquet")
+    f = f[f["set_validacion"] != "fuera"]
+    return {int(i) for v in f["vecindario"] for i in v} | set(f["predio_id"].dropna().astype(int))
+
+
+def modo(args) -> str:
+    return ("referencia" if args.referencia else "validacion" if args.validacion else
+            "elegibles" if args.elegibles else "todos" if args.todos else
+            f"predios-{Path(args.predios).stem}" if args.predios else "muestra")
+
+
+def cargar_predios(zona: str, args) -> gpd.GeoDataFrame:
+    m = modo(args)
+    if m == "referencia":
+        g = gpd.read_parquet(DATA / "processed/referencia_secano.parquet").rename(columns={"ref_id": "predio_id"})
+    elif m == "muestra":
         g = gpd.read_file(DATA / "processed/predio_muestra.geojson")
+    else:
+        g = gpd.read_parquet(DATA / "processed/predio.parquet")
+        if m == "todos":
+            g = g[g.rol_valido & (g.area_ha >= AREA_MIN_HA)]
+        elif m == "elegibles":
+            g = g[g.elegible]
+        else:
+            ids = ids_validacion() if m == "validacion" else leer_ids(args.predios)
+            g = g[g.elegible & g.predio_id.isin(ids)]
     g = g[g.zona == zona][["predio_id", "zona", "geometry"]]
     return g.reset_index(drop=True)
+
+
+def periodos_temporadas(rango: str) -> list[dict]:
+    """'2019-20:2024-25' -> diciembre a marzo de cada temporada seca del rango."""
+    a, _, b = rango.partition(":")
+    ini, fin = int(a[:4]), int((b or a)[:4])
+    return [{"inicio": f"{y}-12-01", "fin": f"{y + 1}-03-31"} for y in range(ini, fin + 1)]
 
 
 class Tile:
@@ -176,7 +224,13 @@ def main():
     ap.add_argument("--inicio", help="YYYY-MM-DD; con --fin reemplaza el periodo (misma ventana para todas las zonas)")
     ap.add_argument("--fin", help="YYYY-MM-DD")
     ap.add_argument("--nubes-max", type=float, default=70, help="porcentaje de nubes de la escena; el SCL filtra por píxel")
-    ap.add_argument("--todos", action="store_true", help="todos los predios válidos en vez de la muestra")
+    sel = ap.add_mutually_exclusive_group()
+    sel.add_argument("--todos", action="store_true", help="todos los polígonos con rol válido y 0,5 ha o más")
+    sel.add_argument("--elegibles", action="store_true", help="los predios elegibles (rol válido y 1 ha o más)")
+    sel.add_argument("--validacion", action="store_true", help="predios de los vecindarios del set de validación (D18)")
+    sel.add_argument("--referencia", action="store_true", help="polígonos de referencia de secano (D11)")
+    sel.add_argument("--predios", help="archivo con predio_id (una por línea, o CSV/Parquet con columna predio_id)")
+    ap.add_argument("--temporadas", help="rango de temporadas secas, p. ej. 2019-20:2024-25 (diciembre a marzo de cada una)")
     ap.add_argument("--limite", type=int, help="procesar solo las primeras N escenas por zona (pruebas)")
     ap.add_argument("--salida", default=str(DATA / "processed/serie_predio.parquet"))
     args = ap.parse_args()
@@ -185,8 +239,16 @@ def main():
     resultados = []
     for zid in args.zona or ["Z1", "Z2"]:
         z = zonas["zonas"][zid]
-        ps = [{"inicio": args.inicio, "fin": args.fin}] if args.inicio and args.fin else periodos(zonas, z, args.periodo)
-        predios = cargar_predios(zid, args.todos)
+        if args.temporadas:
+            ps = periodos_temporadas(args.temporadas)
+        elif args.inicio and args.fin:
+            ps = [{"inicio": args.inicio, "fin": args.fin}]
+        else:
+            ps = periodos(zonas, z, args.periodo)
+        predios = cargar_predios(zid, args)
+        if predios.empty:
+            print(f"{zid}: sin polígonos en este modo", flush=True)
+            continue
         print(f"{zid}: {len(predios)} predios, periodos {[(p['inicio'], p['fin']) for p in ps]}", flush=True)
         vistos = {}
         for p in ps:
@@ -202,7 +264,7 @@ def main():
         pend = []
         for it in items:
             # _v2: sin offset (D15); los parquet sin sufijo se calcularon restando -0.1 y no deben reutilizarse
-            f = cache / f"{it.id}_{'todos' if args.todos else 'muestra'}_v2.parquet"
+            f = cache / f"{it.id}_{modo(args)}_v2.parquet"
             if f.exists():
                 resultados.append(pd.read_parquet(f).assign(zona=zid))
                 continue

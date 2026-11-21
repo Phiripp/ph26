@@ -2,7 +2,7 @@
 """Fetch EOX Sentinel-2 cloudless imagery + AWS Terrarium DEM for the two spec zones (Z1, Z2).
 
 Writes assets/zonas/{z1,z2}/: sat-{year}.jpg (2018..2024), dem.png, preview.jpg, manifest.json
-(same schema as assets/petorca/manifest.json).
+(schema: see "Datos" in the README).
 
 Scene bbox rule (data contract): bbox of the zone's 10 validation case points + its
 predio_muestra predios, plus a 1.5 km margin, rounded outward to 3 decimals.

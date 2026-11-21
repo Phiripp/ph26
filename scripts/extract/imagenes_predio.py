@@ -122,9 +122,9 @@ def generar(cat, caso, predio, etiqueta, item, c, bounds, n, utm):
     red = leer(item, "red", bounds, n, utm)[0].astype("float32")
     nir = leer(item, "nir", bounds, n, utm)[0].astype("float32")
     scl = leer(item, "scl", bounds, n, utm, nearest=True)[0]
-    off = -0.1
-    r = np.clip(red * 1e-4 + off, 0, 1.5)
-    ni = np.clip(nir * 1e-4 + off, 0, 1.5)
+    # sin offset: los COG de Earth Search ya lo traen aplicado (D15, ver serie_sentinel2.py)
+    r = np.clip(red * 1e-4, 0, 1.5)
+    ni = np.clip(nir * 1e-4, 0, 1.5)
     with np.errstate(invalid="ignore", divide="ignore"):
         ndvi = (ni - r) / (ni + r)
     malo = np.isin(scl, SCL_NUBE) | ~np.isfinite(ndvi) | (red == 0)

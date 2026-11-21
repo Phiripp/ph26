@@ -8,10 +8,15 @@ Para cada escena que cruza una zona, lee las bandas recortadas a los predios (a 
 enmascara nubes con SCL y promedia los índices dentro de cada predio.
 
 Entradas: data/zonas.json y data/processed/predio_muestra.geojson (o predio.parquet con --todos).
-Caché: data/raw/s2/<zona>/<escena>.parquet, una por escena (se puede cortar y reanudar; no va a git).
+Caché: data/raw/s2/<zona>/<escena>_<muestra|todos>_v2.parquet, una por escena (se puede cortar y reanudar; no va a git).
 Salida: data/processed/serie_predio.parquet, una fila por (predio_id, escena_id).
 
-Índices (reflectancia = DN * 1e-4 + offset de la banda; Earth Search declara el offset, normalmente -0.1):
+Reflectancia = DN * 1e-4, sin offset (D15). Los COG de Earth Search ya traen el -0.1 aplicado en todos los baselines,
+aunque raster:bands declare offset -0.1 y aunque earthsearch:boa_offset_applied diga False: el mar frente a La Ligua
+y Quintero da DN roja 50-290 (con offset estaría sobre 1000) y la superposición 19HBD/19HCD coincide en ±20 DN.
+No leer el offset de los metadatos.
+
+Índices:
 - NDVI = (B08 - B04) / (B08 + B04)
 - NDWI = (B03 - B08) / (B03 + B08)   (McFeeters: agua abierta, tranques)
 - NDMI = (B8A - B11) / (B8A + B11)   (humedad de la vegetación)
@@ -100,28 +105,18 @@ class Tile:
 def leer(item, banda, tile: Tile):
     a = item.assets[banda]
     metodo = Resampling.nearest if banda == "scl" else Resampling.average
-    offset = -0.1
-    if banda != "scl":
-        rb = a.extra_fields.get("raster:bands")
-        if rb and rb[0].get("offset") is not None:
-            offset = rb[0]["offset"]
     with rasterio.Env(AWS_NO_SIGN_REQUEST="YES", GDAL_DISABLE_READDIR_ON_OPEN="EMPTY_DIR"):
         with rasterio.open(a.href) as ds:
             win = from_bounds(*tile.bounds, transform=ds.transform)
             x = ds.read(1, window=win, out_shape=tile.shape, resampling=metodo, boundless=True, fill_value=0)
-    x = x.astype("float32")
-    return x if banda == "scl" else (x, offset)
+    return x.astype("float32")
 
 
 def procesar_escena(item, tile: Tile) -> pd.DataFrame:
     datos = {}
     for b in BANDAS:
-        r = leer(item, b, tile)
-        if b == "scl":
-            datos[b] = r
-        else:
-            x, off = r
-            datos[b] = np.where(x > 0, np.clip(x * 1e-4 + off, 0, 1.5), 0)
+        x = leer(item, b, tile)
+        datos[b] = x if b == "scl" else np.where(x > 0, np.clip(x * 1e-4, 0, 1.5), 0)
     scl = datos["scl"]
     refl = [datos[b] for b in ("green", "red", "nir", "nir08", "swir16")]
     # "dato" = píxel con información (el borde del tile viene en cero); "valido" = además sin nubes
@@ -206,7 +201,8 @@ def main():
         tiles: dict[str, Tile] = {}
         pend = []
         for it in items:
-            f = cache / f"{it.id}_{'todos' if args.todos else 'muestra'}.parquet"
+            # _v2: sin offset (D15); los parquet sin sufijo se calcularon restando -0.1 y no deben reutilizarse
+            f = cache / f"{it.id}_{'todos' if args.todos else 'muestra'}_v2.parquet"
             if f.exists():
                 resultados.append(pd.read_parquet(f).assign(zona=zid))
                 continue

@@ -1,16 +1,16 @@
 {
   // Your project's name, as it will appear on the voting page.
-  "project-name": "<FILL THIS>",
+  "project-name": "Caudal",
 
   // Short one-line summary of your project (in Spanish).
-  "project-oneliner-spanish": "<FILL THIS>",
+  "project-oneliner-spanish": "Le dice a la DGA qué predios fiscalizar primero, usando imágenes satelitales, clima y el registro público de derechos de agua.",
 
   // Brief description of your project (in Spanish).
-  "project-description-spanish": "<FILL THIS>",
+  "project-description-spanish": "Petorca y el valle del Aconcagua llevan más de una década de sequía, y la DGA tiene pocos fiscalizadores para miles de predios. Caudal detecta riego en períodos secos comparando el verdor y la humedad de cada predio (Sentinel-2, cada 5 días) con el secano vecino, lo cruza con los derechos de agua inscritos en la DGA y ordena los predios por indicio y confianza. Propone una ruta de inspección de un día y prepara un expediente con los campos de la guía de denuncias de la DGA. Caudal prioriza, no acusa: entrega indicios y rangos, y la decisión es de la DGA.",
 
   // Public URL where your project is deployed and running.
   // Must be a valid URL, for example: https://my-project.vercel.app
   // If your project is an app, put the download link here instead
   // (for example, a URL to download an APK).
-  "deploy-url": "<FILL THIS>"
+  "deploy-url": "https://caudal-web-170658673954.southamerica-west1.run.app"
 }

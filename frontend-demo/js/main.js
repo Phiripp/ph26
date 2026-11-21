@@ -27,6 +27,7 @@ const HASH_ALIAS = { petorca: 'z1', aconcagua: 'z2' };
 const LAGOON_CAM = { center: [-70.914, -33.843], zoom: 11.3, pitch: 50, bearing: 0, duration: 2600 };
 const ENTER_MS = 2200, EXIT_MS = 1400;
 const ROUTE_MS = 16000;
+const BACK_LABEL = { chile: 'Volver a Chile', zona: 'Ver toda la zona' };
 const MAX_VALLES = 3;             // 3D zone scenes kept built at once (one WebGL context each)
 const SW_URL = 'sw.js';
 const HERO_TIMEOUT_MS = 20000;   // max wait for the lagoon scene before giving the stage back
@@ -430,7 +431,7 @@ async function setupZonasSummary() {
 }
 
 /* ---------- zone side panel: Predios (ranking -> ficha -> expediente) | Casos (lista -> caso) | Ruta ---------- */
-function setupZonaPanel({ getValle }) {
+function setupZonaPanel({ getValle, onFocusChange }) {
   const panel = $('valle-panel');
   const panes = { predios: $('vp-predios'), casos: $('vp-casos'), ruta: $('vp-ruta') };
   const tabs = { predios: $('vt-predios'), casos: $('vt-casos'), ruta: $('vt-ruta') };
@@ -448,6 +449,9 @@ function setupZonaPanel({ getValle }) {
     const v = getValle();
     if (v && typeof v[fn] === 'function') { try { return v[fn](...args); } catch (e) { console.error(`[Caudal] valle.${fn}:`, e); } }
     return undefined;
+  };
+  // the stage's back button depends on whether the 3D view is zoomed on something
+  const focusChanged = () => { try { onFocusChange?.(); } catch (e) { console.error(e); }
   };
 
   /* --- Predios --- */
@@ -528,15 +532,31 @@ function setupZonaPanel({ getValle }) {
   function selectPredio(id, { from = 'panel' } = {}) {
     if (!id) { deselect({ from }); return; }
     st.selectedId = id;
-    if (from !== 'valle') valleCall('selectPredio', id, { focus: true });
+    // any way of choosing a predio (ranking row, its polygon or its dot on the terrain) flies to it
+    valleCall('selectPredio', id, { focus: true });
+    focusChanged();
     if (st.tab !== 'predios') setTab('predios', { render: false });
     showFicha(id);
   }
 
   function deselect({ from = 'panel' } = {}) {
     st.selectedId = null;
-    if (from !== 'valle') { valleCall('selectPredio', null); if (getValle()?.isFocused?.()) valleCall('resetView'); }
+    if (from !== 'valle') valleCall('selectPredio', null);
+    if (getValle()?.isFocused?.()) valleCall('resetView');
+    focusChanged();
     showRanking();
+  }
+
+  /** One step back inside the zone: from a predio or a case to the list it came from, zooming out. */
+  function stepBack() {
+    if (st.tab === 'casos' && st.caseView === 'caso') {
+      st.selectedCaso = null;
+      if (getValle()?.isFocused?.()) valleCall('resetView');
+      focusChanged();
+      showCasos();
+      return;
+    }
+    deselect({ from: 'panel' });
   }
 
   /* --- Casos --- */
@@ -570,10 +590,11 @@ function setupZonaPanel({ getValle }) {
         else if (caso.predio_id) valleCall('selectPredio', caso.predio_id, { focus: true });
       }
       if (caso.predio_id) st.selectedId = caso.predio_id;
+      focusChanged();
       const opts = {
         onPredio: id => selectPredio(id, { from: 'panel' }),
         onExpediente: id => showExpediente(id || caso.predio_id),
-        onBack: () => { st.selectedCaso = null; if (getValle()?.isFocused?.()) valleCall('resetView'); showCasos(); },
+        onBack: stepBack,
       };
       if (typeof P.renderCaso === 'function') P.renderCaso(panes.casos, caso, d, opts);
       else casoFallback(panes.casos, caso, opts);
@@ -725,6 +746,7 @@ function setupZonaPanel({ getValle }) {
       selectPredio(sid, { from: 'valle' });
     },
     onValleCaso(exp) { if (exp) showCaso(String(exp), { from: 'valle' }); },
+    stepBack,
     onRouteStop(orden, parada) {
       try { st.rutaCtl?.setActiveStop?.(orden, parada); } catch (e) { console.error(e); }
     },
@@ -749,7 +771,7 @@ function setupStage({ getHero }) {
   let valleQueue = Promise.resolve();
   let curZona = null;
 
-  const zp = setupZonaPanel({ getValle: () => valle });
+  const zp = setupZonaPanel({ getValle: () => valle, onFocusChange: () => syncBack() });
 
   // Aculeo is a side view: its scene (7 satellite images, DEM, a WebGL context) loads on first use,
   // or a moment earlier when the pointer/focus reaches one of its entry points.
@@ -776,6 +798,16 @@ function setupStage({ getHero }) {
     stage.dataset.mode = m;
     back.hidden = m !== 'lagoon' && m !== 'zona';
     bar.hidden = m !== 'lagoon';
+    syncBack();
+  }
+  // Inside a zone, while the 3D view is zoomed on a predio or a case, "back" first returns to the
+  // whole zone; only from there it leaves to the national map.
+  const zoomedIn = () => mode === 'zona' && !!valle?.isFocused?.();
+  function syncBack() {
+    const label = zoomedIn() ? BACK_LABEL.zona : BACK_LABEL.chile;
+    if (back.dataset.label === label) return;
+    back.dataset.label = label;
+    back.innerHTML = `<span aria-hidden="true">←</span> ${label}`;
   }
 
   /* --- 3D zone scenes: one per zone while they fit (MAX_VALLES); past that, the oldest is rebuilt --- */
@@ -1085,6 +1117,7 @@ function setupStage({ getHero }) {
 
   function goBack() {
     if (mode === 'lagoon') exitLagoon();
+    else if (zoomedIn()) zp.stepBack();
     else if (mode === 'zona') exitZona();
   }
 

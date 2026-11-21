@@ -18,6 +18,8 @@ Hace falta un servidor local (módulos ES y `fetch` no funcionan con `file://`).
 
 ## Despliegue (Cloud Run)
 
+Desplegado en **https://caudal-web-170658673954.southamerica-west1.run.app** (servicio `caudal-web`).
+
 La carpeta trae su `Dockerfile`: nginx sirviendo los archivos tal cual, sin build. No hace falta
 `package.json` ni scripts `build`/`start`.
 
@@ -33,7 +35,8 @@ Para el despliegue automático desde el repo espejo, el disparador debe usar `fr
   despliegue se vea al recargar.
 - `.dockerignore` / `.gcloudignore` — dejan fuera `scripts/`, el README y las páginas `*-test.html`.
 - Probar en local: `docker build -t caudal-web frontend-demo && docker run --rm -p 8080:8080 caudal-web`.
-- Sin probar todavía en la URL real: el service worker y la precarga solo se han probado en `localhost`.
+- Probado en la URL real: recorrido completo, service worker y segunda visita sin red.
+- El despliegue es manual (comando de arriba) hasta que se conecte el repo espejo al proyecto.
 
 ## Rendimiento
 
@@ -121,6 +124,20 @@ Descarga durante el recorrido: de 2,4–5,4 MB por paso a 0. La duración de cad
 la animación (vuelo 2,4 s + descenso 2,2 s), no carga. Costo: la portada trabaja más justo después
 de la intro (tareas largas de la carga 1,2–1,9 s → 2,3–2,7 s; intro 50 → 49 fps).
 
+**Animaciones** (perfil por animación, mismo equipo; "bloqueos" = tareas largas del hilo principal):
+
+| Tramo | Antes | Ahora |
+|---|---|---|
+| Intro | 52 fps · 355 ms de bloqueos | 57 fps · 55 ms |
+| Construcción de escenas tras la intro | 18 fps · 1,1 s de bloqueos, en 1,5 s | ~51 fps · ~0,4 s, repartidos en ~4 s |
+| Intro en pantalla retina (densidad 2) | 40 fps | ~48 fps (medición intermedia, no la final) |
+| Vuelos, descensos, hover, ruta, Aculeo | 56–59 fps | 56–59 fps |
+
+Qué se hizo: texturas decodificadas fuera del hilo principal (`ImageBitmap`), shaders compilados con
+`compileAsync`, subidas a GPU y construcción de escenas espaciadas; en la intro, la vista final se
+dibuja una vez detrás del velo de carga (shaders y tiles listos antes del vuelo), el mapa vuela a
+densidad 1 y vuelve a densidad completa al aterrizar, y la capa del satélite se limita a densidad 1,5.
+
 **Supuestos y cosas a saber**
 
 - La primera visita descarga ~15 MB en segundo plano aunque no se abra nada.
@@ -133,7 +150,11 @@ de la intro (tareas largas de la carga 1,2–1,9 s → 2,3–2,7 s; intro 50 →
   "completo" sin consultar a la GPU. `?gpucheck=1` restaura la llamada real. Probar en el equipo de
   la demo.
 - Cada escena precargada es un contexto WebGL más (mapa + 2 zonas + Aculeo = 4).
-- Sin probar: Safari, Firefox, móvil, pantallas retina.
+- Cambios visibles de la ronda de animaciones: en pantallas retina el mapa se ve a menor densidad
+  durante el vuelo de la intro, y el satélite 3D un poco menos nítido (densidad 1,5 en vez de 2).
+- En una corrida de prueba la intro no terminó (no se pudo reproducir, ni en local ni desplegado).
+  Si pasa: "Saltar intro" o abrir con `#z1`. Sospechoso: `warmLandingView` en `js/intro.js`.
+- Sin probar: Safari, Firefox, móvil.
 
 ## Recorrido
 
@@ -143,6 +164,14 @@ de la intro (tareas largas de la carga 1,2–1,9 s → 2,3–2,7 s; intro 50 →
    - Predios: ranking por banda → ficha (derecho del rol en la DGA, banda provisional, serie NDVI/NDMI con ventanas secas, línea de inspección si es un caso) → expediente con los campos de la guía de denuncias de la DGA.
    - Casos: los casos de la zona → ficha del caso (expediente, comuna, fecha de inspección, decisión, multa en UTM, cómo se veía la señal antes de la inspección, imágenes antes/después).
    - Ruta: ruta de inspección del día (Google Maps / GPX).
+
+Dentro de una zona:
+
+- Elegir un predio de cualquier forma (fila del ranking, su polígono o su punto en el terreno) abre su
+  ficha y acerca la cámara al predio. Un clic en terreno vacío lo suelta y vuelve a la zona completa.
+- Mientras la cámara está acercada a un predio o a un caso, el botón de volver dice **Ver toda la zona**
+  y retrocede un paso (a la lista y a la vista completa); recién desde ahí dice **Volver a Chile**.
+  La tecla Escape hace lo mismo.
 
 Nada se reproduce solo en las vistas 3D: la ruta se recorre solo al tocar el botón.
 

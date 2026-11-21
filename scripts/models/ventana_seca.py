@@ -5,7 +5,7 @@
 """Ventanas secas por celda de clima (tarea M1).
 
 Ventana seca = racha de `--n` o más días seguidos sin lluvia efectiva (lluvia_corr_mm < `--umbral-mm`).
-Usa la lluvia corregida de las celdas de Open-Meteo (D2), que cubre 2020 a nov-2026 sin huecos; la lluvia
+Usa la lluvia corregida de las celdas de Open-Meteo o ERA5-Land (D2), que cubre 2020 a nov-2026 sin huecos; la lluvia
 cruda de la grilla sobreestima cerca de 2 veces y no sirve para esto (docs/pruebas-acceso-datos.md).
 Para llegar al predio: data/processed/predio_clima.parquet (predio_id -> celda_id).
 
@@ -50,7 +50,7 @@ def main() -> int:
     args = ap.parse_args()
 
     clima = pd.read_parquet(PROC / "clima.parquet")
-    om = clima[clima["fuente"] == "openmeteo"].rename(columns={"punto_id": "celda_id"})
+    om = clima[clima["fuente"].isin(["openmeteo", "era5land"])].rename(columns={"punto_id": "celda_id"})
     ventanas, dias = [], []
     for (zona, celda), g in om.groupby(["zona", "celda_id"]):
         g = g.sort_values("fecha").reset_index(drop=True)

@@ -1,6 +1,6 @@
 # /// script
 # requires-python = ">=3.11"
-# dependencies = ["geopandas>=1.0", "pandas", "pyarrow", "requests", "shapely>=2.0"]
+# dependencies = ["geopandas>=1.0", "pandas", "pyarrow", "requests", "scipy", "shapely>=2.0"]
 # ///
 """ET0 y lluvia diaria de Open-Meteo, por celdas que contienen predios (tarea D2, paso 3).
 
@@ -33,12 +33,11 @@ import pandas as pd
 import requests
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from comun.clima import PASO, enlazar_estacion  # noqa: E402
 from comun.rutas import DATA, ZONAS, mostrar  # noqa: E402
 
 RAW = DATA / "raw" / "clima" / "openmeteo"
 URL = "https://archive-api.open-meteo.com/v1/archive"
-PASO = 0.1  # grados
-KM_POR_GRADO = 111.32
 
 
 def centro_celda(valor: float) -> float:
@@ -75,30 +74,8 @@ def asignar_celdas(gdf: gpd.GeoDataFrame) -> pd.DataFrame:
     return df
 
 
-def km(lat1, lon1, lat2, lon2) -> float:
-    dy = (lat2 - lat1) * KM_POR_GRADO
-    dx = (lon2 - lon1) * KM_POR_GRADO * math.cos(math.radians((lat1 + lat2) / 2))
-    return math.hypot(dx, dy)
-
-
-def enlazar_estacion(predios: pd.DataFrame) -> pd.DataFrame:
-    """Estación DMC más cercana (con serie válida) al centroide de cada predio."""
-    ruta = DATA / "processed" / "estacion_clima.parquet"
-    predios = predios.assign(estacion_id=pd.NA, distancia_estacion_km=float("nan"))
-    if not ruta.exists():
-        print("Sin estacion_clima.parquet: predio_clima queda sin estación (corre d2_clima_dmc.py).")
-        return predios
-    est = pd.read_parquet(ruta)
-    est = est[~est["descartada"]].drop_duplicates("punto_id")
-    mejor_id, mejor_d = [], []
-    for lat, lon in zip(predios["lat"], predios["lon"]):
-        ds = [km(lat, lon, la, lo) for la, lo in zip(est["lat"], est["lon"])]
-        i = min(range(len(ds)), key=ds.__getitem__)
-        mejor_id.append(est["punto_id"].iloc[i])
-        mejor_d.append(round(ds[i], 1))
-    predios["estacion_id"] = mejor_id
-    predios["distancia_estacion_km"] = mejor_d
-    return predios
+def enlazar(predios: pd.DataFrame) -> pd.DataFrame:
+    return enlazar_estacion(predios, DATA / "processed" / "estacion_clima.parquet")
 
 
 def pedir_lote(celdas: pd.DataFrame, inicio: str, fin: str) -> list[dict]:
@@ -137,7 +114,7 @@ def main() -> int:
     if not fin[:1].isdigit():
         fin = (date.today() - timedelta(days=6)).isoformat()
 
-    predios = enlazar_estacion(asignar_celdas(leer_predios()))
+    predios = enlazar(asignar_celdas(leer_predios()))
     celdas = predios.drop_duplicates("celda_id")[["celda_id", "zona", "celda_lat", "celda_lon"]].reset_index(drop=True)
     print(celdas.groupby("zona").size().rename("celdas").to_string())
 

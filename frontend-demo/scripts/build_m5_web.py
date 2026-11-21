@@ -59,14 +59,24 @@ CRS_METROS = "EPSG:32719"
 MAX_POI = 8
 # Umbrales de señal por fecha: los de M3 calibrados en M7 (scripts/models/detector_riego.py, valores por defecto)
 UMBRAL_VERDOR, UMBRAL_HUMEDAD, DIAS_SECOS_MIN = 2.5, 1.5, 10
-# F6 (docs/spec-demo.md, docs/pitch-demo.md)
-CANDIDATO_PITCH = 5301984
-M3_PERSONA_ANO = 36.5          # 100 l/día (Corte Suprema 2021); = impacto.json supuestos.m3_persona_ano.central
-M3_LATA = 0.000473             # lata de 473 ml
-M3_TORRE = 450_000             # Torre Costanera: estimación propia (107.125 m² × ~4,2 m por piso), pitch-demo.md
-LIFT_PITCH = {"valor": 2.6, "ic95": [1.3, 4.4],
-              "fuente": "docs/validacion.md: umbrales iniciales, fijados antes de mirar (sin sesgo de calibración)",
-              "nota": "No se usa lift_alta de impacto.json (3,7): se midió con los mismos casos que calibraron M7"}
+# F6 (docs/spec-demo.md): todas las cifras y equivalencias salen de data/processed/impacto.json (M9:
+# lift_alta_sin_calibrar, equivalencias, torres_costanera_ano, capacidad). Aquí solo se elige el predio
+# del pitch: data/demo.json → "candidato" si existe; si no, el de docs/spec-demo.md.
+CANDIDATO_PITCH_DEFAULT = 5301984
+
+
+def candidato_pitch() -> int:
+    for f in (RAIZ / "data" / "demo.json", WEB / "data" / "demo.json"):
+        try:
+            d = json.loads(Path(f).read_text())
+            v = d.get("candidato") or (d.get("candidato_predio") if isinstance(d, dict) else None)
+            if isinstance(v, dict):
+                v = v.get("predio_id")
+            if v:
+                return int(v)
+        except (OSError, ValueError, AttributeError):
+            pass
+    return CANDIDATO_PITCH_DEFAULT
 
 HOY = date.today().isoformat()
 
@@ -346,44 +356,52 @@ def inspecciones_por_ano() -> float:
 
 
 def impacto_web(imp: dict, u: pd.DataFrame) -> dict:
-    cand = u[u.predio_id == CANDIDATO_PITCH].iloc[0]
+    """Bloque "pitch" con las cifras de F6 leídas de impacto.json (M9). No define números propios."""
+    cid = candidato_pitch()
+    cand = u[u.predio_id == cid].iloc[0]
     exceso_min = float(cand.m3_exceso_min)
+    eq = imp["equivalencias"]
+    m3_persona = float(eq["m3_persona_ano"]["valor"])
+    m3_lata = float(eq["lata_monster_ml"]["valor"]) / 1e6
+    m3_torre = float(eq["torre_costanera_m3"]["valor"])
+    lift = imp["lift_alta_sin_calibrar"]
+    torres = imp["torres_costanera_ano"]
+    cap = imp["capacidad"]
     esc = imp["escenarios"]
-    t_lo, t_hi = esc["conservador"]["m3_ano"] / M3_TORRE, esc["central"]["m3_ano"] / M3_TORRE
-    chicos = imp["candidatos"] - imp["candidatos_mas_100ha"]
-    insp = inspecciones_por_ano()
     return imp | {"pitch": {
         "generado": HOY,
-        "lift": LIFT_PITCH | {"texto": "2,6× más infractores que al azar", "nota_ic": "IC 95 %: 1,3–4,4"},
+        "lift": {"valor": num(lift["valor"], 2), "ic_bajo": num(lift["ic_bajo"], 2), "ic_alto": num(lift["ic_alto"], 2),
+                 "positivos": lift.get("positivos"), "de": lift.get("de"),
+                 "fuente": "impacto.json lift_alta_sin_calibrar (umbrales fijados antes de mirar; docs/validacion.md)",
+                 "nota": "No se usa lift_alta: se midió con los mismos casos que calibraron los umbrales"},
         "predio": {
-            "predio_id": CANDIDATO_PITCH, "zona": cand.zona,
+            "predio_id": cid, "zona": cand.zona,
             "m3_exceso_min": num(exceso_min), "m3_exceso_central": num(cand.m3_exceso_central),
             "m3_exceso_max": num(cand.m3_exceso_max),
-            "m3_persona_ano": M3_PERSONA_ANO, "personas": num(exceso_min / M3_PERSONA_ANO),
-            "m3_lata": M3_LATA, "latas": num(exceso_min / M3_LATA),
-            "fuente": "puntaje.parquet, predio 5301984, m3_exceso_min (mínimo del rango) ÷ 36,5 m³ por persona al "
-                      "año (100 l/día) y ÷ 473 ml por lata",
+            "m3_persona_ano": m3_persona, "personas": num(exceso_min / m3_persona),
+            "m3_lata": m3_lata, "latas": num(exceso_min / m3_lata),
+            "persona": eq["m3_persona_ano"], "lata": eq["lata_monster_ml"],
+            "fuente": "puntaje.parquet m3_exceso_min del predio ÷ impacto.json equivalencias",
         },
         "candidatos": {"n": imp["candidatos"], "por_zona": imp["candidatos_por_zona"],
                        "fuente": "impacto.json candidatos: banda alta 2025-26 sin fiscalización de la DGA a 500 m "
                                  "desde 2018"},
         "torres": {
-            "m3_torre": M3_TORRE, "m3_ano_conservador": num(esc["conservador"]["m3_ano"]),
-            "m3_ano_central": num(esc["central"]["m3_ano"]),
-            "valor_min": round(t_lo, 2), "valor_max": round(t_hi, 2),
-            "min": round(t_lo), "max": math.floor(t_hi),
-            "redondeo": "mínimo al entero más cercano y máximo hacia abajo, como en pitch-demo.md (4,7 → 5; 20,7 → 20)",
-            "fuente": "impacto.json escenarios.conservador.m3_ano y escenarios.central.m3_ano ÷ 450.000 m³ "
-                      "(volumen de la torre: estimación propia, pitch-demo.md)",
+            "m3_torre": m3_torre, "torre": eq["torre_costanera_m3"],
+            "m3_ano_conservador": num(esc["conservador"]["m3_ano"]), "m3_ano_central": num(esc["central"]["m3_ano"]),
+            "valor_min": round(float(torres["conservador"]), 2), "valor_max": round(float(torres["central"]), 2),
+            "min": round(float(torres["conservador"])), "max": math.floor(float(torres["central"])),
+            "redondeo": "mínimo al entero más cercano y máximo hacia abajo (4,7 → 5; 20,7 → 20)",
+            "fuente": "impacto.json torres_costanera_ano (conservador y central)",
         },
         "capacidad": {
-            "candidatos_hasta_100ha": chicos, "fiscalizaciones_ano": round(insp, 1),
-            "anos_valor": round(chicos / insp, 2), "anos": round(chicos / insp),
-            "fuente": "impacto.json candidatos − candidatos_mas_100ha ÷ fiscalizaciones por extracción al año en Z1 "
-                      "y Z2 (promedio 2020–2025, fiscalizacion.parquet, como impacto.py)",
+            "candidatos_hasta_100ha": cap["candidatos_hasta_100ha"],
+            "fiscalizaciones_ano": round(float(cap["fiscalizaciones_por_ano"]), 1),
+            "anos_valor": round(float(cap["anos"]), 2), "anos": round(float(cap["anos"])),
+            "fuente": "impacto.json capacidad",
         },
         "pie": (f"{esc['conservador']['m3_ano'] / 1e6:.1f} a {esc['central']['m3_ano'] / 1e6:.1f} millones de m³ al año"
-                .replace(".", ",") + " · torre estimada en 450.000 m³"),
+                .replace(".", ",") + f" · torre estimada en {m3_torre:,.0f} m³".replace(",", ".")),
     }}
 
 

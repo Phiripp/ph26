@@ -1,11 +1,7 @@
 // Caudal · panel de impacto (spec-demo F6). Pantalla completa sobre el mapa atenuado, enlace directo #impacto.
 //
-// Cinco cifras, grandes y en el orden del guion (docs/pitch-demo.md, 2:00):
-//   1 · 2,6× más infractores que al azar (fijo, umbrales iniciales; IC 95 % 1,3–4,4, docs/validacion.md)
-//   2 · 1 predio = el agua de N personas al año = M latas (exceso mínimo del candidato del pitch)
-//   3 · 501 predios en alerta alta sin fiscalizar
-//   4 · Entre 5 y 20 Torres Costanera de agua al año (escenarios conservador y central ÷ 450.000 m³)
-//   5 · 14 años para revisarlos uno por uno (candidatos de hasta 100 ha ÷ 33 fiscalizaciones al año)
+// Cinco cifras, grandes y en el orden del guion (docs/pitch-demo.md): lift sin calibrar, equivalencia de un
+// predio (personas y latas), candidatos sin fiscalizar, Torres Costanera al año y años para revisarlos.
 //
 // Todo sale de data/zonas/impacto.json (copia de data/processed/impacto.json, M9) y de su bloque "pitch"
 // (build_m5_web.py). Si el bloque "pitch" falta, las cifras que se pueden sacar del bloque base se calculan
@@ -15,13 +11,8 @@
 const URL_IMPACTO = 'data/zonas/impacto.json';
 const RETRY_MS = 15000;
 
-// Supuestos fijos del pitch (docs/spec-demo.md F6, docs/pitch-demo.md "Fuentes de cada cifra").
-// Solo se usan si el bloque "pitch" del JSON no trae su propio valor.
-const LIFT = { valor: 2.6, ic: [1.3, 4.4] };     // validacion.md: umbrales iniciales, antes de calibrar
-const M3_PERSONA_ANO = 36.5;                       // 100 l/día (Corte Suprema, 2021)
-const M3_LATA = 0.000473;                          // lata de 473 ml
-const M3_TORRE = 450000;                           // Torre Costanera: estimación propia (107.125 m² × ~4,2 m por piso)
-const FISC_ANO = 33;                               // fiscalizaciones por extracción al año, Z1+Z2 2020–2025 (impacto.md)
+// Sin números propios: todas las cifras y equivalencias vienen de impacto.json (M9) y de su bloque "pitch"
+// (build_m5_web.py). Si falta un dato, la cifra queda en "—".
 
 const nf = (d = 0) => new Intl.NumberFormat('es-CL', { minimumFractionDigits: d, maximumFractionDigits: d });
 const fmt = (v, d = 0) => (Number.isFinite(v) ? nf(d).format(v) : '—');
@@ -57,14 +48,14 @@ export function cifras(j) {
 
   // 1 · lift
   const L = p.lift || {};
-  const lift = first(L.valor, L.value, L.lift, typeof p.lift === 'number' ? p.lift : null, LIFT.valor);
-  const ic = Array.isArray(L.ic95) ? L.ic95 : Array.isArray(L.ic) ? L.ic : [first(L.ic_bajo, L.ic_min, L.lo, LIFT.ic[0]), first(L.ic_alto, L.ic_max, L.hi, LIFT.ic[1])];
+  const lift = first(L.valor, j?.lift_alta_sin_calibrar?.valor);
+  const ic = Array.isArray(L.ic95) ? L.ic95 : Array.isArray(L.ic) ? L.ic : [first(L.ic_bajo, j?.lift_alta_sin_calibrar?.ic_bajo), first(L.ic_alto, j?.lift_alta_sin_calibrar?.ic_alto)];
 
   // 2 · un predio
   const P = p.predio || p.candidato || p.equivalencia || {};
   const m3p = first(P.m3_exceso_min, P.m3, P.m3_ano, p.predio_m3_exceso_min);
-  const mPers = first(P.m3_persona_ano, P.m3_persona, j?.supuestos?.m3_persona_ano?.central, M3_PERSONA_ANO);
-  const mLata = first(P.m3_lata, P.lata_m3, M3_LATA);
+  const mPers = first(P.m3_persona_ano, j?.equivalencias?.m3_persona_ano?.valor);
+  const mLata = first(P.m3_lata, num(j?.equivalencias?.lata_monster_ml?.valor) / 1e6);
   const personas = first(P.personas, P.personas_ano, m3p / mPers);
   const latas = first(P.latas, m3p / mLata);
   const predioId = P.predio_id ?? P.id ?? p.predio_id ?? '';
@@ -76,7 +67,7 @@ export function cifras(j) {
 
   // 4 · torres
   const T = p.torres || p.torre || {};
-  const m3Torre = first(T.m3_torre, T.m3, M3_TORRE);
+  const m3Torre = first(T.m3_torre, j?.equivalencias?.torre_costanera_m3?.valor);
   const m3Lo = first(T.m3_ano_conservador, T.m3_min, esc_.conservador?.m3_ano);
   const m3Hi = first(T.m3_ano_central, T.m3_max, esc_.central?.m3_ano);
   const torresLo = first(m3Lo / m3Torre, T.valor_min);
@@ -88,7 +79,7 @@ export function cifras(j) {
   // 5 · años
   const A = p.anos || p.años || p.capacidad || {};
   const candHa = first(A.candidatos_hasta_100ha, A.candidatos, esc_.central?.candidatos);
-  const fiscAno = first(A.fiscalizaciones_ano, FISC_ANO);
+  const fiscAno = first(A.fiscalizaciones_ano, j?.capacidad?.fiscalizaciones_por_ano);
   const anosValor = first(A.anos_valor, candHa / fiscAno);
   const anos = first(A.anos, Math.round(anosValor));
 
@@ -99,6 +90,10 @@ export function cifras(j) {
     candidatos, porZona,
     m3Torre, m3Lo, m3Hi, torresLo, torresHi, torresMin, torresMax, pie: typeof p.pie === 'string' ? p.pie : '',
     candHa, fiscAno, anos, anosValor,
+    liftPos: first(L.positivos, j?.lift_alta_sin_calibrar?.positivos), liftDe: first(L.de, j?.lift_alta_sin_calibrar?.de),
+    eqPersona: P.persona || j?.equivalencias?.m3_persona_ano || {},
+    eqLata: P.lata || j?.equivalencias?.lata_monster_ml || {},
+    eqTorre: T.torre || j?.equivalencias?.torre_costanera_m3 || {},
     completo: !!j?.pitch && Number.isFinite(m3p),
   };
 }
@@ -207,8 +202,8 @@ function render(c) {
       <span class="im-n" aria-hidden="true">2</span>
       <p class="im-big">1<small>predio</small></p>
       <div class="im-eq">
-        <div class="im-eq-i">${svgPersonas()}<p><b>= el agua de ${persTxt} personas</b><span>al año</span></p></div>
-        <div class="im-eq-i">${svgLatas()}<p><b>= ${latTxt} de latas</b><span>de Monster, de 473 ml</span></p></div>
+        <div class="im-eq-i">${svgPersonas()}<p><b>= el agua de ${persTxt} personas</b><span title="${esc([c.eqPersona.nota, c.eqPersona.fuente, c.eqPersona.url].filter(Boolean).join(' · '))}">al año</span></p></div>
+        <div class="im-eq-i">${svgLatas()}<p><b>= ${latTxt} de latas</b><span title="${esc((c.eqLata.fuente || '') + (c.eqLata.url ? ' · ' + c.eqLata.url : ''))}">${esc(c.eqLata.nota || '')}${Number.isFinite(num(c.eqLata.valor)) ? ', de ' + fmt(num(c.eqLata.valor)) + ' ml' : ''}</span></p></div>
       </div>
     </li>
     <li class="im-row">
@@ -221,7 +216,7 @@ function render(c) {
       <p class="im-big">${Number.isFinite(tLo) ? fmt(tLo) : '—'}<small>a</small>${Number.isFinite(tHi) ? fmt(tHi) : '—'}</p>
       <div class="im-eq im-eq-t">
         ${svgTorres(tLo, tHi)}
-        <p><b>Torres Costanera de agua, todos los años</b><span><i class="im-k im-k-lo"></i>escenario conservador <i class="im-k im-k-hi"></i>hasta el central</span></p>
+        <p title="${esc([c.eqTorre.nota, c.eqTorre.fuente, c.eqTorre.url].filter(Boolean).join(' · '))}"><b>Torres Costanera de agua, todos los años</b><span><i class="im-k im-k-lo"></i>escenario conservador <i class="im-k im-k-hi"></i>hasta el central</span></p>
       </div>
     </li>
     <li class="im-row">
@@ -233,8 +228,8 @@ function render(c) {
   const foot = root.querySelector('#im-foot');
   foot.innerHTML = `
     <p>
-      <span>1 · Lift con los umbrales iniciales, fijados antes de mirar los casos (19 positivos DGA, validacion.md).</span>
-      <span>2 · Predio ${esc(c.predioId || '—')}: exceso mínimo ${fmt(c.m3p)} m³/año ÷ ${fmt(c.mPers, 1)} m³ por persona (100 l/día) = ${fmt(c.personas)} personas; ÷ 473 ml = ${fmt(c.latas / 1e6, 1)} millones de latas.</span>
+      <span>1 · Lift con los umbrales iniciales, fijados antes de mirar los casos: alerta alta en ${fmt(c.liftPos)} de ${fmt(c.liftDe)} infractores confirmados por la DGA (validacion.md).</span>
+      <span>2 · Predio ${esc(c.predioId || '—')}: exceso mínimo ${fmt(c.m3p)} m³/año ÷ ${fmt(c.mPers, 1)} m³ por persona (${esc(c.eqPersona.nota || '')}; ${esc(c.eqPersona.fuente || '')}) = ${fmt(c.personas)} personas; ÷ ${fmt(num(c.eqLata.valor))} ml = ${fmt(c.latas / 1e6, 1)} millones de latas.</span>
       <span>3 · Banda alta, temporada ${esc(c.temporada || '2025-26')}, M9 (impacto.json).</span>
       <span>4 · ${c.pie ? esc(c.pie) : `${fmt(c.m3Lo / 1e6, 1)} a ${fmt(c.m3Hi / 1e6, 1)} millones de m³ al año · torre estimada en ${fmt(c.m3Torre)} m³`} (escenarios conservador y central, hasta 100 ha; ${fmt(c.torresLo, 1)} a ${fmt(c.torresHi, 1)} torres).</span>
       <span>5 · ${fmt(c.candHa)} candidatos de hasta 100 ha ÷ ${fmt(c.fiscAno, Number.isInteger(c.fiscAno) ? 0 : 1)} fiscalizaciones por extracción al año (DGA, Z1 y Z2, 2020–2025) = ${fmt(c.anosValor, 1)} años.</span>

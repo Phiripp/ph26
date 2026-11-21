@@ -4,12 +4,11 @@ import { fmtNum, fmtDate, fmtDateNum, fmtComuna, expShort, dryWindowStats, serie
 import { seriesChartSVG, chartLegendHTML, historialTimelineSVG, historialLegendHTML, seasonStart } from './chart.js';
 
 /**
- * Valor UTM para pasar la multa a pesos: el mismo supuesto de scripts/models/impacto.py (UTM_CLP = 72.450 CLP),
- * que queda en data/processed/impacto.json -> supuestos.utm_clp. Si loadImpacto() lo trae, se usa ese.
+ * Valor UTM para pasar la multa a pesos: impacto.json -> supuestos.utm_clp (scripts/models/impacto.py).
+ * Mientras no llega, la multa se muestra solo en UTM.
  */
-const UTM_CLP_DEFAULT = 72450;
 const UTM_FUENTE = 'supuesto de impacto.json';
-let utmClp = UTM_CLP_DEFAULT;
+let utmClp = NaN;
 
 const IMG_LABEL = { seca_previa: 'Antes de la inspección', seca_2025_26: 'Seca 2025-26', reciente: 'Reciente' };
 
@@ -158,7 +157,7 @@ export function renderCaso(el, caso, zonaData, { onPredio, onExpediente, onBack 
     <dl class="pn-kpis pn-kpis3">
       <div><dt>Inspección</dt><dd>${esc(fmtDateNum(caso.fecha_inspeccion))}</dd></div>
       <div><dt>Decisión</dt><dd class="pn-dd-txt">${esc(caso.decision || '—')}</dd></div>
-      <div><dt>Multa</dt><dd class="pn-loss">${fmtNum(caso.multa_utm, 1)} <small>UTM</small><small class="cs-clp" data-clp>≈ ${esc(fmtClp(multaClp))}</small></dd></div>
+      <div><dt>Multa</dt><dd class="pn-loss">${fmtNum(caso.multa_utm, 1)} <small>UTM</small><small class="cs-clp" data-clp>${Number.isFinite(multaClp) ? "≈ " + esc(fmtClp(multaClp)) : ""}</small></dd></div>
     </dl>
     <div class="cs-hist" data-hist>${adelantoHTML(caso, rows)}${timelineHTML(caso, rows)}</div>
     <figure class="pn-chart">
@@ -187,7 +186,7 @@ export function renderCaso(el, caso, zonaData, { onPredio, onExpediente, onBack 
       ${f ? '<button type="button" class="btn primary" data-act="predio">Ver predio</button>' : ''}
       ${f && onExpediente ? '<button type="button" class="btn" data-act="exp">Expediente</button>' : ''}
     </div>
-    <p class="pn-foot">${esc(caso.tipo_infraccion || 'Extracción no autorizada de aguas')}${caso.resolucion ? ` · Res. ${esc(caso.resolucion)}` : ''}. Fuente: planilla de fiscalización DGA. <span data-utm>Multa en pesos con UTM a $${fmtNum(utmClp, 0)} (${UTM_FUENTE}).</span> Banda por temporada: puntaje de Caudal (M5).</p>`;
+    <p class="pn-foot">${esc(caso.tipo_infraccion || 'Extracción no autorizada de aguas')}${caso.resolucion ? ` · Res. ${esc(caso.resolucion)}` : ''}. Fuente: planilla de fiscalización DGA. <span data-utm>${Number.isFinite(utmClp) ? "Multa en pesos con UTM a $" + fmtNum(utmClp, 0) + " (" + UTM_FUENTE + ")." : ""}</span> Banda por temporada: puntaje de Caudal (M5).</p>`;
 
   // Late data, filled in place while this case is still on screen: historial.json and the UTM value of impacto.json.
   const still = () => el.isConnected && el.querySelector('[data-hist]') && el.dataset.caso === caso.expediente;

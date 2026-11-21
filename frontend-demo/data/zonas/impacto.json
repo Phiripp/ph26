@@ -58,18 +58,65 @@
     },
     "utm_clp": 72450
   },
+  "lift_alta_sin_calibrar": {
+    "valor": 2.5975,
+    "ic_bajo": 1.2637249583281596,
+    "ic_alto": 4.440753596271995,
+    "positivos": 6,
+    "de": 19,
+    "umbrales": {
+      "umbral_verdor": 2.0,
+      "umbral_humedad": 2.0,
+      "frac_min": 0.5,
+      "dias_min": 10
+    }
+  },
+  "capacidad": {
+    "fiscalizaciones_por_ano": 33.333333333333336,
+    "candidatos_hasta_100ha": 467,
+    "anos": 14.01
+  },
+  "equivalencias": {
+    "m3_persona_ano": {
+      "valor": 36.5,
+      "nota": "100 litros por persona al día",
+      "fuente": "Corte Suprema, 2021 (dotación mínima para Petorca)",
+      "url": "https://www.24horas.cl/regiones/valparaiso/corte-suprema-determina-100-litros-de-agua-por-habitantes-de-petorca-4708851"
+    },
+    "lata_monster_ml": {
+      "valor": 473,
+      "nota": "lata de Monster Energy",
+      "fuente": "ficha del producto",
+      "url": "https://andina.micoca-cola.cl/monster-energy-green-473-ml/p"
+    },
+    "torre_costanera_m3": {
+      "valor": 449925.0,
+      "nota": "estimación propia: 107.125 m² construidos x 4,2 m por piso; ninguna fuente publica el volumen",
+      "fuente": "WikiArquitectura (superficie y alturas de piso)",
+      "url": "https://es.wikiarquitectura.com/edificio/gran-torre-santiago-torre-gran-costanera/"
+    }
+  },
+  "torres_costanera_ano": {
+    "conservador": 4.740031251276117,
+    "central": 20.74858831612122
+  },
+  "generado": "2026-11-21T18:15:07",
+  "fuentes": [
+    "data/processed/puntaje.parquet",
+    "data/processed/puntaje_validacion.parquet",
+    "data/processed/fiscalizacion.parquet",
+    "data/processed/calibracion_grilla.csv"
+  ],
   "pitch": {
     "generado": "2026-11-21",
     "lift": {
       "valor": 2.6,
-      "ic95": [
-        1.3,
-        4.4
-      ],
-      "fuente": "docs/validacion.md: umbrales iniciales, fijados antes de mirar (sin sesgo de calibración)",
-      "nota": "No se usa lift_alta de impacto.json (3,7): se midió con los mismos casos que calibraron M7",
-      "texto": "2,6× más infractores que al azar",
-      "nota_ic": "IC 95 %: 1,3–4,4"
+      "ic_bajo": 1.26,
+      "ic_alto": 4.44,
+      "positivos": 6,
+      "de": 19,
+      "fuente": "impacto.json lift_alta_sin_calibrar (umbrales fijados antes de mirar; docs/validacion.md)",
+      "nota": "No se usa lift_alta: se midió con los mismos casos que calibraron los umbrales"
     },
     "predio": {
       "predio_id": 5301984,
@@ -81,7 +128,19 @@
       "personas": 2867,
       "m3_lata": 0.000473,
       "latas": 221243129,
-      "fuente": "puntaje.parquet, predio 5301984, m3_exceso_min (mínimo del rango) ÷ 36,5 m³ por persona al año (100 l/día) y ÷ 473 ml por lata"
+      "persona": {
+        "valor": 36.5,
+        "nota": "100 litros por persona al día",
+        "fuente": "Corte Suprema, 2021 (dotación mínima para Petorca)",
+        "url": "https://www.24horas.cl/regiones/valparaiso/corte-suprema-determina-100-litros-de-agua-por-habitantes-de-petorca-4708851"
+      },
+      "lata": {
+        "valor": 473,
+        "nota": "lata de Monster Energy",
+        "fuente": "ficha del producto",
+        "url": "https://andina.micoca-cola.cl/monster-energy-green-473-ml/p"
+      },
+      "fuente": "puntaje.parquet m3_exceso_min del predio ÷ impacto.json equivalencias"
     },
     "candidatos": {
       "n": 501,
@@ -92,23 +151,29 @@
       "fuente": "impacto.json candidatos: banda alta 2025-26 sin fiscalización de la DGA a 500 m desde 2018"
     },
     "torres": {
-      "m3_torre": 450000,
+      "m3_torre": 449925.0,
+      "torre": {
+        "valor": 449925.0,
+        "nota": "estimación propia: 107.125 m² construidos x 4,2 m por piso; ninguna fuente publica el volumen",
+        "fuente": "WikiArquitectura (superficie y alturas de piso)",
+        "url": "https://es.wikiarquitectura.com/edificio/gran-torre-santiago-torre-gran-costanera/"
+      },
       "m3_ano_conservador": 2132659,
       "m3_ano_central": 9335309,
       "valor_min": 4.74,
       "valor_max": 20.75,
       "min": 5,
       "max": 20,
-      "redondeo": "mínimo al entero más cercano y máximo hacia abajo, como en pitch-demo.md (4,7 → 5; 20,7 → 20)",
-      "fuente": "impacto.json escenarios.conservador.m3_ano y escenarios.central.m3_ano ÷ 450.000 m³ (volumen de la torre: estimación propia, pitch-demo.md)"
+      "redondeo": "mínimo al entero más cercano y máximo hacia abajo (4,7 → 5; 20,7 → 20)",
+      "fuente": "impacto.json torres_costanera_ano (conservador y central)"
     },
     "capacidad": {
       "candidatos_hasta_100ha": 467,
       "fiscalizaciones_ano": 33.3,
       "anos_valor": 14.01,
       "anos": 14,
-      "fuente": "impacto.json candidatos − candidatos_mas_100ha ÷ fiscalizaciones por extracción al año en Z1 y Z2 (promedio 2020–2025, fiscalizacion.parquet, como impacto.py)"
+      "fuente": "impacto.json capacidad"
     },
-    "pie": "2,1 a 9,3 millones de m³ al año · torre estimada en 450.000 m³"
+    "pie": "2,1 a 9,3 millones de m³ al año · torre estimada en 449.925 m³"
   }
 }

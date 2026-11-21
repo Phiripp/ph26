@@ -9,6 +9,8 @@ locals {
     "iam.googleapis.com",
     "cloudresourcemanager.googleapis.com", # la usa el proveedor para leer el estado de las APIs
     "cloudquotas.googleapis.com",
+    "artifactregistry.googleapis.com",
+    "cloudbuild.googleapis.com",
   ]
 }
 
@@ -43,19 +45,29 @@ module "secretos" {
   depends_on = [module.apis]
 }
 
+module "artefactos" {
+  source         = "../../modulos/artefactos"
+  nombre         = "caudal-jobs"
+  region         = var.region
+  cuenta_build   = var.cuenta_servicio_build
+  cuenta_lectura = module.identidad.email
+
+  depends_on = [module.apis]
+}
+
 module "jobs" {
   source            = "../../modulos/jobs"
   region_principal  = var.region
   regiones_satelite = var.regiones_satelite
   hilos_satelite    = var.hilos_satelite
-  imagen            = var.imagen
+  imagen            = "${module.artefactos.url}/pipeline:${var.version_imagen}"
   corrida           = var.corrida
   cuenta_servicio   = module.identidad.email
   bucket            = module.almacenamiento.nombre
   secreto_cds       = module.secretos.id_secreto
 
   # Los jobs necesitan los permisos antes de existir: si no, la primera ejecución falla.
-  depends_on = [module.almacenamiento, module.secretos]
+  depends_on = [module.almacenamiento, module.secretos, module.artefactos]
 }
 
 module "cuota" {

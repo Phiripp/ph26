@@ -8,6 +8,11 @@ output "cuenta_servicio_jobs" {
   value       = module.identidad.email
 }
 
+output "imagen" {
+  description = "Imagen que usan los jobs."
+  value       = "${module.artefactos.url}/pipeline:${var.version_imagen}"
+}
+
 output "jobs" {
   description = "Jobs creados, con su nombre y región."
   value       = module.jobs.jobs

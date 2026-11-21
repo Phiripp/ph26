@@ -14,7 +14,7 @@ variable "hilos_satelite" {
 }
 
 variable "imagen" {
-  description = "Imagen de los contenedores."
+  description = "Imagen completa de los contenedores, con etiqueta (repositorio/pipeline:version)."
   type        = string
 }
 

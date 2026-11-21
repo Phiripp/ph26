@@ -26,7 +26,7 @@ Fuera de alcance: la calibración (M7) y la validación (M6) siguen siendo las d
 | Sentinel-2 | Earth Search, temporada 2025-26 (diciembre a marzo), nubes < 40 %: 3.773 escenas entre las latitudes −27 y −44 y 2.380 al norte de −27. El bbox incluye Argentina; dentro de Chile quedan unas **3.000 a 4.000**. | `serie_sentinel2.py` recorre zona por zona y lee la ventana de los predios de cada tile. A nivel nacional eso es casi el tile completo. Hay que dividir el trabajo **por tile**, no por zona. |
 | Clima | Open-Meteo en celdas de 0,1°, 5 celdas por llamada. La API gratuita permite 10.000 llamadas al día, y un año de datos cuenta como varias. | Con miles de celdas no alcanza la cuota gratuita. Se cambia a ERA5-Land ARCO geo-chunked de ECMWF, con la misma grilla de 0,1° (ver [Clima](#clima-era5-land-arco-geo-chunked)). |
 | Cuota Cloud Run | 20 vCPU y 40 GiB **por región** ([spec-demo.md](spec-demo.md#despliegue-en-cloud-run)). La de Compute Engine es de 12 vCPU global. | La memoria es el límite. Se pide más cuota al inicio y, mientras tanto, la etapa satelital se reparte en 4 regiones de EE. UU. |
-| Cloud Build | Falló con `PERMISSION_DENIED` en el job de POI; no hay Docker local. | Se usa el patrón de `scripts/cloud/poi/`, que ya funcionó: imagen pública de Python, `pip install` al arrancar y el código desde el bucket. |
+| Cloud Build | Falló con `PERMISSION_DENIED` en el job de POI, pero ya funciona: el equipo despliega `caudal-web` con él y la cuenta de Compute tiene `run.builder`. | Imagen propia en Artifact Registry (`caudal-jobs/pipeline`), construida con Cloud Build y versionada por commit. Ver [`infra/README.md`](../infra/README.md#imagen-de-los-jobs). |
 | Modelos | M2 a M5 trabajan por predio, por vecindario (referencias a 10 km, derechos a 500 m) o por celda de clima. El percentil del exceso y `rank_zona` son por `zona`. | Escalan bien si se reparten por región, con un buffer en el borde. `zona` pasa a ser el código de región (`R05`). |
 | CRS | Todo usa EPSG:32719 (huso 19S). | Al oeste de 72° O (Los Lagos, Aysén) la distorsión de área es menor al 1 %. Se acepta y se anota. |
 | Bucles | `d2_clima_openmeteo.enlazar_estacion` compara cada predio con cada estación en Python puro. | Con 400 mil predios tarda horas. Se reemplaza por un `cKDTree`. Hay que revisar si hay otros bucles por predio. |
@@ -94,7 +94,6 @@ Cada tarea es **idempotente**: si su archivo de salida ya está en el bucket, lo
 
 ```
 gs://ph-26-caudal-chile/
-  codigo/app.tgz                         scripts/ + config, lo sube el script de carga del código (`arranque.sh` también va en `codigo/`)
   config/regiones.json                   mismo esquema que data/zonas.json, con zona = región
   base/
     predio/region=R05.parquet            capa CIREN completa de la región (con elegible, rol_valido)
@@ -154,7 +153,7 @@ Antofagasta (II) y Magallanes (XII) no tienen capa de predios CIREN y quedan fue
 
 ## Job 1: `caudal-chile-datos`
 
-Recursos: 4 vCPU y 8 GiB en `base` y `plan`. La etapa `satelite` tiene su propio job, `caudal-chile-satelite` (2 vCPU y 4 GiB), porque `execute` no cambia recursos y porque así se crea en las 4 regiones. `--task-timeout 6h`, `--max-retries 2`, cuenta `caudal-jobs`, volumen `/datos`. Imagen `mirror.gcr.io/library/python:3.12-slim`, comando `bash /datos/codigo/arranque.sh`. Al arrancar instala las dependencias con `uv pip install --system`, que es más rápido que pip, y descomprime `/datos/codigo/app.tgz`. Es el mismo patrón que `scripts/cloud/poi/ejecutar.sh`.
+Recursos: 4 vCPU y 8 GiB en `base` y `plan`. La etapa `satelite` tiene su propio job, `caudal-chile-satelite` (2 vCPU y 4 GiB), porque `execute` no cambia recursos y porque así se crea en las 4 regiones. `--task-timeout 6h`, `--max-retries 2`, cuenta `caudal-jobs`, volumen `/datos`. Imagen `us-west1-docker.pkg.dev/ph-26-caudal/caudal-jobs/pipeline:<commit>` (`infra/imagen/`), con el código en `/app`, las dependencias fijadas y `ENTRYPOINT` en `scripts/cloud/chile/entrada.py`. El bucket solo lleva datos.
 
 ### Etapa `base` (14 tareas, una por región)
 
@@ -341,7 +340,7 @@ Salidas en `modelo/<corrida>/region=RXX/` y `web/<corrida>/RXX/`.
 | `scripts/cloud/chile/entrada.py` | Despacha la `ETAPA` y la tarea a los scripts y arma la carpeta de trabajo desde `/datos` |
 | `scripts/cloud/chile/plan.py` | Etapa `plan` |
 | `infra/` (Terraform) | Bucket, cuenta de servicio, permisos, secreto `CDS_API_KEY`, solicitud de cuota y los jobs (`datos`, `satelite` en 4 regiones, `prediccion`) con volúmenes. Ver [`infra/README.md`](../infra/README.md) |
-| `scripts/cloud/chile/desplegar.sh` | Sube `codigo/app.tgz` y `codigo/arranque.sh` al bucket (los jobs los crea Terraform) |
+| `infra/imagen/` | Dockerfile, dependencias fijadas, `cloudbuild.yaml` y `construir.sh`: la imagen de los jobs en Artifact Registry |
 | `scripts/cloud/chile/ejecutar.sh ETAPA [TAREAS]` | Lanza una etapa (en las 4 regiones si es `satelite`) |
 | `scripts/cloud/chile/progreso.sh` | Escenas del plan contra escenas en caché, tareas terminadas por etapa, últimas líneas de log |
 | Extractores (tabla de la etapa base) | Parametrizar capa, archivo y bbox por región; paginar |
@@ -358,7 +357,7 @@ H0 es el inicio. Las horas son de reloj y hay tareas en paralelo.
 | Hora | Infra (Gabi) | Datos | Modelos y web |
 | --- | --- | --- | --- |
 | H0–H1 | `terraform apply` (ya incluye la solicitud de cuota), crear la cuenta de CDS y aceptar la licencia de ERA5-Land, piloto de ERA5-Land, montaje probado con un job de prueba | `rutas.py`, `regiones.py`, paginación de `predios_ciren.py` | Revisar M2 a M5 en busca de supuestos de Z1 y Z2 y bucles por predio |
-| H1–H2 | `entrada.py`, `arranque.sh`, `desplegar.sh`, `ejecutar.sh` | Resto de los extractores; **lanzar `base`** apenas estén predios, CONAF y derechos | Columna `aplicabilidad` |
+| H1–H2 | `entrada.py`, imagen de los jobs (`infra/imagen/`), `ejecutar.sh` | Resto de los extractores; **lanzar `base`** apenas estén predios, CONAF y derechos | Columna `aplicabilidad` |
 | H2–H3 | `plan.py`, `progreso.sh` | Cambios de `serie_sentinel2.py`; **piloto** de 1 tile: segundos por escena y memoria | `build_m5_web.py` por región |
 | H3–H5 | **Lanzar `satelite`** en 4 regiones | Revisar el clima de `base` (cobertura de celdas, corrección DMC) | Etapa `region` probada con Valparaíso cuando termine su satélite |
 | H5–H7 | — | — | **Lanzar `prediccion` (`region`)**, comprobación de regresión, etapa `nacional` |

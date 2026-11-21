@@ -1,7 +1,7 @@
-# Cloud Run Jobs de la corrida nacional. Todos usan la misma imagen pública y el
-# mismo punto de entrada (/datos/codigo/arranque.sh, que instala dependencias y
-# descomprime el código del bucket). Cada ejecución cambia ETAPA y --tasks con
-# `gcloud run jobs execute` (ver outputs.tf); no hace falta redesplegar.
+# Cloud Run Jobs de la corrida nacional. Todos usan la misma imagen de Artifact
+# Registry (infra/imagen/), con el código y las dependencias adentro. Cada
+# ejecución cambia ETAPA y --tasks con `gcloud run jobs execute` (ver outputs.tf);
+# no hace falta redesplegar. Un código nuevo es una imagen nueva más un apply.
 locals {
   # Parámetros de cada job. La clave es un identificador interno; `nombre` y
   # `region` son los de Cloud Run.
@@ -68,9 +68,8 @@ resource "google_cloud_run_v2_job" "chile" {
       execution_environment = "EXECUTION_ENVIRONMENT_GEN2" # requerido para montar GCS
 
       containers {
-        image   = var.imagen
-        command = ["bash"]
-        args    = ["/datos/codigo/arranque.sh"]
+        # El ENTRYPOINT de la imagen (infra/imagen/Dockerfile) corre scripts/cloud/chile/entrada.py.
+        image = var.imagen
 
         resources {
           limits = {

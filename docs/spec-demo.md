@@ -6,7 +6,7 @@ Este documento dice qué debe mostrar la plataforma para sostener el guion de [p
 
 La presentación es el domingo 22 en la mañana. Solo es obligatorio lo marcado P0.
 
-**Qué decide este documento y qué no.** Define el contenido de cada pantalla y el contrato de datos (qué campos, con qué significado). **No decide dónde ni cómo se guardan los datos**: eso lo deciden Nico y Felipe (ver [Decisiones de almacenamiento](#decisiones-de-almacenamiento-nico-y-felipe)).
+**Qué decide este documento.** Define el contenido de cada pantalla, el contrato de datos (qué campos, con qué significado) y cómo llegan los datos al frontend: una API de lectura con DuckDB sobre los Parquet, con respaldo estático (ver [Almacenamiento y transporte](#almacenamiento-y-transporte)).
 
 ## Qué debe poder mostrar la demo
 
@@ -25,6 +25,8 @@ Cinco pantallas, en este orden, todas en producción y con datos reales:
 - **Nada simulado ni escrito a mano.** Cada cifra en pantalla sale de un archivo de `data/processed/` que genera un script del repo. El jurado tendrá un agente leyendo el repo: un número pegado en el código del frontend se nota.
 - **Transparente, sin abrumar.** Cada alerta dice por qué existe, con su fuente y con lo que no sabemos. Como máximo 4 razones y 2 límites por predio; el detalle queda a un clic.
 - **Honesto sobre lo que es en vivo.** Las series satelitales se precalculan; la interfaz muestra la fecha de cálculo. El expediente se genera de verdad.
+- **Una API de lectura sobre los Parquet.** El frontend pide los datos a `caudal-api`, que consulta con DuckDB los Parquet incluidos en su imagen. No hay base de datos.
+- **Respaldo estático.** Las mismas respuestas de la API se guardan como JSON en `frontend-demo/data/respaldo/`. Si el backend no responde, la página usa esos archivos: la demo funciona sin backend, salvo la generación del expediente en vivo.
 - **La demo no depende de terceros.** No se llama en vivo a OSRM, CIREN ni la DGA.
 - **Caudal prioriza, no acusa.** Sin nombres de dueños. En modo demo tampoco se muestra el rol. Siempre rangos de m³. Solo los casos con multa se llaman "sancionados".
 
@@ -96,32 +98,47 @@ Lo que cada pantalla necesita, sin importar cómo se guarde o se transporte. Los
 | Impacto | Panel de impacto | Candidatos, lift, escenarios, capacidad, equivalencias con su fuente | `impacto.json` |
 | Expediente | Botón de la ficha | PDF e identificador | `expediente.py` |
 
-## Decisiones de almacenamiento (Nico y Felipe)
+## Almacenamiento y transporte
 
-Estas decisiones son de ustedes. Abajo van los hechos que las condicionan y las opciones que veo, sin elegir.
+Decidido: **API de lectura con DuckDB sobre los Parquet, con respaldo estático.** No hay base de datos.
 
-Hechos:
+```
+Navegador ──► caudal-web (Cloud Run, nginx, estático)
+   │             └─ data/respaldo/*.json   ◄── build_m5_web.py ─┐
+   │                (solo si la API no responde)                 │ mismas funciones
+   │                                                             │ (api/datos.py)
+   └────────► caudal-api (Cloud Run, FastAPI + DuckDB) ◄─────────┘
+                 ├─ GET  /api/zonas/..., /api/predios/..., /api/casos/..., /api/impacto
+                 ├─ POST /api/expediente  ──► expediente.py ──► PDF
+                 └─ /app/data/*.parquet  (copiados al construir la imagen)
+```
 
-- **Tamaños.** 7.911 predios elegibles (20.050 polígonos en total). El puntaje pesa 0,7 MB en Parquet. Las series de la temporada tienen 158.000 filas (predio × fecha); con 7 temporadas serían cerca de 1,1 millones. Los POI son unas 32.000 filas.
-- **Frecuencia.** Sentinel-2 pasa cada 5 días. Cada pasada agrega una fila por predio a las series y puede cambiar la banda. Hoy la cadena completa (serie, M2 a M5) se corre a mano; las series se calculan en GCP en minutos.
-- **Imágenes.** Hoy hay recortes solo para 3 casos (`assets/casos/`) y los que genera el expediente al vuelo desde Earth Search. No hay un almacén de recortes por predio y fecha.
-- **Restricciones.** La capa de predios de CIREN no puede ir a un repo público. Los nombres de titulares no salen de `data/raw/`.
-- **Plazo.** Lo que se elija tiene que estar desplegado esta noche.
+- Un solo módulo, `api/datos.py`, arma cada recurso del [contrato de datos](#contrato-de-datos) a partir de `data/processed/` y llama a `explicacion.py` para la ficha. La API lo usa en cada solicitud, y `frontend-demo/scripts/build_m5_web.py` lo usa para escribir el respaldo en `frontend-demo/data/respaldo/` (una ruta por endpoint: `/api/zonas/Z2/ranking` → `respaldo/zonas/Z2/ranking.json`). Así la API y el respaldo no se pueden desalinear.
+- El frontend pide todo con una sola función, `api(ruta)` en `js/config.js` (la URL del backend va en `API_BASE`). Si la API no responde en 5 segundos o da error, lee el archivo equivalente del respaldo y muestra un aviso discreto: "datos del {fecha}".
+- Para actualizar los datos se vuelve a desplegar `caudal-api`. Cada versión de datos queda en su propia revisión de Cloud Run, y para volver atrás basta con mover el tráfico a la revisión anterior.
 
-| Decisión | Opciones | Qué considerar |
+Cómo queda cada decisión:
+
+| Decisión | Elegido | Por qué |
 | --- | --- | --- |
-| Datos tabulares de predios (puntajes, series, POI) | (a) Parquet dentro de la imagen del backend, leído con pandas o DuckDB. (b) Postgres con PostGIS en Cloud SQL. (c) BigQuery. (d) Archivos JSON generados al desplegar | (a) y (d) no tienen servicio que mantener, pero actualizar datos exige redesplegar. (b) permite consultas espaciales y cargas incrementales cada 5 días; hay que crear la instancia y cargarla hoy. (c) sirve para análisis, pero responde lento para una ficha |
-| Geometrías | Con los datos tabulares, o como teselas vectoriales (PMTiles) en un bucket | 20.050 polígonos pesan decenas de MB como GeoJSON; el frontend ya se probó con 5.000 |
-| Imágenes prebuscadas por predio y fecha | (a) Bucket de GCS con un recorte por predio y fecha, llenado por un job en cada pasada. (b) Solo para los predios en alerta. (c) Pedirlas a Earth Search cuando se abre la ficha | (a) es lo que escala como producto; son hasta 7.911 recortes por pasada. (b) reduce a unos 1.600. (c) no guarda nada, pero depende de un tercero en vivo |
-| Expedientes PDF | Bucket de GCS, o disco temporal del contenedor más los pregenerados en la imagen | El disco temporal se pierde al reiniciar; el bucket da enlaces estables |
-| Transporte al frontend | API para todo, o API solo para lo que es en vivo y archivos para el resto | Lo que elijan, el frontend no debe tener datos pegados en el código |
+| Datos tabulares (puntajes, series, POI) | Parquet dentro de la imagen de `caudal-api`, leídos con DuckDB | `data/processed/` pesa 58 MB y el sitio nunca escribe en él. DuckDB lee los Parquet que ya generan los scripts, con filtros, joins y orden, y responde en milisegundos sin infraestructura nueva |
+| Geometrías | `GET /api/zonas/{zona}/predios`: GeoJSON solo de las bandas alta y media (unos 800 por zona), simplificado a 5 m | Queda bajo los 5.000 polígonos con los que ya se probó el frontend. PMTiles con los 20.050 queda fuera de alcance |
+| Imágenes por predio y fecha | Para la demo, las de hoy: `assets/casos/` y las figuras de `expediente.py`. T13 (P1): recortes de los predios en alerta en un bucket privado | Un job por pasada para 7.911 predios no cabe esta noche |
+| Expedientes PDF | Pregenerados dentro de la imagen; los nuevos en `/tmp` del contenedor | Los de la demo no se pierden al reiniciar; los nuevos solo tienen que durar la sesión |
+| Transporte al frontend | API para todo, con respaldo estático | Ningún dato queda pegado en el código del frontend, y la demo sobrevive a una caída del backend |
 
-Requisitos que debe cumplir cualquier opción:
+Los requisitos de antes se cumplen así:
 
-- La fuente de verdad son las salidas de `data/processed/`. La carga a donde sea se hace con un script del repo, repetible.
-- Cada respuesta lleva la fecha del dato (`dato_al`) y la fecha de cálculo.
-- Con el servicio caído, la demo tiene un camino de respaldo (al menos el PDF del candidato y la ruta).
-- Sin arranque en frío durante la final.
+- **Fuente de verdad:** `data/processed/`. El "script de carga" es el despliegue: copia los Parquet a la imagen y escribe `/app/data/VERSION` (fecha y commit).
+- **Fechas del dato:** cada respuesta lleva `dato_al` y `calculado`. La versión de los datos va en `/api/health` y como `ETag`.
+- **Respaldo:** el recorrido completo funciona con `data/respaldo/` y el PDF de respaldo.
+- **Sin arranque en frío:** una instancia mínima durante la final.
+
+### Por qué no Cloud SQL, Firestore ni BigQuery
+
+- **Cloud SQL (PostGIS):** las cargas incrementales cada 5 días serían útiles en el producto, pero hoy la cadena se corre a mano y redesplegar basta. Pide crear la instancia, configurar la conexión desde Cloud Run, un esquema y un script de carga, y cobra aunque no se use. No cabe antes del domingo. Se reconsidera cuando la cadena corra sola en cada pasada.
+- **Firestore:** no guarda arreglos dentro de arreglos, que es como GeoJSON guarda las coordenadas de los polígonos, y limita cada documento a 1 MB.
+- **BigQuery:** responde en segundos; es lento para abrir una ficha.
 
 ## Frontend
 
@@ -129,7 +146,7 @@ Base: `frontend-demo/` (three.js y MapLibre). No se cambia la estructura de modo
 
 ### F1. Datos reales de M5 (P0)
 
-- La página deja de usar los puntajes provisionales de `build_zonas_scores.py` y usa los de M5.
+- La página deja de usar los puntajes provisionales de `build_zonas_scores.py` y usa los de M5, pedidos con `api(ruta)` (ver [Almacenamiento y transporte](#almacenamiento-y-transporte)).
 - Se quita todo texto "provisional" de bandas, índice y consumo.
 - La portada muestra 7.911 predios analizados y el conteo por banda de cada zona.
 - El ranking se ordena por `rank_zona`.
@@ -195,7 +212,7 @@ Dos filtros: "sin canal a 300 m" y "nunca fiscalizado". Corresponden al escenari
 
 ## Backend
 
-Lo único que tiene que ocurrir en un servidor, se decida lo que se decida arriba, es el expediente. El resto de los recursos del contrato se sirve como definan Nico y Felipe.
+Un solo servicio, `caudal-api`, sirve el expediente y los recursos de lectura del contrato de datos.
 
 ### Expediente (P0)
 
@@ -240,20 +257,29 @@ Reglas:
 
 Para la demo, el expediente del candidato se genera una vez antes de presentar. En el escenario se dice lo que es: "el expediente se arma en el servidor"; si el jurado pide otro predio, se genera delante de ellos.
 
-### Otros recursos (según la decisión de almacenamiento)
+### Recursos de lectura (P0)
 
-Si se sirven por API, estas son las rutas sugeridas, con los campos del contrato de datos:
+Cada ruta llama a una función de `api/datos.py` y devuelve los campos del contrato de datos:
 
 | Método y ruta | Prioridad |
 | --- | --- |
 | `GET /api/zonas/{zona}/resumen` | P0 |
-| `GET /api/zonas/{zona}/ranking?banda=&sin_canal=&sin_fiscalizar=&limite=` | P0 |
-| `GET /api/predios/{id}` (ficha con explicación) | P0 |
+| `GET /api/zonas/{zona}/ranking?banda=&sin_canal=&sin_fiscalizar=&limite=` | P0 (los filtros son P2) |
+| `GET /api/zonas/{zona}/predios` (GeoJSON de las bandas alta y media) | P0 |
+| `GET /api/predios/{id}` (ficha con explicación, POI y contexto de M12) | P0 |
 | `GET /api/predios/{id}/serie?temporada=` | P0 |
 | `GET /api/casos/{expediente}` | P0 |
-| `GET /api/zonas/{zona}/ruta` | P0 |
+| `GET /api/zonas/{zona}/ruta` y `/ruta.gpx` | P0 |
 | `GET /api/impacto` | P0 |
 | `POST /api/ruta` (otra jornada u otro filtro; solo con matrices de OSRM guardadas) | P2 |
+
+Reglas:
+
+- Una conexión DuckDB de solo lectura por proceso, abierta al arrancar. Los Parquet se registran como vistas, así que las consultas no copian los datos en memoria.
+- Responden con `Cache-Control: public, max-age=300` y un `ETag` igual a la versión de los datos.
+- 404 si el predio, la zona o el caso no existen.
+- Nunca devuelven nombres de titulares. El rol solo sale con `?rol=1`, y el frontend no lo pide en modo demo.
+- `GET /api/predios/{id}` responde para los 7.911 predios elegibles. El respaldo estático solo incluye los de bandas alta y media, los de los casos y las paradas de la ruta.
 
 ## Despliegue en Cloud Run
 
@@ -262,7 +288,7 @@ Si se sirven por API, estas son las rutas sugeridas, con los campos del contrato
 | Origen | `frontend-demo/` (Dockerfile con nginx, ya existe) | Dockerfile con Python 3.12 y las bibliotecas de WeasyPrint (pango, cairo, gdk-pixbuf) |
 | Región | `southamerica-west1` | `southamerica-west1` |
 | CPU y memoria | 1 vCPU, 512 MiB | 2 vCPU, 2 GiB |
-| Concurrencia | 80 | 4 |
+| Concurrencia | 80 | 20 (los `GET` tardan milisegundos; el expediente se limita aparte, una generación por predio) |
 | Tiempo máximo | 60 s | 120 s |
 | Instancias | mínimo 1, máximo 3 | mínimo 1, máximo 2 |
 | Acceso | Público | Público, CORS solo desde la URL de `caudal-web` |
@@ -271,9 +297,10 @@ Cosas a saber:
 
 - **Cuota:** Cloud Run tiene 20 vCPU y 40 GiB por región. Los trabajos de Gabi corren en `us-west1`, así que no compiten con estos servicios.
 - **Cloud Build:** falló con `PERMISSION_DENIED` al desplegar el trabajo de POI. Si falla aquí, construir la imagen en local con Docker y subirla a Artifact Registry.
-- **Capa de CIREN:** `predio.parquet` no está en git. El despliegue del backend debe copiarla al contexto de construcción (como hace `scripts/cloud/poi/desplegar.sh`) o leerla de un bucket privado.
+- **Datos en la imagen:** el script de despliegue de `caudal-api` copia `data/processed/*.parquet` y `*.json` a `/app/data/` y escribe `/app/data/VERSION`. `predio.parquet` no está en git (capa de CIREN): se copia desde el disco local al contexto de construcción, como hace `scripts/cloud/poi/desplegar.sh`.
+- **Orden de despliegue:** primero `caudal-api`, después `caudal-web`. Si cambia la forma de una respuesta, hay que regenerar el respaldo con `build_m5_web.py` en el mismo commit.
 - **Arranque en frío:** con una instancia mínima no hay. Volver a 0 después de la final.
-- **Service worker:** las llamadas a `/api/` no se guardan en caché. Al cambiar los datos hay que subir la versión del caché en `sw.js`.
+- **Service worker:** `sw.js` guarda en caché los `GET /api/*` (primero la red, y el caché si no hay red), para que la segunda visita funcione sin red. No guarda `POST /api/expediente`. Al cambiar los datos hay que subir la versión del caché en `sw.js`.
 - **URL para el jurado:** la de `caudal-web` va en `platanus-hack-project.jsonc`.
 
 ## El repo frente al agente del jurado
@@ -296,23 +323,24 @@ Ya corregido: la cifra de validación del pitch (2,6) y las equivalencias (perso
 
 | ID | Tarea | Prioridad | Responsable sugerido | Depende de | Listo cuando |
 | --- | --- | --- | --- | --- | --- |
-| T0 | Decidir almacenamiento y transporte (tabla de decisiones) | P0 | Nico y Felipe | — | Queda escrito en este documento qué se eligió |
+| T0 | ~~Decidir almacenamiento y transporte~~ Decidido: API con DuckDB y respaldo estático ([Almacenamiento y transporte](#almacenamiento-y-transporte)) | P0 | — | — | Hecho |
 | T1 | `explicacion.py`: razones, confianza y límites por predio, con fuentes | P0 | Tomás | — | Devuelve el contrato de la explicación para `5301984` y para el caso FO-0504-95 |
-| T2 | Cargar o exportar los datos de M5 según T0, con un script repetible | P0 | Felipe, con apoyo de Tomás | T0, T1 | La zona Z2 muestra las bandas de M5 |
+| T2 | `api/datos.py` (funciones de lectura con DuckDB) y `build_m5_web.py`, que escribe `data/respaldo/` con ellas | P0 | Felipe, con apoyo de Tomás | T1 | La zona Z2 muestra las bandas de M5 leyendo el respaldo |
+| T2b | Rutas `GET` de lectura en `caudal-api`, llamando a `api/datos.py` | P0 | Gabi | T2, T6 | `GET /api/predios/5301984` responde en local lo mismo que su archivo del respaldo |
 | T3 | F1 y F2: página con datos de M5 y ficha con "Por qué está en alerta" | P0 | Nico | T1, T2 | El predio `5301984` muestra sus razones con fuente |
 | T4 | F4: línea de tiempo y adelanto en la ficha del caso | P0 | Nico | T2 | FO-0504-95 muestra su primera alerta y los años de adelanto |
 | T5 | F5 y F6: ruta de M8 y panel de impacto leídos del dato | P0 | Felipe | T2 | `#impacto` muestra las 5 cifras sin números en el código |
 | T6 | `caudal-api`: `health` y `expediente` | P0 | Gabi | — | `POST /api/expediente` devuelve un PDF en local |
-| T7 | Desplegar `caudal-api` y generar el expediente del candidato | P0 | Gabi | T6 | El endpoint responde en producción |
+| T7 | Desplegar `caudal-api` con los Parquet y generar el expediente del candidato | P0 | Gabi | T2b | `/api/predios/5301984` y el expediente responden en producción en menos de 2 s |
 | T8 | F3: botón que llama al backend, visor de PDF y respaldo | P0 | Nico | T6 | El clic abre el PDF en producción; con el backend apagado abre el respaldo |
-| T9 | Desplegar `caudal-web` y llenar `platanus-hack-project.jsonc` | P0 | Nico | T3 a T8 | El recorrido completo funciona en la URL pública |
+| T9 | Desplegar `caudal-web` y llenar `platanus-hack-project.jsonc` | P0 | Nico | T3 a T8 | El recorrido completo funciona en la URL pública, también con `caudal-api` apagado |
 | T10 | Limpieza para el agente del jurado: quitar lo provisional, `data/demo.json`, README raíz con "en vivo y precalculado" | P0 | Tomás | T3 | La tabla de la sección anterior no tiene pendientes |
 | T11 | Video de respaldo y 5 ensayos con cronómetro | P0 | Todos | T9 | Video guardado en dos computadores |
 | T12 | F7: modo demo (enlaces, teclas, `?demo=1`) | P1 | Nico | T3 | Las teclas 1 a 5 recorren el guion |
-| T13 | Imágenes prebuscadas por predio y fecha, según T0 | P1 | Felipe o Gabi | T0 | La ficha del candidato muestra recortes con fecha y escena |
+| T13 | Recortes de los predios en alerta en un bucket privado | P1 | Felipe o Gabi | T7 | La ficha del candidato muestra recortes con fecha y escena |
 | T14 | Filtros del ranking y ruta del escenario conservador | P2 | Tomás | T2 | — |
 
-Orden sugerido para hoy: T0, T1 y T6 parten ya y en paralelo.
+Orden sugerido para hoy: T1 y T6 parten ya y en paralelo. Con T1 parte T2; con T2 parten T3, T4 y T5, que trabajan contra el respaldo estático mientras la API no está desplegada. Con T2 y T6 parte T2b.
 
 ## Criterios de aceptación de la demo
 
@@ -321,7 +349,7 @@ Orden sugerido para hoy: T0, T1 y T6 parten ya y en paralelo.
 - [ ] La ficha del candidato muestra como máximo 4 razones y 2 límites, cada razón con su fuente.
 - [ ] El texto de la ficha y el del PDF coinciden.
 - [ ] El expediente del candidato se abre en menos de 3 segundos y es un PDF con las 7 secciones de la guía de la DGA.
-- [ ] Con el backend apagado, el botón abre el PDF de respaldo.
+- [ ] Con el backend apagado, el recorrido completo funciona con el respaldo estático y el botón abre el PDF de respaldo.
 - [ ] En modo demo no aparece ningún rol ni nombre.
 - [ ] Buscar en `frontend-demo/js/` los números del pitch (501, 2,6, 5301984) no da resultados.
 
@@ -331,3 +359,4 @@ Orden sugerido para hoy: T0, T1 y T6 parten ya y en paralelo.
 - Envío de la denuncia a la DGA (requiere Clave Única; el expediente queda listo para que la persona lo presente).
 - Recalcular series satelitales en vivo.
 - Plan de vuelo de dron (M14) y retorno de campo (M15).
+- Base de datos (Cloud SQL, Firestore, BigQuery): ver [Por qué no](#por-qué-no-cloud-sql-firestore-ni-bigquery).

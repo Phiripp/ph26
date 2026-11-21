@@ -261,7 +261,17 @@ function blankTransparent() {
   }
   return transparentTile.then((buf) => buf.slice(0));
 }
+/** Where the satellite tile z/x/y comes from: a local file, a remote URL, or null (outside Chile). */
+function satUrlFor(local, z, x, y) {
+  const s2 = local && local.s2;
+  const remote = () => (SAT.remote === 'esri' ? ESRI_URL : EOX_URL)(z, x, y);
+  if (!s2 || !s2.keys) return remote();
+  if (z <= s2.maxzoom) return s2.keys.has(`${z}/${x}/${y}`) ? LOCAL_FILE.s2(`${z}/${x}/${y}`) : null;
+  const d = z - s2.maxzoom;
+  return s2.keys.has(`${s2.maxzoom}/${x >> d}/${y >> d}`) ? remote() : null;
+}
 function registerSatProtocol(maplibregl, local) {
+  SAT.local = local;
   if (registerSatProtocol.done || typeof maplibregl.addProtocol !== 'function') return;
   registerSatProtocol.done = true;
   maplibregl.addProtocol('caudal-sat', async (params, abortController) => {
@@ -269,17 +279,7 @@ function registerSatProtocol(maplibregl, local) {
     if (!m) throw new Error('bad tile url ' + params.url);
     const z = +m[1], x = +m[2], y = +m[3];
     const s2 = local && local.s2;
-    let url = null;
-    if (s2 && s2.keys) {
-      if (z <= s2.maxzoom) {
-        if (s2.keys.has(`${z}/${x}/${y}`)) url = LOCAL_FILE.s2(`${z}/${x}/${y}`);
-      } else {
-        const d = z - s2.maxzoom;
-        if (s2.keys.has(`${s2.maxzoom}/${x >> d}/${y >> d}`)) url = (SAT.remote === 'esri' ? ESRI_URL : EOX_URL)(z, x, y);
-      }
-    } else {
-      url = (SAT.remote === 'esri' ? ESRI_URL : EOX_URL)(z, x, y);
-    }
+    const url = satUrlFor(local, z, x, y);
     if (!url) return { data: await blankTransparent() };
     const r = await fetch(url, { signal: abortController && abortController.signal });
     if (!r.ok) {
@@ -612,6 +612,35 @@ function normCaso(c) {
   const lon = +c.lon, lat = +c.lat;
   if (!Number.isFinite(lon) || !Number.isFinite(lat)) return null;
   return { ...c, expediente: String(c.expediente), zona: zoneKey(c.zona), lon, lat };
+}
+
+/**
+ * Two calls inside MapLibre's render make the main thread wait for the GPU process, and during a flight
+ * (new tiles every frame) those waits were ~450 ms of dropped frames per flight:
+ *  - the globe's precision self-measurement (a pixel readback every few frames). It only corrects the
+ *    globe: skipped while the map is fully in mercator (zoom above the globe -> mercator transition).
+ *  - gl.checkFramebufferStatus after creating every hillshade / terrain framebuffer: a pure validation
+ *    round trip. The formats used (RGBA8 + depth) are always complete in WebGL2, so it answers
+ *    "complete" without asking. `?gpucheck=1` restores the real call.
+ * Private API on both counts: anything missing leaves the stock behaviour.
+ */
+function skipGpuWaits(map) {
+  try {
+    const proj = map.style && map.style.projection;
+    const globe = proj && proj._verticalPerspectiveProjection;
+    if (globe && typeof globe.updateGPUdependent === 'function' && !globe._caudalPatched) {
+      const measure = globe.updateGPUdependent.bind(globe);
+      globe.updateGPUdependent = (ctx) => { if (proj.transitionState > 0) measure(ctx); };
+      globe._caudalPatched = true;
+    }
+    const gl = map.painter && map.painter.context && map.painter.context.gl;
+    const keepCheck = new URLSearchParams(location.search).get('gpucheck') === '1';
+    if (gl && !keepCheck && typeof gl.checkFramebufferStatus === 'function') {
+      gl.checkFramebufferStatus = () => gl.FRAMEBUFFER_COMPLETE;
+    }
+  } catch (err) {
+    console.warn('[map] skipGpuWaits:', err && err.message);
+  }
 }
 
 /**
@@ -1298,6 +1327,8 @@ export async function initMap({ container, sites, casos: casosIn, onSelect } = {
 
   const api = {
     map,
+    /** URL the map would download for satellite tile z/x/y (null = nothing to download). For preloading. */
+    satTileUrl: (z, x, y) => satUrlFor(SAT.local, z, x, y),
     /** Zones as shown on the map: [{ id, codigo, name, casos, lon, lat, bbox }] */
     zonas: data.filter((d) => d.kind === 'zona').map((d) => d.orig),
     /** The validation cases the map shows (normalized: zona lower-case, lon/lat numbers). */
@@ -1405,6 +1436,6 @@ export async function initMap({ container, sites, casos: casosIn, onSelect } = {
   }
   map.on('zoom', () => updateTerrain(false));
   map.on('zoomend', () => updateTerrain(true));
-  map.once('load', () => { lastExag = -1; updateTerrain(true); });
+  map.once('load', () => { lastExag = -1; updateTerrain(true); skipGpuWaits(map); });
   return api;
 }

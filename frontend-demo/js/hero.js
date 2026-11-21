@@ -639,6 +639,17 @@ export async function initHero({ canvas, manifestUrl, autoplay = false }) {
       return startAnim(START, duration, 'exit');
     },
     setActive,
+    /**
+     * Upload every year's imagery to the GPU now (one texture per task) instead of on the first frame
+     * that needs it: the year slider and the autoplay never stall on a texture upload afterwards.
+     */
+    async prewarm() {
+      for (const t of [...Object.values(satTex), ...Object.values(sdfTex)]) {
+        if (!t || !t.image) continue;
+        try { renderer.initTexture(t); } catch (err) { console.warn('[hero] prewarm:', err && err.message); return; }
+        await new Promise((r) => setTimeout(r, 0));
+      }
+    },
     onUpdate(cb) {
       if (typeof cb === 'function') { listeners.push(cb); lastKey = ''; emit(true); }
     },

@@ -62,6 +62,60 @@ NODE_PATH=$PWD/node_modules node scripts/perf/measure.cjs --label prueba --out p
 
 Pendiente: con miles de predios lo que queda por bajar al entrar a una zona son las geometrías (`predios.geojson`, 13 MB con 5.000 predios).
 
+## Precarga y caché (para la demo)
+
+Mientras la portada está en pantalla, la página deja listo todo lo que la demo puede abrir, para que
+navegar por dentro no espere red, decodificación ni GPU.
+
+**Qué hace**
+
+- `js/preload.js` — durante la intro baja solo bytes (imágenes de las escenas 3D y tiles satelitales
+  de los vuelos). Al terminar la intro carga código, datos, series e imágenes de casos, y construye
+  la escena 3D de cada zona y la de Aculeo (con todos sus años ya subidos a la GPU). Se pausa durante
+  cualquier vuelo.
+- Una escena 3D por zona, cada una en su canvas (`MAX_VALLES = 3` en `js/main.js`): cambiar de zona
+  ya no reconstruye nada. Con más de 3 zonas, la más antigua se reutiliza como antes.
+- `sw.js` — service worker con caché persistente. Desde la segunda visita todo sale del disco y el
+  recorrido completo funciona **sin red** (probado).
+- `js/map.js → skipGpuWaits` — salta dos esperas síncronas de GPU dentro de MapLibre que botaban
+  cuadros en cada vuelo.
+
+**Cuándo está listo**: `document.documentElement.dataset.warm === 'done'` (y `data-warm-failures` con
+los pasos que fallaron). No hay indicador visual; se puede agregar.
+
+**Antes de presentar**: abrir la página una vez con red y esperar a `warm = done` (primera visita:
+~30 s en local, más en wifi lento porque son ~15 MB; siguientes: ~2 s después de la intro).
+
+**Medido** (`scripts/perf/measure.cjs --only demo`, Intel UHD 630, 1280×760, red simulada 80 ms / 10 Mbps;
+"tareas largas" = tiempo de hilo principal bloqueado durante el paso):
+
+| Paso | Antes: peor cuadro · tareas largas | Ahora (1ª visita) | Ahora (2ª visita) |
+|---|---|---|---|
+| Entrar a Z1 | 483 ms · 787 ms | 83 ms · 58 ms | 100 ms · 59 ms |
+| Volver a Chile | 100 ms · 303 ms | 50 ms · 54 ms | 50 ms · 50 ms |
+| Entrar a Z2 | 267 ms · 411 ms | 50 ms · 0 ms | 67 ms · 0 ms |
+| Entrar a Aculeo | 267 ms · 330 ms (7,0 s) | 50 ms · 0 ms (4,9 s) | 67 ms · 0 ms (4,9 s) |
+| Abrir ficha | 219 ms | 96 ms | 97 ms |
+| Abrir caso con imágenes | esperaba descarga | 96 ms | 95 ms |
+
+Descarga durante el recorrido: de 2,4–5,4 MB por paso a 0. La duración de cada entrada (~4,8 s) es
+la animación (vuelo 2,4 s + descenso 2,2 s), no carga. Costo: la portada trabaja más justo después
+de la intro (tareas largas de la carga 1,2–1,9 s → 2,3–2,7 s; intro 50 → 49 fps).
+
+**Supuestos y cosas a saber**
+
+- La primera visita descarga ~15 MB en segundo plano aunque no se abra nada.
+- `sw.js`: `tiles/` y `assets/` se sirven de la caché y se revalidan en segundo plano (una imagen
+  regenerada aparece a la segunda recarga); html/js/css/json van siempre al servidor primero. La
+  caché no tiene tope. **`?sw=0` lo apaga y borra la caché** (vuelve a registrarse al abrir sin el
+  parámetro). Queda registrado para `localhost:8000`: si se sirve otro proyecto en ese puerto,
+  abrir antes con `?sw=0`.
+- `skipGpuWaits` usa API privada de MapLibre 5.24 y hace que `gl.checkFramebufferStatus` responda
+  "completo" sin consultar a la GPU. `?gpucheck=1` restaura la llamada real. Probar en el equipo de
+  la demo.
+- Cada escena precargada es un contexto WebGL más (mapa + 2 zonas + Aculeo = 4).
+- Sin probar: Safari, Firefox, móvil, pantallas retina.
+
 ## Recorrido
 
 1. Mapa de Chile: satélite y relieve sobre Chile, resto del mundo oscuro. Marcadores de las dos zonas (Z1, Z2), los 10 casos sancionados por la DGA y Aculeo; con zoom ≥ 8 aparecen los puntos de fiscalización DGA (rojo = con infracción, gris = sin infracción).
@@ -83,6 +137,8 @@ js/hero.js                Aculeo 3D (three.js)
 js/valle.js               escena 3D de una zona (three.js): predios por banda, casos, ruta
 js/zona-data.js           carga de datos por zona (series por bloque bajo demanda) + formatos compartidos
 js/tile-clip.js, tile-clip-worker.js   recorte de tiles al borde de Chile, fuera del hilo principal
+js/preload.js                         precarga en segundo plano (datos, imágenes, tiles, escenas 3D)
+sw.js                                 service worker: caché persistente (?sw=0 lo apaga)
 js/ficha.js, caso.js, expediente.js, ruta-panel.js, chart.js   paneles
 data/zonas/               datos de las zonas (ver abajo)
 assets/zonas/, assets/casos/, assets/aculeo/   imágenes, DEM y recortes Sentinel-2 de los casos

@@ -5,6 +5,7 @@
 //   npm i playwright-core            # en cualquier carpeta; no baja navegadores, usa el Chrome instalado
 //   NODE_PATH=<esa carpeta>/node_modules node scripts/perf/measure.cjs --label antes --out antes.json
 // Opciones: --base http://localhost:8000  --only landing,zona,aculeo  --mults 1,20,100  --runs 2  --headed
+//   --only demo [--settle 25000] [--repeat 0]   recorrido de la demo con red lenta (1ª y 2ª visita)
 //
 // "mult" multiplica los predios de cada zona en memoria (clones desplazados) para ver cómo escala la vista
 // sin tener todavía los datos reales. Los datos de data/zonas/ se sirven desde disco por este script.
@@ -19,7 +20,7 @@ const LANDING_MS = 24000;
 const ZONA_TIMEOUT_MS = 120000;
 
 function parseArgs(argv) {
-  const out = { base: 'http://localhost:8000', only: 'landing,zona,aculeo', mults: '1,20,100', runs: '2', label: 'run', out: '', headed: false };
+  const out = { base: 'http://localhost:8000', only: 'landing,zona,aculeo', mults: '1,20,100', runs: '2', label: 'run', out: '', headed: false, settle: '25000', repeat: '1' };
   for (let i = 2; i < argv.length; i++) {
     const k = argv[i].replace(/^--/, '');
     if (k === 'headed') out.headed = true;
@@ -273,7 +274,8 @@ function startDataServer(body, counters) {
 }
 
 async function newPage(browser, mult, counters) {
-  const ctx = await browser.newContext({ viewport: VIEWPORT, deviceScaleFactor: 1 });
+  // sin service worker: page.route no ve lo que pide un service worker
+  const ctx = await browser.newContext({ viewport: VIEWPORT, deviceScaleFactor: 1, serviceWorkers: 'block' });
   const page = await ctx.newPage();
   await page.addInitScript(initCollectors);
   const srv = await startDataServer(makeDataSource(mult), counters);
@@ -354,6 +356,87 @@ async function runLagoon(browser, base) {
   return r;
 }
 
+/* ---------- recorrido de la demo con red lenta: lo que se siente al navegar por dentro ---------- */
+// Red simulada: wifi de evento (latencia 80 ms, 10 Mbps de bajada). Se espera `settleMs` tras el intro
+// (tiempo que el presentador deja la portada abierta) y después se recorre: Z1 → ficha → caso con
+// imágenes → volver → Z2 → volver → Aculeo → slider.
+const DEMO_NET = { offline: false, latency: 80, downloadThroughput: (10 * 1024 * 1024) / 8, uploadThroughput: (5 * 1024 * 1024) / 8 };
+
+async function demoStep(page, net, name, action, done, { timeout = 60000, tail = 2500 } = {}) {
+  const t0 = Date.now();
+  const mark = await page.evaluate(() => ({ t: performance.now(), l: window.__perf.long.length }));
+  const req0 = net.started, bytes0 = net.bytes;
+  await action();
+  await page.waitForFunction(done, null, { timeout });
+  const ms = Date.now() - t0;
+  const reqAt = net.started - req0, pendingAt = net.pending;
+  await page.waitForTimeout(tail);
+  const r = await page.evaluate(({ t, l, ms }) => {
+    const P = window.__perf;
+    const f = P.frames.filter((x) => x[0] >= t && x[0] < t + ms).map((x) => x[1]).sort((a, b) => a - b);
+    const long = P.long.slice(l).filter((x) => x[0] < t + ms);
+    return {
+      fps: f.length ? +(f.length / (ms / 1000)).toFixed(1) : null,
+      worstFrameMs: f.length ? Math.round(f[f.length - 1]) : null,
+      framesOver50: f.filter((x) => x > 50).length,
+      longMs: long.reduce((a, x) => a + x[1], 0),
+    };
+  }, { ...mark, ms });
+  return { step: name, ms, ...r, requests: reqAt, pendingAtEnd: pendingAt, lateRequests: net.started - req0 - reqAt, kb: Math.round((net.bytes - bytes0) / 1024) };
+}
+
+async function runDemo(browser, base, { settleMs, repeat, query = '' }) {
+  const counters = { dataBytes: 0, dataReqs: 0 };
+  const visits = [];
+  // un solo contexto: la segunda visita reutiliza caché HTTP y service worker
+  const ctx = await browser.newContext({ viewport: VIEWPORT, deviceScaleFactor: 1 });
+  for (let visit = 0; visit < (repeat ? 2 : 1); visit++) {
+    const page = await ctx.newPage();
+    await page.addInitScript(initCollectors);
+    const cdp = await ctx.newCDPSession(page);
+    await cdp.send('Network.enable');
+    await cdp.send('Network.emulateNetworkConditions', DEMO_NET);
+    const net = { started: 0, pending: 0, bytes: 0, fromCache: 0 };
+    cdp.on('Network.requestWillBeSent', () => { net.started++; net.pending++; });
+    cdp.on('Network.loadingFinished', (e) => { net.pending--; net.bytes += e.encodedDataLength || 0; });
+    cdp.on('Network.loadingFailed', () => { net.pending--; });
+    cdp.on('Network.requestServedFromCache', () => { net.fromCache++; });
+    const t0 = Date.now();
+    await page.goto(base + '/' + query, { waitUntil: 'commit' });
+    await page.waitForFunction(() => (document.getElementById('top')?.dataset.intro || '').startsWith('gone'), null, { timeout: 90000 });
+    const introGoneMs = Date.now() - t0;
+    const warm = page.waitForFunction(() => document.documentElement.dataset.warm === 'done', null, { timeout: settleMs }).then(() => Date.now() - t0).catch(() => null);
+    await page.waitForTimeout(settleMs);
+    const warmDoneMs = await warm;
+    const load = { introGoneMs, warmDoneMs, requests: net.started, kb: Math.round(net.bytes / 1024), fromCache: net.fromCache, pendingBeforeTour: net.pending };
+    const mode = (m) => `document.getElementById('top').dataset.mode === '${m}'`;
+    const steps = [];
+    const step = async (...a) => { try { steps.push(await demoStep(page, net, ...a)); } catch (err) { steps.push({ step: a[0], error: String(err.message || err).split('\n')[0] }); } };
+    await step('entrar Z1', () => page.locator('.cm[data-id="z1"]').click(), mode('zona'));
+    await step('abrir ficha', () => page.locator('#vp-predios .pn-row').first().click(),
+      () => (document.querySelector('#vp-predios .pn-chart path.pc-ndvi')?.getAttribute('d') || '').length > 20, { tail: 2000 });
+    await step('abrir caso con imágenes', async () => { await page.locator('#vt-casos').click(); await page.locator('#vp-casos .pn-row[data-exp="FO-0501-462"]').click(); },
+      () => { const im = [...document.querySelectorAll('#vp-casos .pn-img img.pn-i-rgb')]; return im.length > 0 && im.every((i) => i.complete && i.naturalWidth > 0); }, { tail: 2000 });
+    await step('volver a Chile', () => page.locator('#back').click(), mode('landing'), { tail: 800 });
+    await step('entrar Z2', () => page.locator('.cm[data-id="z2"]').click(), mode('zona'));
+    await step('volver a Chile (2)', () => page.locator('#back').click(), mode('landing'), { tail: 800 });
+    await step('entrar Aculeo', () => page.locator('.cm[data-id="aculeo"]').click(), mode('lagoon'));
+    await step('slider de años', () => page.evaluate(async () => {
+      const scrub = document.getElementById('scrub'), y0 = +scrub.min, y1 = +scrub.max;
+      for (let i = 0; i <= 150; i++) {
+        const k = i / 150, y = k < 0.5 ? y1 - (y1 - y0) * (k * 2) : y0 + (y1 - y0) * ((k - 0.5) * 2);
+        scrub.value = y; scrub.dispatchEvent(new Event('input', { bubbles: true }));
+        await new Promise((r) => requestAnimationFrame(r));
+      }
+      window.__scrubDone = true;
+    }), () => window.__scrubDone === true, { tail: 500 });
+    visits.push({ visit: visit + 1, load, steps });
+    await page.close();
+  }
+  await ctx.close();
+  return { net: 'latencia 80 ms · 10 Mbps', settleMs, visits };
+}
+
 const pickBest = (runs, key) => runs.slice().sort((a, b) => key(a) - key(b))[Math.floor((runs.length - 1) / 2)];
 
 async function main() {
@@ -378,6 +461,11 @@ async function main() {
         try { result.zona[`x${m}`] = await runZona(browser, args.base, m); }
         catch (err) { result.zona[`x${m}`] = { error: String(err.message || err).split('\n')[0] }; process.stderr.write(`[measure] zona x${m} falló: ${err.message}\n`); }
       }
+    }
+    if (only.includes('demo')) {
+      process.stderr.write('[measure] demo…\n');
+      try { result.demo = await runDemo(browser, args.base, { settleMs: +args.settle, repeat: args.repeat !== '0', query: args.query || '' }); }
+      catch (err) { result.demo = { error: String(err.message || err).split('\n')[0] }; }
     }
     if (only.includes('aculeo')) {
       process.stderr.write('[measure] aculeo…\n');

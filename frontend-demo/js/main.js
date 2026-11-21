@@ -27,6 +27,8 @@ const HASH_ALIAS = { petorca: 'z1', aconcagua: 'z2' };
 const LAGOON_CAM = { center: [-70.914, -33.843], zoom: 11.3, pitch: 50, bearing: 0, duration: 2600 };
 const ENTER_MS = 2200, EXIT_MS = 1400;
 const ROUTE_MS = 16000;
+const MAX_VALLES = 3;             // 3D zone scenes kept built at once (one WebGL context each)
+const SW_URL = 'sw.js';
 const HERO_TIMEOUT_MS = 20000;   // max wait for the lagoon scene before giving the stage back
 const nf1 = new Intl.NumberFormat('es-CL', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
 const nf0 = new Intl.NumberFormat('es-CL', { maximumFractionDigits: 0 });
@@ -734,14 +736,16 @@ function setupZonaPanel({ getValle }) {
 
 /* ---------- stage: landing (national map) <-> lagoon (Aculeo) <-> zona (Z1 / Z2) ---------- */
 function setupStage({ getHero }) {
-  const stage = $('top'), heroCanvas = $('hero-canvas'), valleCanvas = $('valle-canvas');
+  const stage = $('top'), heroCanvas = $('hero-canvas'), firstValleCanvas = $('valle-canvas');
   const back = $('back'), bar = $('lagoon-bar'), hint = $('hint');
   const card = $('site-card');
   const sites = sitesJson.sites || [];
   const byId = new Map(sites.map(s => [s.id, s]));
   let mapCtl = null;
   let hero = null, heroFailed = false;
-  let valle = null, valleZona = null, valleFailed = false;
+  // one built 3D scene per zone (up to MAX_VALLES), each on its own canvas: switching zone is free
+  const valles = new Map();   // zone id -> { ctl, canvas }
+  let valle = null, valleCanvas = firstValleCanvas, valleFailed = false;
   let valleQueue = Promise.resolve();
   let curZona = null;
 
@@ -774,18 +778,21 @@ function setupStage({ getHero }) {
     bar.hidden = m !== 'lagoon';
   }
 
-  /* --- one Three.js scene reused across zones: setZona() if the scene supports it, else re-init --- */
-  function ensureValle(id, data, meta) {
-    const run = async () => {
-      if (valle && valleZona === id) return valle;
-      if (valle && typeof valle.setZona === 'function') {
-        await valle.setZona(data);
-        valleZona = id;
-        return valle;
-      }
-      if (valle) { try { valle.dispose?.(); } catch (e) { console.error('[Caudal] valle.dispose:', e); } valle = null; valleZona = null; }
+  /* --- 3D zone scenes: one per zone while they fit (MAX_VALLES); past that, the oldest is rebuilt --- */
+  function newValleCanvas() {
+    if (!valles.size) return firstValleCanvas;
+    const c = firstValleCanvas.cloneNode(false);
+    c.removeAttribute('id');
+    c.removeAttribute('style');
+    c.className = 'valle-canvas';
+    firstValleCanvas.after(c);
+    return c;
+  }
+  async function buildValle(id, data, meta) {
+    const canvas = newValleCanvas();
+    try {
       const v = await initValle({
-        canvas: valleCanvas,
+        canvas,
         zona: data,
         base: meta?.base || `assets/zonas/${id}/`,
         dataBase: meta?.data || `data/zonas/${id}/`,   // older valle.js loads predios/ruta itself
@@ -795,20 +802,54 @@ function setupStage({ getHero }) {
         onRouteProgress: t => zp.onRouteProgress(t),
       });
       if (!v || typeof v.enter !== 'function' || typeof v.exit !== 'function') throw new Error('valle sin enter()/exit()');
-      valle = v; valleZona = id;
-      return v;
+      return { ctl: v, canvas };
+    } catch (err) {
+      if (canvas !== firstValleCanvas) canvas.remove();
+      throw err;
+    }
+  }
+  /**
+   * Scene of zone `id`. adopt: make it the current one (entering the zone). Without adopt it is only
+   * built ahead of time, and never at the expense of a scene that is already built.
+   */
+  function ensureValle(id, data, meta, { adopt = true } = {}) {
+    const run = async () => {
+      if (!adopt && mode !== 'landing') return null;   // queued behind another build: the person moved on
+      let slot = valles.get(id);
+      if (!slot && valles.size >= MAX_VALLES) {
+        if (!adopt) return null;
+        const [oldId, old] = valles.entries().next().value;
+        if (typeof old.ctl.setZona !== 'function') throw new Error('valle sin setZona()');
+        await old.ctl.setZona(data);
+        valles.delete(oldId);
+        slot = old;
+        valles.set(id, slot);
+      }
+      if (!slot) {
+        slot = await buildValle(id, data, meta);
+        valles.set(id, slot);
+      }
+      if (adopt) { valle = slot.ctl; valleCanvas = slot.canvas; }
+      return slot.ctl;
     };
     const p = valleQueue.then(run, run);
     valleQueue = p.catch(() => {});
     return p;
   }
 
-  /** Background warm-up: load the zone data + scene while the national map is on screen. */
+  /** Background warm-up: load the zone data + build its scene while the national map is on screen. */
   async function warm(id = 'z1') {
     try {
       const [data, meta] = await Promise.all([loadZonaData(id), zonaMeta(id)]);
-      if (mode === 'landing' && !valle) await ensureValle(id, data, meta);
-    } catch (err) { console.warn('[Caudal] warm-up zona:', err?.message || err); }
+      if (mode === 'landing' && !valleFailed) await ensureValle(zkey(id), data, meta, { adopt: false });
+      return data;
+    } catch (err) { console.warn('[Caudal] warm-up zona:', err?.message || err); return null; }
+  }
+  /** Background warm-up of the lagoon: scene + every year's imagery already on the GPU. */
+  async function warmHero() {
+    const h = await ensureHero().catch(() => null);
+    if (h && typeof h.prewarm === 'function') await h.prewarm();
+    return !!h;
   }
 
   /* --- floating card (Aculeo, or a zone whose 3D failed) --- */
@@ -1077,7 +1118,8 @@ function setupStage({ getHero }) {
   updateHint();
 
   return {
-    goZona, goCaso, goLagoon, onMapSelect, warm,
+    goZona, goCaso, goLagoon, onMapSelect, warm, warmHero,
+    get busy() { return busy(); },
     setMap(ctl) { mapCtl = ctl; },
     get mode() { return mode; },
   };
@@ -1098,9 +1140,36 @@ async function setupMap(onSelect) {
   }
 }
 
+/* ---------- persistent cache (sw.js). ?sw=0 turns it off and clears it. ---------- */
+async function setupServiceWorker() {
+  if (!('serviceWorker' in navigator)) return;
+  try {
+    if (new URLSearchParams(location.search).get('sw') === '0') {
+      const regs = await navigator.serviceWorker.getRegistrations();
+      await Promise.all(regs.map(r => r.unregister()));
+      const names = await caches.keys();
+      await Promise.all(names.filter(n => n.startsWith('caudal-')).map(n => caches.delete(n)));
+      return;
+    }
+    await navigator.serviceWorker.register(SW_URL);
+    const reg = await navigator.serviceWorker.ready;
+    // What loaded before the worker took control (first visit) goes to its cache too, once the
+    // preload is over so it never competes with the intro.
+    const sendLoaded = () => {
+      const urls = [location.href.split('#')[0], ...performance.getEntriesByType('resource').map(e => e.name)];
+      reg.active?.postMessage({ type: 'cache-urls', urls });
+    };
+    if (document.documentElement.dataset.warm === 'done') sendLoaded();
+    else window.addEventListener('caudal:warm', sendLoaded, { once: true });
+  } catch (err) {
+    console.warn('[Caudal] service worker:', err?.message || err);
+  }
+}
+
 /* ---------- boot ---------- */
 async function boot() {
   setupReveal();
+  setupServiceWorker();
 
   try {
     const r = await fetch('data/sites.json');
@@ -1169,8 +1238,24 @@ async function boot() {
     go(first, { scroll: true });
   } else {
     const introDone = startIntro(mapCtl);
-    // the zone scene warms up only after the flight, so it never competes with it for the GPU
-    Promise.race([introDone, sleep(15000)]).then(() => stage.warm('z1'));
+    // the 3D scenes warm up only after the flight, so they never compete with it for the GPU
+    preloadAll(Promise.race([introDone, sleep(15000)]));
+  }
+  if (first) preloadAll(sleep(4000));
+
+  /** Everything the demo can open, made ready in the background (js/preload.js). */
+  function preloadAll(scenesAfter) {
+    Promise.all([import('./preload.js'), Zmod(), getIndex()]).then(([pre, Z, index]) => pre.startPreload({
+      zonas: (index.zonas || []).map(z => ({ id: zkey(z.id), bbox: z.bbox_escena || null, base: z.base || `assets/zonas/${zkey(z.id)}/` })),
+      lagoon: { bbox: pre.bboxAround(LAGOON_CAM.center), base: ASSET_DIR },
+      loadZona: loadZonaData,
+      ensureSeries: Z.ensureSeries,
+      warmZona: id => stage.warm(id),
+      warmLagoon: () => stage.warmHero(),
+      isBusy: () => stage.busy,
+      tileUrl: mapCtl && typeof mapCtl.satTileUrl === 'function' ? mapCtl.satTileUrl : null,
+      scenesAfter,
+    })).catch(err => console.warn('[Caudal] precarga:', err?.message || err));
   }
 
   /* ---- intro satelital (js/intro.js) + título. Only when the page opens without a hash. ---- */

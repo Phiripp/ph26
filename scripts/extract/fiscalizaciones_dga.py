@@ -49,6 +49,10 @@ RADIO_PREDIO_M = 50
 RADIO_VECINDARIO_M = 30
 AREA_GRANDE_HA = 100
 INICIO_VENTANA = pd.Timestamp("2020-07-01")  # hay al menos una temporada seca previa en el periodo de análisis
+# detectable: NDVI mediano de diciembre a marzo previo a la inspección sobre este umbral en algún predio del vecindario.
+# Secano: NDVI 0,16–0,30; suelo desnudo: 0,10–0,15 (control 88-31). Bajo el umbral, ningún índice de verdor lo ve.
+NDVI_DETECTABLE = 0.30
+NUBOSIDAD_MAX = 30
 REGION = (-72.0, -34.0, -69.9, -32.0)
 
 COLUMNAS = {
@@ -138,6 +142,42 @@ def marcar_validacion(gdf: gpd.GeoDataFrame, predios: gpd.GeoDataFrame) -> gpd.G
     return gdf
 
 
+def marcar_detectable(gdf: gpd.GeoDataFrame) -> gpd.GeoDataFrame:
+    """Columnas temporada_previa, ndvi_previo y detectable (D18), desde la serie Sentinel-2 de validación.
+
+    temporada_previa: la última temporada seca (diciembre a marzo) que empezó antes de la inspección; solo se usan
+    fechas anteriores a la inspección. ndvi_previo: el mayor NDVI mediano de esa temporada entre los predios del
+    vecindario (o el predio asignado). detectable: ndvi_previo >= NDVI_DETECTABLE; vacío si no hay serie.
+    """
+    serie_f = DATA / "processed" / "serie_predio_validacion.parquet"
+    gdf["temporada_previa"] = None
+    gdf["ndvi_previo"] = np.nan
+    gdf["detectable"] = pd.array([pd.NA] * len(gdf), dtype="boolean")
+    if not serie_f.exists():
+        print(f"Aviso: no está {serie_f} (serie_sentinel2.py --validacion); detectable queda vacío")
+        return gdf
+    s = pd.read_parquet(serie_f, columns=["predio_id", "fecha", "ndvi", "nubosidad_pct", "n_pix_validos"])
+    s = s[(s["n_pix_validos"] > 0) & (s["nubosidad_pct"] <= NUBOSIDAD_MAX)]
+    con_fecha = gdf["fecha_inspeccion"].notna()
+    f = gdf.loc[con_fecha, "fecha_inspeccion"]
+    anio = f.dt.year - (f.dt.month < 12).astype(int)
+    anio = anio.where(f > pd.to_datetime(anio.astype(str) + "-12-01"), anio - 1)
+    gdf.loc[con_fecha, "temporada_previa"] = anio.astype(str) + "-" + (anio + 1).astype(str).str[2:]
+    for idx in gdf.index[con_fecha]:
+        ids = list(gdf.at[idx, "vecindario"]) or ([int(gdf.at[idx, "predio_id"])] if pd.notna(gdf.at[idx, "predio_id"]) else [])
+        if not ids:
+            continue
+        a = int(gdf.at[idx, "temporada_previa"][:4])
+        ventana = s[s["predio_id"].isin(ids) & (s["fecha"] >= pd.Timestamp(a, 12, 1))
+                    & (s["fecha"] <= pd.Timestamp(a + 1, 3, 31)) & (s["fecha"] < gdf.at[idx, "fecha_inspeccion"])]
+        if ventana.empty:
+            continue
+        ndvi = ventana.groupby("predio_id")["ndvi"].median().max()
+        gdf.at[idx, "ndvi_previo"] = round(float(ndvi), 3)
+        gdf.at[idx, "detectable"] = bool(ndvi >= NDVI_DETECTABLE)
+    return gdf
+
+
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--refrescar", action="store_true", help="vuelve a descargar la planilla aunque exista")
@@ -205,6 +245,7 @@ def main() -> None:
     gdf.loc[por_comuna, "zona_origen"] = "comuna"
     gdf = gdf[gdf["zona"].notna()].drop(columns=["region"])
     gdf = marcar_validacion(gdf, predios)
+    gdf = marcar_detectable(gdf)
 
     if gdf["expediente"].duplicated().any():
         print(f"Aviso: {gdf['expediente'].duplicated().sum()} expedientes repetidos en la planilla")
@@ -213,6 +254,9 @@ def main() -> None:
 
     print("\nSet de validación (D18), por etiqueta:")
     print(pd.crosstab(gdf["set_validacion"], gdf["etiqueta"]).loc[["limpio", "vecindario"]].to_string())
+    pos = gdf[(gdf["set_validacion"] != "fuera") & (gdf["etiqueta"] == "positivo")]
+    print("Positivos del set por detectable (NDVI previo >= %.2f):" % NDVI_DETECTABLE)
+    print(pd.crosstab(pos["set_validacion"], pos["detectable"].astype("string").fillna("sin serie")).to_string())
     ext = gdf[gdf["extraccion"]]
     print(f"Fiscalizaciones en Z1 y Z2: {len(gdf)} (extracción no autorizada: {len(ext)})")
     print("\nExtracción no autorizada por etiqueta y zona:")

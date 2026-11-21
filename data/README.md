@@ -50,6 +50,7 @@ Datos de entrada de Caudal. Las zonas, las fuentes y las convenciones están en 
 | `processed/ruta_ejemplo_z1.*`, `processed/ruta_ejemplo_z2.*` | Sí | Rutas de inspección de ejemplo (JSON, GeoJSON, GPX) con los casos de validación (M8) | `scripts/models/ruta_inspeccion.py --demo` |
 | `processed/anomalias_predio.parquet`, `processed/senal_riego.parquet` | Sí | Anomalías de verdor y humedad por predio y fecha (M2) y señal de riego por predio y temporada (M3) | `scripts/models/anomalias.py`, `scripts/models/detector_riego.py` |
 | `processed/serie_predio_elegibles_2025-26.parquet` | Sí | Serie Sentinel-2 corregida (D15) de los 7.911 predios elegibles, diciembre de 2025 a marzo de 2026: 158.053 filas, 97 escenas. Universo del ranking. En predios que cruzan el borde entre tiles (19HBE/19HCE, 19HBD/19HCD), cada fecha usa el tile con más píxeles válidos y puede cubrir solo parte del predio | `scripts/extract/serie_sentinel2.py --elegibles --temporadas 2025-26:2025-26 --nubes-max 40` |
+| `processed/serie_predio_validacion.parquet` | Sí | Serie Sentinel-2 corregida de los 159 predios de los vecindarios de validación (D18), diciembre a marzo de 2019-20 a 2025-26: 19.397 filas, 663 escenas | `scripts/extract/serie_sentinel2.py --validacion --temporadas 2019-20:2025-26 --nubes-max 40` |
 | `processed/predio_cauce.parquet` | Sí | Cauce, río o estero y canal más cercanos a cada predio elegible, con distancias. Para el campo "cauce cercano" del expediente (M12, M13) | `scripts/extract/cauces_dga.py` |
 | `processed/restriccion.parquet` | Sí | 57 sectores hidrogeológicos (SHAC) de la DGA que tocan Z1 o Z2, con `tipo_limite` (`prohibicion`, `restriccion`, `abierto`), resolución y fechas. Polígonos en EPSG:4326 | `scripts/extract/restriccion_dga.py` |
 | `processed/predio_restriccion.parquet` | Sí | Por predio elegible, el SHAC donde cae la mayor parte de su superficie: `cod_shac`, `sector`, `tipo_limite`, `resolucion_dga`, `fecha_resolucion`, `frac_en_shac`, `en_prohibicion` (SHAC dominante es de prohibición) y `toca_prohibicion` (intersecta algún SHAC de prohibición). Un predio sin SHAC queda vacío (1 de 7.911). Para el contexto y el expediente (M12, M13); no entra al ranking | `scripts/extract/restriccion_dga.py` |
@@ -152,6 +153,7 @@ Para regenerar: `uv run scripts/extract/fiscalizaciones_dga.py` (baja la planill
 | `etiquetas_mixtas` | El predio tiene expedientes de extracción positivos y negativos |
 | `con_recurso` | El infractor presentó recurso de reconsideración |
 | `set_validacion` | `limpio`, `vecindario` o `fuera` (ver abajo) |
+| `temporada_previa`, `ndvi_previo`, `detectable` | Última temporada seca (diciembre a marzo) antes de la inspección, el mayor NDVI mediano del vecindario en esas fechas y si supera 0,30 (secano 0,16–0,30; suelo desnudo 0,10–0,15). Vacío sin serie de validación |
 
 Extracción de aguas por etiqueta: Z1 46 positivos, 290 negativos, 6 en trámite; Z2 33 positivos, 110 negativos, 9 en trámite. Con predio elegible a 50 m o menos: 62 positivos y 318 negativos. Los negativos son débiles: la DGA no encontró infracción el día de la visita. Los `en_tramite` no se muestran como infractores.
 
@@ -163,7 +165,9 @@ Set de validación (D18). Base: extracción de aguas, positivo o negativo, predi
 | `vecindario` | Base, pero ambiguo, predio grande o negativo con etiquetas mixtas: evaluar con el mejor puntaje del vecindario | 24 | 51 |
 | `fuera` | El resto | — | — |
 
-Para M6: con 10 positivos limpios, el recall tiene un intervalo de confianza muy ancho (con 7 de 10 detectados, el intervalo de Wilson al 95 % va de 40 % a 89 %). Hay que reportarlo así. Falta la columna `detectable` (positivos que ningún índice de verdor puede detectar, como suelo desnudo): se agrega cuando esté la serie Sentinel-2 corregida (D15). FD-0501-181 y FO-0501-462 quedan en `vecindario` (otro predio a 30 m o menos).
+Para M6: con 10 positivos limpios, el recall tiene un intervalo de confianza muy ancho (con 7 de 10 detectados, el intervalo de Wilson al 95 % va de 40 % a 89 %). Hay que reportarlo así.
+
+`detectable` (con `serie_predio_validacion.parquet`): de los positivos, 6 de 10 limpios y 13 de 24 de vecindario son detectables. Los no detectables se concentran en Z1 en el verano 2021-22 (megasequía): predios ya secos multados por extracción, que ningún índice de verdor puede marcar. M6 se mide sobre los positivos detectables y reporta aparte cuántos no lo son. Entre los negativos, el 64 % es detectable (48 de 75): el verdor solo no separa positivos de negativos entre los fiscalizados. FD-0501-181 y FO-0501-462 quedan en `vecindario`.
 
 ## Especie por predio (D7)
 

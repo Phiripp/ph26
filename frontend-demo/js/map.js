@@ -303,6 +303,8 @@ function fetchDemShared(url) {
   if (!p) {
     p = fetch(url).then((r) => (r.ok ? r.arrayBuffer() : null)).catch(() => null);
     demShare.set(url, p);
+    // a failed download must not stick as "flat terrain": forget it so the tile can be asked again
+    p.then((buf) => { if (!buf && demShare.get(url) === p) demShare.delete(url); });
     if (demShare.size > DEM_SHARE_MAX) demShare.delete(demShare.keys().next().value);
   }
   return p.then((buf) => (buf ? buf.slice(0) : null));

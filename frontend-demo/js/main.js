@@ -27,6 +27,7 @@ const HASH_ALIAS = { petorca: 'z1', aconcagua: 'z2' };
 const LAGOON_CAM = { center: [-70.914, -33.843], zoom: 11.3, pitch: 50, bearing: 0, duration: 2600 };
 const ENTER_MS = 2200, EXIT_MS = 1400;
 const ROUTE_MS = 16000;
+const HERO_TIMEOUT_MS = 20000;   // max wait for the lagoon scene before giving the stage back
 const nf1 = new Intl.NumberFormat('es-CL', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
 const nf0 = new Intl.NumberFormat('es-CL', { maximumFractionDigits: 0 });
 const MINUS = '−';
@@ -748,7 +749,12 @@ function setupStage({ getHero }) {
 
   // Aculeo is a side view: its scene (7 satellite images, DEM, a WebGL context) loads on first use,
   // or a moment earlier when the pointer/focus reaches one of its entry points.
-  const ensureHero = () => getHero().then(h => { hero = h; heroFailed = !h; return h; });
+  const ensureHero = () => getHero().then(h => {
+    hero = h; heroFailed = !h;
+    // the card may already be up offering "Ver laguna en 3D": redraw it without the button
+    if (!h && !card.hidden && mode === 'landing') { const s = byId.get(LAGOON_ID); if (s) showCard(s); }
+    return h;
+  });
   const preloadHero = () => { ensureHero().catch(() => {}); };
   $('map').addEventListener('pointerover', e => { if (e.target.closest?.(`[data-id="${LAGOON_ID}"]`)) preloadHero(); });
   for (const ev of ['pointerenter', 'focus']) $('ac-open')?.addEventListener(ev, preloadHero);
@@ -826,7 +832,7 @@ function setupStage({ getHero }) {
       : 'Vista 3D de la zona no disponible en este momento. Revisa el resumen de zonas más abajo.';
     card.hidden = false;
     hint.hidden = true;
-    if (isLagoon) preloadHero();
+    if (isLagoon && !heroFailed) preloadHero();
   }
   function hideCard() { card.hidden = true; hint.hidden = false; }
 
@@ -838,7 +844,8 @@ function setupStage({ getHero }) {
     try {
       if (mapCtl) { mapCtl.select(LAGOON_ID); mapCtl.setLagoon(true); }
       const fly = mapCtl ? mapCtl.flyToSite(LAGOON_ID, { ...LAGOON_CAM, duration: RM ? 0 : LAGOON_CAM.duration }) : Promise.resolve();
-      const [, h] = await Promise.all([fly, ensureHero()]);
+      // the scene now loads here (not at boot): never keep the stage locked in "to-lagoon" on a hung download
+      const [, h] = await Promise.all([fly, Promise.race([ensureHero(), sleep(HERO_TIMEOUT_MS).then(() => null)])]);
       if (!h) throw new Error('hero no disponible');
       try {
         const latest = h.years[h.years.length - 1];

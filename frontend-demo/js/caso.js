@@ -1,6 +1,6 @@
 // Caudal · panel de caso de validación (casos resueltos por la DGA, con multa).
 // Un caso sancionado sí se puede nombrar como tal; los predios sin resolver nunca.
-import { fmtNum, fmtDate, fmtDateNum, fmtComuna, expShort, dryWindowStats, esc } from './zona-data.js';
+import { fmtNum, fmtDate, fmtDateNum, fmtComuna, expShort, dryWindowStats, seriesFailed, SERIES_FAILED_TEXT, esc } from './zona-data.js';
 import { seriesChartSVG, chartLegendHTML } from './chart.js';
 
 const IMG_LABEL = { seca_previa: 'Antes de la inspección', seca_2025_26: 'Seca 2025-26', reciente: 'Reciente' };
@@ -20,6 +20,7 @@ function outlineSVG(feature, esquinas) {
 /** One-line takeaway: what the signal looked like in the dry window before the inspection. */
 export function casoTakeaway(caso, data) {
   const id = caso.predio_id;
+  if (id && seriesFailed(data, id)) return { st: null, text: SERIES_FAILED_TEXT };
   if (!id || !data.series?.predios?.[id]?.length) return { st: null, text: 'Sin serie satelital para este predio antes de la inspección.' };
   const st = dryWindowStats(data, id, { before: caso.fecha_inspeccion, months: 14 });
   if (!st) return { st: null, text: 'La serie no cubre una ventana seca anterior a la inspección.' };

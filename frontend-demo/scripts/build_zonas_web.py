@@ -24,7 +24,7 @@ import math
 import os
 import shutil
 import sys
-from datetime import datetime, timezone
+from typing import Any
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ZONAS_DIR = os.path.join(HERE, "..", "data", "zonas")
@@ -38,11 +38,11 @@ SCORE_META = ("provisional", "metodo", "temporada", "periodo_consumo", "generado
 SERIE_FIELDS = ("ndvi", "ndmi")
 
 
-def log(*parts):
+def log(*parts: object) -> None:
     print("[build_zonas_web]", *parts, file=sys.stderr)
 
 
-def load(path, required=True):
+def load(path: str, required: bool = True) -> Any:
     if not os.path.exists(path):
         if required:
             raise FileNotFoundError(f"falta {os.path.relpath(path)}")
@@ -51,14 +51,14 @@ def load(path, required=True):
         return json.load(f)
 
 
-def dump(obj, path):
+def dump(obj: Any, path: str) -> int:
     os.makedirs(os.path.dirname(path), exist_ok=True)
     with open(path, "w", encoding="utf-8") as f:
         json.dump(obj, f, ensure_ascii=False, separators=(",", ":"))
     return os.path.getsize(path)
 
 
-def bloque_de(predio_id, n_bloques):
+def bloque_de(predio_id: str, n_bloques: int) -> int:
     """Mismo hash que js/zona-data.js (serieBlock)."""
     h = 0
     for ch in str(predio_id):
@@ -66,17 +66,17 @@ def bloque_de(predio_id, n_bloques):
     return h % n_bloques
 
 
-def filas_min(rows):
+def filas_min(rows: list[dict] | None) -> list[dict]:
     """[{fecha, ndvi, ndmi}] sin los campos que la página no usa."""
     return [{"fecha": r["fecha"], **{k: r.get(k) for k in SERIE_FIELDS}} for r in rows or [] if r.get("fecha")]
 
 
-def zona_ids():
+def zona_ids() -> list[str]:
     index = load(os.path.join(ZONAS_DIR, "index.json"))
     return [str(z["id"]).lower() for z in index.get("zonas", [])]
 
 
-def predio_ids(geo):
+def predio_ids(geo: dict) -> list[str]:
     out = []
     for f in geo.get("features", []):
         p = f.get("properties") or {}
@@ -86,12 +86,12 @@ def predio_ids(geo):
     return out
 
 
-def build_scores_lite(scores):
+def build_scores_lite(scores: dict) -> dict:
     predios = {pid: {k: s[k] for k in SCORE_FIELDS if k in s} for pid, s in (scores.get("predios") or {}).items()}
     return {**{k: scores[k] for k in SCORE_META if k in scores}, "predios": predios}
 
 
-def build_series(series, ids):
+def build_series(series: dict, ids: list[str]) -> tuple[dict, dict[int, dict]]:
     """→ (index, {n_bloque: {"predios": {id: {ndvi: [...], ndmi: [...]}}}})"""
     meses = list(series.get("meses") or [])
     src = series.get("predios") or {}
@@ -123,7 +123,7 @@ def build_series(series, ids):
     return index, bloques
 
 
-def build_resumen_zona(ids, scores, ruta):
+def build_resumen_zona(ids: list[str], scores: dict, ruta: dict | None) -> dict:
     sc = (scores or {}).get("predios") or {}
     counts = {b: 0 for b in BANDS}
     for pid in ids:
@@ -140,7 +140,7 @@ def build_resumen_zona(ids, scores, ruta):
     return {"predios": len(ids), "counts": counts, "ruta": r}
 
 
-def build_demo(casos, por_zona):
+def build_demo(casos: list[dict], por_zona: dict[str, dict]) -> dict | None:
     """Serie del caso demo (mismo criterio que js/chart.js → renderChart)."""
     con_predio = [c for c in casos if c.get("predio_id") is not None]
     caso = next((c for c in con_predio if c.get("papel") == "demo_principal"), None) or (con_predio[0] if con_predio else None)
@@ -166,7 +166,7 @@ def build_demo(casos, por_zona):
     }
 
 
-def check_zona(z, src, index, bloques, lite):
+def check_zona(z: str, src: dict, index: dict, bloques: dict[int, dict], lite: dict) -> list[str]:
     """Verifica que lo liviano dice lo mismo que lo completo. Devuelve lista de errores."""
     errs = []
     meses = index["meses"]
@@ -197,7 +197,7 @@ def check_zona(z, src, index, bloques, lite):
     return errs
 
 
-def main(argv):
+def main(argv: list[str]) -> int:
     check = "--check" in argv
     casos_j = load(os.path.join(ZONAS_DIR, "casos.json"))
     casos = casos_j if isinstance(casos_j, list) else casos_j.get("casos", [])
@@ -227,7 +227,6 @@ def main(argv):
         if check:
             errs += check_zona(z, src, index, bloques, lite)
     resumen = {
-        "generado": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
         "zonas": resumen_zonas,
         "demo": build_demo(casos, por_zona),
     }

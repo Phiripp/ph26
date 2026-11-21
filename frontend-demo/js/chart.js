@@ -1,5 +1,5 @@
 // Caudal · index chart (Sentinel-2 NDVI/NDMI vs secano reference, dry windows shaded, optional inspection line).
-import { fmtNum, fmtDate, fmtDateNum, fmtComuna, dryWindowStats } from './zona-data.js';
+import { fmtNum, fmtDate, fmtDateNum, fmtComuna, dryWindowStats, seriesFailed } from './zona-data.js';
 
 const ymOf = s => { const [y, m] = String(s).split('-').map(Number); return { y, m }; };
 
@@ -72,7 +72,7 @@ export function seriesChartSVG(data, id, opts = {}) {
       `<text x="${(+x + (right ? -4 : 4)).toFixed(1)}" y="${pt + 6}" text-anchor="${right ? 'end' : 'start'}">${mk.label || 'Inspección'} ${fmtDateNum(mk.fecha)}</text>` +
       `<title>${mk.label || 'Inspección'} ${fmtDate(mk.fecha)}</title></g>`;
   }
-  if (!own.length) s += `<text class="pc-empty" x="${(W / 2).toFixed(0)}" y="${(H / 2).toFixed(0)}" text-anchor="middle">Sin serie satelital para este predio</text>`;
+  if (!own.length) s += `<text class="pc-empty" x="${(W / 2).toFixed(0)}" y="${(H / 2).toFixed(0)}" text-anchor="middle">${seriesFailed(data, id) ? 'No se pudo cargar la serie · vuelve a abrir el predio' : 'Sin serie satelital para este predio'}</text>`;
   return s;
 }
 

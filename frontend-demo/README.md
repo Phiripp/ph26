@@ -16,6 +16,52 @@ python3 -m http.server 8000
 
 Hace falta un servidor local (módulos ES y `fetch` no funcionan con `file://`). Sin build: three.js y MapLibre se cargan desde CDN con versiones fijas. Necesita internet para las librerías, las fuentes y el detalle satelital sobre zoom 9.
 
+## Rendimiento
+
+La página carga solo lo que se ve y la vista de zona aguanta miles de predios. Medido con `scripts/perf/measure.cjs` en Chrome, GPU integrada Intel UHD 630, ventana 1280×760, servidor local (antes = commit `f685071`):
+
+| | Antes | Después |
+|---|---|---|
+| Carga inicial | 10,9 MB · 93 requests | 4,1 MB · 73 requests |
+| Bloqueos del hilo principal en la carga (5 y 3 corridas) | 2,3–4,0 s | 1,2–1,9 s |
+| Intro | 30–37 fps | 50 fps |
+| Trabajo de GPU en reposo (4 s) | 181 ms | 7 ms |
+| Datos para entrar a una zona, 50 / 5.000 predios | 2,5 MB / 201 MB | 0,4 MB / 14 MB |
+| Enlace directo a una zona con 5.000 predios | 10,4 s | 5,7 s |
+| Volver al ranking, 5.000 predios | 838 ms | 31 ms |
+| Redimensionar, 50 / 5.000 predios | 386 ms / 1.268 ms | 102 ms / 85 ms |
+| Hover sobre el terreno, 5.000 predios | 49 fps | 60 fps |
+
+Los 1.000 y 5.000 predios son los 50 reales clonados por el script de medición (`--mults 1,20,100`), no datos reales.
+
+Qué se hizo:
+
+- **Marcadores**: MapLibre leía la profundidad del relieve (un `readPixels` síncrono) por cada marcador; se desactiva y queda solo el chequeo del globo (`skipTerrainOcclusion` en `js/map.js`). Un marcador detrás de un cerro ya no se atenúa.
+- **Grano**: la capa de grano es estática; su animación en loop obligaba a recomponer toda la portada sobre los canvas WebGL.
+- **Aculeo** se crea al primer uso (o al pasar el puntero por sus accesos), no en el arranque.
+- **Portada** usa `data/zonas/resumen.json`; ya no baja los datos completos de las dos zonas.
+- **Series por bloque**: NDVI/NDMI de ~50 predios por archivo (`data/zonas/{z}/series/`), pedidos al abrir una ficha o un caso. `scores.lite.json` no trae `historico`.
+- **Ranking** monta filas por tandas al hacer scroll y se conserva al abrir una ficha.
+- **Capa de predios**: al seleccionar se repintan solo los rectángulos del predio anterior y del nuevo. Los demás predios ya no se atenúan un 20% mientras hay uno seleccionado.
+- **Tiles**: el recorte al borde de Chile corre en un worker (`js/tile-clip-worker.js`).
+
+Si cambian los datos de una zona hay que regenerar los archivos livianos (sin red, verifica contra los completos):
+
+```bash
+python3 scripts/build_zonas_web.py --check
+```
+
+`scripts/build_zonas_scores.py` lo corre al final. Sin esos archivos la página cae a `series.json` y `scores.json` completos.
+
+Para medir (usa el Chrome instalado; `playwright-core` puede vivir en cualquier carpeta):
+
+```bash
+npm i playwright-core
+NODE_PATH=$PWD/node_modules node scripts/perf/measure.cjs --label prueba --out prueba.json
+```
+
+Pendiente: con miles de predios lo que queda por bajar al entrar a una zona son las geometrías (`predios.geojson`, 13 MB con 5.000 predios).
+
 ## Recorrido
 
 1. Mapa de Chile: satélite y relieve sobre Chile, resto del mundo oscuro. Marcadores de las dos zonas (Z1, Z2), los 10 casos sancionados por la DGA y Aculeo; con zoom ≥ 8 aparecen los puntos de fiscalización DGA (rojo = con infracción, gris = sin infracción).
@@ -35,12 +81,15 @@ js/main.js                orquesta modos: mapa · laguna · zona, rutas #z1 #z2 
 js/map.js                 mapa nacional (MapLibre, tiles locales + remotos), zonas, casos, fiscalizaciones
 js/hero.js                Aculeo 3D (three.js)
 js/valle.js               escena 3D de una zona (three.js): predios por banda, casos, ruta
-js/zona-data.js           carga de datos por zona + formatos compartidos
+js/zona-data.js           carga de datos por zona (series por bloque bajo demanda) + formatos compartidos
+js/tile-clip.js, tile-clip-worker.js   recorte de tiles al borde de Chile, fuera del hilo principal
 js/ficha.js, caso.js, expediente.js, ruta-panel.js, chart.js   paneles
 data/zonas/               datos de las zonas (ver abajo)
 assets/zonas/, assets/casos/, assets/aculeo/   imágenes, DEM y recortes Sentinel-2 de los casos
 tiles/                    caché local de tiles satelitales y de relieve de Chile (z3–z9)
 scripts/                  scripts que descargan y procesan todo lo anterior
+scripts/build_zonas_web.py   archivos livianos que carga la página (resumen, scores.lite, series por bloque)
+scripts/perf/measure.cjs  medición de rendimiento
 valle-test.html, panels-test.html   páginas de prueba de módulos sueltos
 ```
 
@@ -53,8 +102,11 @@ data/zonas/index.json              zonas Z1/Z2: comunas, bbox de la escena, caso
 data/zonas/casos.json              los 10 casos de validación (+ recortes en assets/casos/)
 data/zonas/fiscalizaciones.geojson expedientes de fiscalización DGA en Z1/Z2 (sin nombres)
 data/zonas/{z1,z2}/predios.geojson predios CIREN de muestra + predios de los casos, con derechos
-data/zonas/{z1,z2}/scores.json     banda, índice y rango de consumo (provisional)
-data/zonas/{z1,z2}/series.json     NDVI/NDMI mensual por predio + referencia de secano CONAF
+data/zonas/resumen.json            conteos y ruta por zona + serie del caso demo (lo que usa la portada)
+data/zonas/{z1,z2}/scores.json     banda, índice y rango de consumo (provisional), con historial por temporada
+data/zonas/{z1,z2}/scores.lite.json  lo mismo sin historial: es el que carga la página
+data/zonas/{z1,z2}/series.json     NDVI/NDMI mensual por predio + referencia de secano CONAF (fuente completa)
+data/zonas/{z1,z2}/series/         las mismas series por bloques de ~50 predios: es lo que carga la página
 data/zonas/{z1,z2}/clima.json      lluvia, ET0 y ventanas secas (N = 10 días)
 data/zonas/{z1,z2}/ruta.json, .gpx ruta de inspección
 assets/zonas/{z1,z2}/              EOX Sentinel-2 cloudless 2018–2024 + DEM

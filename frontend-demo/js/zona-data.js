@@ -60,7 +60,7 @@ async function loadSeriesStore(base) {
     return {
       predios: {},
       referencia_secano: index.referencia_secano || { serie: [] },
-      lazy: { base: base + 'series/', meses: index.meses, bloques: index.bloques, loaded: new Map() },
+      lazy: { base: base + 'series/', meses: index.meses, bloques: index.bloques, loaded: new Map(), failed: new Set() },
     };
   }
   const full = await optJSON(base + 'series.json');
@@ -68,7 +68,8 @@ async function loadSeriesStore(base) {
 }
 /**
  * Make sure the series of these predio ids are in data.series.predios (fetches their blocks once).
- * Never rejects: a block that fails to load leaves its predios without series ("Sin serie satelital").
+ * Never rejects: a block that fails to load is remembered (seriesFailed) so the panels can say the
+ * series could not be loaded instead of "no data", and is retried the next time it is asked for.
  */
 export async function ensureSeries(data, ids) {
   const lazy = data?.series?.lazy;
@@ -78,8 +79,9 @@ export async function ensureSeries(data, ids) {
   await Promise.all(blocks.map(n => {
     if (!lazy.loaded.has(n)) {
       lazy.loaded.set(n, getJSON(lazy.base + blockFile(n)).then(j => {
+        lazy.failed.delete(n);
         for (const [id, cols] of Object.entries(j.predios || {})) data.series.predios[id] = rowsOf(cols, lazy.meses);
-      }).catch(err => { console.warn(String(err.message || err)); lazy.loaded.delete(n); }));
+      }).catch(err => { console.warn(String(err.message || err)); lazy.failed.add(n); lazy.loaded.delete(n); }));
     }
     return lazy.loaded.get(n);
   }));
@@ -167,6 +169,13 @@ export function casoOf(data, expediente) {
   if (!c) return null;
   return { caso: c, feature: c.predio_id ? data.byId.get(c.predio_id) || null : null };
 }
+
+/** true when the series of this predio is missing because its block failed to download (not "no data"). */
+export function seriesFailed(data, id) {
+  const lazy = data?.series?.lazy;
+  return !!lazy && id != null && !(String(id) in data.series.predios) && lazy.failed.has(serieBlock(id, lazy.bloques));
+}
+export const SERIES_FAILED_TEXT = 'No se pudo cargar la serie satelital. Vuelve a abrir el predio para reintentar.';
 
 /* ---------- labels ---------- */
 export const BANDS = ['alta', 'media', 'baja', 'sin_alerta', 'sin_dato'];

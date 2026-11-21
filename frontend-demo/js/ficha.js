@@ -1,5 +1,5 @@
 // Caudal · ranking list + ficha de predio. "El sistema prioriza, no acusa."
-import { BAND_LABEL, BAND_SHORT, CONF_LABEL, fmtNum, fmtMil, fmtRange, fmtDate, fmtComuna, expShort, dryWindowStats, esc } from './zona-data.js';
+import { BAND_LABEL, BAND_SHORT, CONF_LABEL, fmtNum, fmtMil, fmtRange, fmtDate, fmtComuna, expShort, dryWindowStats, seriesFailed, SERIES_FAILED_TEXT, esc } from './zona-data.js';
 import { seriesChartSVG, chartLegendHTML } from './chart.js';
 
 const pill = b => `<span class="pn-pill pn-${b}">${esc(BAND_SHORT[b] || b)}</span>`;
@@ -45,6 +45,7 @@ function rowHTML(f, withPill, selectedId) {
 function mountRows(ul, items, { withPill, state, root }) {
   let mounted = 0;
   let sentinel = null, io = null;
+  const dispose = () => { io?.disconnect(); io = null; };
   const more = (upTo) => {
     const to = Math.min(items.length, Math.max(upTo, mounted));
     if (to > mounted) {
@@ -67,6 +68,7 @@ function mountRows(ul, items, { withPill, state, root }) {
   }
   more('IntersectionObserver' in window ? ROWS_FIRST : items.length);
   return {
+    dispose,
     reveal(id) {
       const i = items.findIndex(f => f.properties.id === id);
       if (i >= mounted) more(i + 1 + ROWS_STEP / 2);
@@ -114,6 +116,7 @@ export function renderRanking(el, data, { onSelect, selectedId } = {}) {
     h += `<details class="pn-group pn-g-rest pn-more"${open ? ' open' : ''}><summary class="pn-gh"><span class="pn-dot pn-sin_alerta"></span>Otros predios<span class="pn-count">${rest.length}</span></summary><ul class="pn-list" data-list="rest"></ul></details>`;
   }
   h += `<p class="pn-foot">Consumo estimado ${esc(temporadaOf(data))} en mil m³ (rango). Bandas provisionales hasta el modelo M5.</p>`;
+  el._rank?.lists.forEach(l => l.dispose()); // observers of the previous render of this element
   el.innerHTML = h;
   el._rank = {
     state,
@@ -146,7 +149,8 @@ export function renderFicha(el, feature, data, { onExpediente, onBack, onCaso } 
   const marks = caso ? [{ fecha: caso.fecha_inspeccion, label: 'Inspección DGA' }] : [];
   const sub = [p.cultivo && p.cultivo !== 'sin catastro' ? p.cultivo : 'cultivo sin catastro', `${fmtNum(p.area_ha, 1)} ha`, fmtComuna(p.comuna), p.confianza ? (CONF_LABEL[p.confianza] || p.confianza).toLowerCase() : null].filter(Boolean);
   let note;
-  if (p.banda === 'sin_dato') note = 'Sin serie satelital suficiente para estimar el consumo.';
+  if (seriesFailed(data, p.id)) note = SERIES_FAILED_TEXT;
+  else if (p.banda === 'sin_dato') note = 'Sin serie satelital suficiente para estimar el consumo.';
   else if (st && st.ndvi != null && st.refNdvi != null) note = `${st.ndvi - st.refNdvi >= 0.1 ? 'Verde sin lluvia = riego probable. ' : ''}Ventana seca ${fmtDate(st.win.inicio)}–${fmtDate(st.win.fin)}: NDVI ${fmtNum(st.ndvi, 2)} vs. ${fmtNum(st.refNdvi, 2)} del secano.`;
   else note = flagged ? 'Verde cuando no llueve = riego probable. Indicio para priorizar, no prueba.' : 'Sin consumo sobre el derecho. No se propone inspección.';
 

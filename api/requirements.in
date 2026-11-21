@@ -1,0 +1,19 @@
+# Dependencias de caudal-api. La lista con versiones fijas es requirements.txt:
+#   uv pip compile api/requirements.in -o api/requirements.txt --python-version 3.12 --python-platform x86_64-manylinux_2_28
+fastapi
+uvicorn
+duckdb
+pandas
+pyarrow
+numpy
+geopandas>=1.0
+shapely>=2.0
+scikit-learn
+httpx  # cliente en proceso de api/respaldo.py
+# expediente.py
+matplotlib
+jinja2
+weasyprint
+rasterio
+pystac-client
+pillow

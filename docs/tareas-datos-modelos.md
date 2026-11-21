@@ -24,7 +24,7 @@ Vista rápida de qué datos están listos en cada zona. Se actualiza al cerrar u
 | Clima (lluvia y ET0) | D2 | ✅ | ✅ |
 | Predios | D3 | ✅ | ✅ |
 | Derechos normalizados | D4 | ✅ | ✅ |
-| Cruce derechos–predios | D5 | ⬜ | ⬜ |
+| Cruce derechos–predios | D5 | ✅ | ✅ |
 | Fiscalizaciones (validación) | D6 | ⬜ | ⬜ |
 | Especie por predio | D7 | ⬜ | ⬜ |
 | Cauces y canales | D8 | ⬜ | ⬜ |
@@ -42,7 +42,7 @@ Cada tarea entrega un script en `scripts/extract/` y un archivo en `data/process
 | D2 | Lluvia diaria y ET0 en grilla; estaciones DMC, DGA e INIA donde existan | Open-Meteo y estaciones | Z1, Z2 | Gabriela | — | `clima.parquet`, `predio_clima.parquet` y `estacion_clima.parquet` (plan: [d2-clima.md](plans/d2-clima.md)) | ✅ |
 | D3 | Descargar los predios de las comunas de cada zona y calcular el área en EPSG:32719. Entregar primero una muestra de 50 predios por zona para desbloquear D1 | CIREN Propiedades Rurales | Z1, Z2 | Tomás | — | `scripts/extract/predios_ciren.py` → `predio.parquet` (local) y `predio_muestra.geojson` (en git) | ✅ |
 | D4 | Descargar el Excel de derechos de Valparaíso; convertir datums; normalizar a m³ por mes; marcar los eventuales y las "Acciones" | DGA derechos registrados | Z1, Z2 | Tomás | — | `scripts/extract/derechos_dga.py` → `derecho.parquet` (en git, sin nombres); Excel y titulares en `data/raw/dga/` (local) | ✅ |
-| D5 | Cruzar derechos con predios: punto de captación en el predio o a menos de 500 m; si falla, por titular en la comuna. Guardar `metodo_cruce` y `confianza_cruce`. No asignar por coordenada los `gran_derecho` (100 l/s o más: canales y comunidades de aguas) | D3 + D4 | Z1, Z2 | Tomás | D3, D4 | `derecho.parquet` con `predio_id` | ⬜ |
+| D5 | Cruzar derechos con predios: punto de captación en el predio o a menos de 500 m; si falla, por titular en la comuna. Guardar `metodo_cruce` y `confianza_cruce`. No asignar por coordenada los `gran_derecho` (100 l/s o más: canales y comunidades de aguas) | D3 + D4 | Z1, Z2 | Tomás | D3, D4 | `scripts/extract/cruce_derechos_predios.py` → `derecho_predio.parquet` y `predio_derecho.parquet` (en git; columnas en `data/README.md`) | ✅ |
 | D6 | Filtrar la planilla de fiscalizaciones por extracción no autorizada en cada zona. Positivo: multa o "Constata infracción" / "Acoge". Negativo débil: "No acoge" / "Cierra expediente" | DGA planilla de fiscalización | Z1, Z2 | Tomás | — | `fiscalizacion.parquet` | ⬜ |
 | D7 | Especie plantada por predio | CIREN Catastro Frutícola 2025 | Z1, Z2 | Tomás | D3 | columna `especie` en `predio.parquet` | ⬜ |
 | D8 | Cauces y canales de riego | DGA red de drenajes (SMA) y CIREN infraestructura de riego | Z1, Z2 | Por asignar | — | `cauce.parquet` | ⬜ |
@@ -91,7 +91,7 @@ Orden de trabajo al 21-11-2026. Se actualiza cuando cambia lo que bloquea.
 | --- | --- | --- | --- | --- |
 | 1 | D1, D2, D11 | Gabriela | Es el inicio del camino crítico | Zonas, muestra de predios y casos en `data/` |
 | ✅ | D4 Derechos normalizados | Tomás | Es la tarea de datos más difícil (datums, unidades) y M5 no puede partir sin ella | Excel de Valparaíso descargado y columnas revisadas |
-| 3 | D5 Cruce derechos–predios | Tomás | Sin el cruce no hay "consumo sobre derechos", que es el núcleo del índice | Predios listos (D3) |
+| ✅ | D5 Cruce derechos–predios | Tomás | Sin el cruce no hay "consumo sobre derechos", que es el núcleo del índice | Predios listos (D3) |
 | 4 | D6 Fiscalizaciones | Tomás | Desbloquea la validación (M6) y la métrica de impacto (M9); reemplaza `data/casos_validacion.geojson` | Planilla descargada y filtros probados |
 | 5 | D7 Especie por predio | Tomás | Mejora el Kc de M4; es rápida porque la llave es el rol | Capa de CIREN probada |
 | — | D8, D9, D10, D12, D14 | Por asignar | No bloquean el camino crítico; sirven para el expediente, la ruta y el pitch | Fuentes verificadas en el spec |
@@ -110,5 +110,6 @@ Orden de trabajo al 21-11-2026. Se actualiza cuando cambia lo que bloquea.
 | 21-11-2026 | Gabriela extrae satélite (D1), clima (D2) y referencia de secano (D11) en ambas zonas | Equipo |
 | 21-11-2026 | Los nombres de titulares y los datos descargados no se suben a git | Equipo |
 | 21-11-2026 | `predio_id` = `mslink` de CIREN, no el rol (el rol se repite y a veces no es un rol) | Tomás |
+| 21-11-2026 | D5 entrega `predio_derecho.parquet` con `m3_anual_derecho_entorno_500m`: M5 baja la confianza (no sube la sospecha) si el predio tiene poco derecho propio y mucho en el entorno (lotes de pozo) | Tomás |
 | 21-11-2026 | Métrica de impacto: candidatos no fiscalizados × acierto medido, en rango de m³ y pesos; un candidato no es un caso | Tomás |
 | 21-11-2026 | Datos lo más recientes posible. Caso de la demo: FO-0501-462 (La Ligua, 2025). El ranking usa la temporada seca 2025-26 y la ficha muestra la escena más reciente (octubre de 2026 fue lluvioso) | Tomás |

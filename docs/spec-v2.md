@@ -166,7 +166,9 @@ Modelo de datos:
 | predio | predio\_id (`mslink` de CIREN), zona, comuna, rol, rol\_valido, geometría, área en hectáreas, especie (catastro frutícola, si existe) |
 | serie\_predio | predio\_id, fecha, ndvi, ndwi, ndmi, nubosidad\_pct, escena\_id |
 | clima | estación o celda, fecha, lluvia\_mm, et0\_mm |
-| derecho | código de expediente DGA, predio\_id, zona, naturaleza (superficial o subterránea), ejercicio (permanente o eventual), caudal\_ls, m3\_mes, datum\_origen, metodo\_cruce, confianza\_cruce |
+| derecho | derecho\_id, expediente DGA, zona, naturaleza (superficial o subterránea), ejercicio, caudal\_ls, m3\_anual, m3\_mes, sumable, gran\_derecho, coord\_estado, punto de captación |
+| derecho\_predio | derecho\_id, predio\_id, metodo\_cruce, confianza\_cruce, dist\_predio\_m |
+| predio\_derecho | predio\_id, m3\_anual\_derecho, m3\_mes\_derecho, m3\_anual\_derecho\_entorno\_500m, estado\_derechos, confianza\_cruce (detalle en [data/README.md](../data/README.md)) |
 | fiscalizacion | código de expediente, zona, geometría (punto), fecha de inspección, tipo de infracción, decisión, multa en UTM, etiqueta (positivo o negativo) |
 | puntaje | predio\_id, fecha\_corte, m3\_estimado (rango), m3\_derecho, índice, banda, confianza |
 | expediente | id, predio\_id, url\_pdf, fecha\_creación |

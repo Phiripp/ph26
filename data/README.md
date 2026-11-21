@@ -29,6 +29,8 @@ Datos de entrada de Caudal. Las zonas, las fuentes y las convenciones están en 
 | `processed/predio.parquet` | No | Todos los predios de Z1 (9.331) y Z2 (10.719), GeoParquet | `scripts/extract/predios_ciren.py` |
 | `raw/ciren/<COMUNA>.geojson` | No | Respuesta cruda de CIREN, una por comuna (caché) | `scripts/extract/predios_ciren.py` |
 | `processed/derecho.parquet` | Sí | 9.138 derechos de agua de Z1 y Z2, normalizados, sin nombres; punto de captación en EPSG:4326 | `scripts/extract/derechos_dga.py` |
+| `processed/derecho_predio.parquet` | Sí | A qué predio se asigna cada derecho: `predio_id`, `metodo_cruce`, `confianza_cruce`, `dist_predio_m` | `scripts/extract/cruce_derechos_predios.py` |
+| `processed/predio_derecho.parquet` | Sí | Resumen por predio con rol válido (18.244): m³ con derecho, derechos del entorno y `estado_derechos`. Lo leen M5 y M12 | `scripts/extract/cruce_derechos_predios.py` |
 | `raw/dga/Derechos_Concedidos_V_Region.xls` | No | Excel de derechos de la DGA, Región de Valparaíso (trae nombres de titulares) | `scripts/extract/derechos_dga.py` |
 | `raw/dga/derecho_titulares.parquet` | No | `derecho_id` y nombre del titular, para el cruce por titular (D5) y el expediente | `scripts/extract/derechos_dga.py` |
 
@@ -64,6 +66,39 @@ Para regenerar: `uv run scripts/extract/derechos_dga.py` (usa el Excel local; `-
 | `utm_norte`, `utm_este`, `huso_origen`, `datum_origen` | Coordenada original |
 | `coord_estado` | `ok` (7.663), `sin_coordenada` (1.314), `datum_supuesto` (111), `huso_corregido` (37), `fuera_de_region` (13) |
 | `geometry` | Punto de captación en EPSG:4326; vacío si no hay coordenada válida |
+
+## Cruce de derechos con predios (D5)
+
+Para regenerar: `uv run scripts/extract/cruce_derechos_predios.py` (necesita `predio.parquet`, `derecho.parquet` y, para el cruce por titular, `raw/dga/derecho_titulares.parquet`).
+
+`metodo_cruce` de cada derecho, en orden de prioridad:
+
+| Método | Derechos | Confianza |
+| --- | --- | --- |
+| `punto_en_predio`: el punto de captación cae dentro del predio | 6.061 | alta |
+| `cercania`: predio válido más cercano a 500 m o menos | 1.656 | media hasta 100 m, baja después |
+| `titular`: el mismo titular tiene otros derechos ubicados en un solo predio de la comuna | 181 | baja |
+| `gran_derecho_sin_asignar`: 100 l/s o más | 45 | — |
+| `sin_predio_a_500m` / `sin_coordenada` | 49 / 1.146 | — |
+
+La confianza baja un nivel si la coordenada tiene un supuesto o si el derecho es superficial (la bocatoma no está en el predio que riega). En total queda asignado el 86 % de los derechos y el 47 % del volumen sumable; el resto son grandes derechos y derechos sin coordenada.
+
+Columnas de `predio_derecho`:
+
+| Columna | Descripción |
+| --- | --- |
+| `predio_id`, `zona`, `comuna`, `area_ha` | Del predio; para la geometría, unir con `predio.parquet` por `predio_id` |
+| `n_derechos`, `n_derechos_sumables` | Derechos asignados al predio |
+| `m3_anual_derecho`, `m3_mes_derecho`, `m3_anual_derecho_subterraneo` | Volumen con derecho; solo sumables |
+| `m3_anual_derecho_entorno_500m` | Derechos sumables con punto a 500 m o menos del predio, propios o de vecinos (sin grandes derechos) |
+| `estado_derechos` | `con_derechos` (2.864), `sin_derechos_cerca` (3.042: ningún punto de derecho a 500 m) o `derechos_cerca_de_otro_predio` (12.338) |
+| `confianza_cruce` | La peor de sus derechos. "Sin derechos" nunca es alta (el 14 % de los derechos no tiene coordenada); `derechos_cerca_de_otro_predio` es baja |
+
+Tres cosas para M5 y M6:
+
+- **Lotes de pozo:** un pozo puede estar inscrito en un lote chico y regar el predio vecino. Hay predios de 0,1 ha con más de 1 millón de m³ al año. Si `m3_anual_derecho` es bajo pero `m3_anual_derecho_entorno_500m` es alto, el predio no es sospechoso con confianza alta: puede regar con el pozo del vecino.
+- **No todos los positivos tienen exceso sobre derechos:** FO-0504-157 tiene 1,0 millones de m³ al año en 29,8 ha y fue multado igual (probablemente por un pozo no inscrito). El índice consumo-contra-derechos detecta mejor los casos sin derechos, como FO-0504-95 (`sin_derechos_cerca`). La validación no debe esperar que todos los positivos queden arriba.
+- **El caso de la demo está al límite:** FO-0501-462 tiene un derecho de 2 l/s (63.072 m³ al año) en 6,1 ha, es decir, unos 10.300 m³ por hectárea, cerca de lo que consume un frutal. Hay que revisar en M4 si el consumo estimado lo supera con claridad; si no, conviene elegir otro caso para la demo.
 
 ## Lo que hay que saber
 

@@ -78,11 +78,11 @@ BASE_PASOS = [
 
 
 def cargar_config() -> dict:
-    """Regiones desde el bucket (config/regiones.json); en el repo, data/regiones.json."""
+    """Regiones desde data/regiones.json de la imagen (/app); config/regiones.json del bucket, si se quiere reemplazar."""
     for ruta in (DATOS / "config" / "regiones.json", APP / "data" / "regiones.json"):
         if ruta.exists():
             return json.loads(ruta.read_text(encoding="utf-8"))
-    sys.exit("No encuentro config/regiones.json: corre scripts/cloud/chile/regiones.py y subir_codigo.sh")
+    sys.exit("No encuentro data/regiones.json: corre scripts/cloud/chile/regiones.py y vuelve a construir la imagen")
 
 
 def regiones_elegidas(cfg: dict) -> list[str]:

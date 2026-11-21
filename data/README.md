@@ -241,6 +241,7 @@ Para regenerar: `uv run scripts/models/indice_sospecha.py` (elegibles 2025-26 �
 - `banda`: `alta` (señal y exceso mínimo > 0), `media` (exceso central > 0), `baja` (exceso máximo > 0), `sin_alerta`. Con confianza baja la banda baja un nivel.
 - `confianza`: la peor entre la de M3, la del cruce de derechos, `media` sin derechos propios ubicados, `baja` si los derechos ajenos disponibles a 500 m cubren el exceso central, y `media` si M4 no tiene la temporada completa. `motivos` dice por qué. `canal_300m` es solo un motivo: lo tiene el 81 % de los predios positivos y el 76 % de los que tienen señal, así que no discrimina.
 - `m3_derecho_ajeno_disponible_500m`: derechos de riego de otros roles a 500 m o menos, por la fracción que su rol no usa según M4, repartidos en partes iguales entre los predios elegibles a 500 m del punto. Un pozo compartido sin asignar cuenta entero antes de repartirse.
+- `aplicabilidad` (corrida nacional): `calibrado` en Z1 y Z2; en `data/regiones.json`, cada región trae la suya. En `sur_humedo` no hay banda alta (una alerta alta baja a media, motivo `aplicabilidad_sur_humedo`).
 - `puntaje`: base de la banda (75, 50, 25 o 0) + 25 × `frac_senal` × peso de la confianza (1; 0,7; 0,4) × percentil del exceso central **por hectárea** en la zona (intensidad, no tamaño: los positivos tienden a ser predios más chicos). `rank_zona` ordena por banda y puntaje.
 - `fiscalizado_dga`: el predio está en el vecindario de una fiscalización por extracción de aguas (cualquier resultado; no dice si hubo infracción).
 - 2025-26 (con los umbrales de M7): alta 759 (9,6 %), media 856 (10,8 %), baja 169, sin alerta 6.127. Casos: FD-0501-181 puesto 41 de Z1 y FO-0504-95 puesto 69 de Z2, ambos en banda alta. FO-0504-157 queda sin alerta, porque sus derechos superan su consumo.
@@ -304,6 +305,17 @@ uv run scripts/models/expediente.py --rol CABILDO:390-80 --temporada 2025-26
 - Lenguaje: "indicios" y "eventual infracción"; los m³ van en rango y redondeados a 2 cifras. Si el predio no tiene señal de riego, el borrador no pide fiscalizar. Con confianza baja, la primera página lo advierte. Si hay un canal a 300 m o menos, el texto lo menciona como posible fuente.
 - Índice de sospecha (M5): el resumen muestra banda, puntaje, puesto en la zona (solo con `puntaje.parquet`, los elegibles 2025-26; en otras temporadas usa `puntaje_validacion.parquet` sin puesto) y la confianza de M5 junto a la de M3. Los hechos agregan el agua sin derecho que la respalde (exceso de M5, con pérdidas de riego). La alerta de la primera página sale si M3 o M5 tienen confianza baja.
 - Pendiente: endpoint `POST /expediente/{id}`, versión post-visita (fotos del retorno de campo, M15) y campo "sector" (no está en las fuentes).
+
+## Corrida nacional (todo Chile)
+
+Extensión de M1 a M5 a las 14 regiones con capa de predios CIREN ([docs/spec-chile.md](../docs/spec-chile.md); el código y los comandos de cada etapa están en [scripts/cloud/chile/README.md](../scripts/cloud/chile/README.md)). Lo que cambia para el trabajo local:
+
+- `scripts/comun/rutas.py` define `DATA` desde `CAUDAL_DATA` y las zonas desde `CAUDAL_ZONAS`. Sin variables, todo queda como antes (`data/` y `data/zonas.json`), así que los comandos de arriba no cambian.
+- [`regiones.json`](regiones.json): mismo esquema que `zonas.json`, con `zona` = código de región (`R05`) y las capas de cada fuente. Lo genera `uv run scripts/cloud/chile/regiones.py` (consulta CIREN); va a git.
+- Los extractores aceptan una zona de `regiones.json` (con `CAUDAL_ZONAS=data/regiones.json` y una sola región): `predios_ciren.py` baja la capa regional completa paginando por `objectid`; `referencia_secano_conaf.py` consulta la región entera (campo de uso según la capa, `ref_id` = región × 10⁸ + `objectid`); `cultivos_ciren.py`, `derechos_dga.py` y `fiscalizaciones_dga.py` usan la capa, el Excel y el bbox de la región. Cada uno corre en una carpeta de trabajo propia (`CAUDAL_DATA=/tmp/trabajo/R05`).
+- Clima: `uv run scripts/extract/d2_clima_era5land.py` (ERA5-Land ARCO de ECMWF; necesita `CDS_API_KEY`) escribe `clima.parquet` y `predio_clima.parquet` con `fuente = era5land`, sin corrección de estaciones (`correccion = ninguna`: M1 va con `--umbral-mm 2`). `--probar` verifica la ET0 de FAO-56 sin red y `--contrastar` la compara con la de Open-Meteo. M1 y M4 aceptan las dos fuentes.
+- Satélite: `serie_sentinel2.py --parte K` lee `plan/partes/K.jsonl`; ver el docstring del script. Con `data/processed/serie_predio_elegibles_2025-26.parquet` de Z1, el modo coincide en 3.037 de 3.037 predios de una escena (diferencia máxima 2·10⁻⁸).
+- Exportación web: `frontend-demo/scripts/build_m5_web.py --region R05 --salida <carpeta>`.
 
 ## Lo que hay que saber
 

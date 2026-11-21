@@ -38,10 +38,16 @@ Las zonas se definen en esta sección y en ningún otro lugar. Toda extracción 
 
 - La pertenencia a una zona se decide por comuna, no por bounding box. Los bounding boxes se solapan entre las latitudes -32.73 y -32.59. El bounding box es la extensión de los predios CIREN de esas comunas y sirve solo para filtrar descargas.
 - Los bounding boxes incluyen cordillera y cerros. Para Sentinel-2, se recorta con las geometrías de los predios, no con el bounding box.
-- Periodo de análisis: de enero de 2020 a octubre de 2026 en ambas zonas. Si no hay tiempo, se prioriza 2021–2022 en Z2 (caso de validación) y 2024–2026 en Z1 (demo).
-- Caso de validación principal: expediente FO-0504-95, Hijuelas (Z2), lat -32.82257, lon -71.01774; inspección el 23-11-2021; multa de 1.983,9 UTM (unos $127 millones); la DGA dice que lo detectó con imágenes satelitales ([nota de la DGA](https://dga.mop.gob.cl/dga-valparaiso-multa-a-empresario-agricola-por-extraccion-no-autorizada-de-aguas-en-la-comuna-de-hijuelas/)).
-- Casos de validación en Z1: expedientes FO-0501-386 y FO-0501-376 (Pullally, 2023) y FO-0501-380 (Cabildo, 2023).
-- Los conteos vienen de las fuentes del 21-11-2026. Las fiscalizaciones se cuentan por coordenada dentro del bounding box, así que los totales de Z1 y Z2 pueden repetir casos de la franja que se solapa.
+- Periodo de análisis: desde enero de 2020 hasta la última escena limpia antes de la demo. Mientras más reciente el dato, más fuerte la demo. Periodos prioritarios:
+  - Z1: de diciembre de 2024 a la última escena (casos de 2025, temporada seca 2025-26 y escena reciente).
+  - Z2: 2021–2022 (antecedente satelital) y de diciembre de 2024 a mayo de 2025 (caso FO-0504-157).
+- Ventanas para la demo: el ranking usa la temporada seca 2025-26 (diciembre de 2025 a marzo de 2026), que es la última completa. La ficha del predio muestra además la escena limpia más reciente. Esa escena se recalcula la noche antes de la demo (tarea D13).
+- Octubre de 2026 fue lluvioso: según Open-Meteo, unos 100 mm en La Ligua y unos 160 mm en Hijuelas (última lluvia fuerte: 20-10 en La Ligua y 03-11 en Hijuelas). Las escenas de noviembre de 2026 muestran todo verde y separan mal riego de secano. Por eso el ranking no usa noviembre de 2026.
+- Caso de la demo: expediente FO-0501-462, La Ligua (Z1), lat -32.44641, lon -71.21551; inspección el 07-05-2025; resolución 1170 del 25-07-2025; multa de 778,07 UTM. El pozo cae dentro del predio `88-31` (6,1 ha). Relato: la serie del verano 2024-25 muestra riego en ventana seca antes de que llegue la DGA.
+- Antecedente satelital: expediente FO-0504-95, Hijuelas (Z2), lat -32.82257, lon -71.01774; inspección el 23-11-2021; multa de 1.983,9 UTM (unos $127 millones); la DGA dice que lo detectó con imágenes satelitales ([nota de la DGA](https://dga.mop.gob.cl/dga-valparaiso-multa-a-empresario-agricola-por-extraccion-no-autorizada-de-aguas-en-la-comuna-de-hijuelas/)).
+- Otros casos de validación: FO-0504-157 (Hijuelas, 2025), FD-0501-191 y FD-0501-189 (Cabildo, 2025), FO-0501-376 y FO-0501-386 (Pullally, 2022) y FO-0501-380 (Cabildo, 2022). Todos están en [data/casos_validacion.geojson](../data/casos_validacion.geojson).
+- Solo se usan casos resueltos. Los expedientes "En trámite" no se muestran como infractores en la demo.
+- Los conteos vienen de las fuentes del 21-11-2026. Las fiscalizaciones se cuentan por coordenada dentro del bounding box, así que incluyen puntos de comunas vecinas (Llay Llay, Puchuncaví) y pueden repetir casos de la franja que se solapa.
 
 ## Flujo de datos
 
@@ -197,7 +203,7 @@ Guion de demo (3 minutos), con la ruta de inspección como cierre:
 
 1. El problema en una frase y una imagen: un camión aljibe frente a un predio verde.
 2. El mapa del valle con el ranking de predios sospechosos.
-3. La serie satelital del mismo predio con la ventana seca marcada por las estaciones.
+3. La serie satelital del predio del caso FO-0501-462 con la ventana seca marcada por las estaciones: el riego aparece antes de que llegue la DGA. Cierra con la escena más reciente del mismo predio.
 4. Los m³ estimados frente a los derechos, en banda y con su confianza.
 5. Botón "generar expediente" en vivo y, como cierre, la ruta de inspección de los predios top, que es la decisión central.
 
@@ -211,6 +217,7 @@ Guion de demo (3 minutos), con la ruta de inspección como cierre:
 | Datos personales en el repo | Los nombres de titulares quedan fuera de git (ver [Convenciones de datos](#convenciones-de-datos)) |
 | Pocas estaciones en la zona | Grilla de Open-Meteo como base y estaciones como corrección |
 | Nubes o escenas faltantes | Composiciones mensuales; cambiar de zona temprano |
+| Las lluvias de octubre de 2026 dejan todo verde y la escena reciente no muestra contraste | El ranking usa la temporada seca 2025-26; la escena reciente es solo contexto visual en la ficha |
 | Falla en vivo | Demo en producción desde temprano y video de respaldo |
 
 Preguntas abiertas:

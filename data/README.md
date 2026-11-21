@@ -41,7 +41,7 @@ Datos de entrada de Caudal. Las zonas, las fuentes y las convenciones están en 
 | `processed/predio_clima.parquet` | Sí | Celda de Open-Meteo y estación DMC más cercana de cada predio (`celda_id`, `estacion_id`, `distancia_estacion_km`) | `scripts/extract/d2_clima_openmeteo.py` |
 | `processed/estacion_clima.parquet` | Sí | Estaciones DMC candidatas por zona, con rango de fechas y `descartada` | `scripts/extract/d2_clima_dmc.py` |
 | `processed/clima_validacion.csv` | Sí | Contraste de la lluvia corregida contra la estación de referencia, por celda | `scripts/extract/d2_clima_unir.py` |
-| `processed/referencia_secano.parquet` | Sí | 3.660 polígonos de matorral y pradera anual estables 2001–2019 (CONAF), geometría simplificada a 10 m: `ref_id`, `zona`, `comuna`, `clase`, `area_ha`. Referencia de secano para M2 | `scripts/extract/referencia_secano_conaf.py` |
+| `processed/referencia_secano.parquet` | Sí | 3.642 polígonos de matorral y pradera anual estables 2001–2019 (CONAF), sin los huertos del Catastro Frutícola 2025 (más 20 m), geometría simplificada a 10 m: `ref_id`, `zona`, `comuna`, `clase`, `area_ha`, `recortado_fruta`. Referencia de secano para M2 | `scripts/extract/referencia_secano_conaf.py` |
 | `raw/conaf/<COMUNA>.geojson` | No | Respuesta cruda de CONAF (pradera y matorral 2019), una por comuna (caché) | `scripts/extract/referencia_secano_conaf.py` |
 
 ## Columnas de `predio`

@@ -11,11 +11,17 @@ USO_DE_LA_TIERRA_CUT_CONAF, capa 5, en IDE Minagri. Se toman las clases de "Prad
 La capa no separa riego de secano. Una pradera o un matorral que fue lo mismo en 2001, 2013, 2016, 2017 y 2019
 (columna `estable`) casi seguro no se riega: sirve de referencia para las anomalías de verdor y humedad (M2).
 
+CONAF llega hasta 2019, y desde entonces se plantaron huertos en laderas que eran matorral. Para no usar riego como
+referencia de secano, se recortan de cada polígono los huertos del Catastro Frutícola de CIREN 2025 (capa 59), con
+un margen de 20 m, y se descartan los restos de menos de `--area-min-ha`. Esto solo cubre huertos frutales: otros
+riegos posteriores a 2019 no se ven aquí y hay que revisarlos con el NDVI de verano (M2).
+
 Entradas: data/zonas.json.
-Caché: data/raw/conaf/<COMUNA>.geojson, una por comuna (no va a git).
+Caché: data/raw/conaf/<COMUNA>.geojson (una por comuna) y data/raw/conaf/catastro_fruticola_2025.geojson (no van a git).
 Salida: data/processed/referencia_secano.parquet (GeoParquet, EPSG:4326), una fila por polígono CONAF:
   ref_id, zona, comuna, clase (matorral, matorral_arborescente, matorral_pradera, matorral_suculentas,
-  pradera_anual), uso_cod, area_ha (EPSG:32719, antes de simplificar), estable (siempre True), geometry.
+  pradera_anual), uso_cod, area_ha (EPSG:32719, después del recorte y antes de simplificar), estable (siempre True),
+  recortado_fruta (bool: se le quitó algún huerto), geometry.
 Solo quedan los polígonos estables 2001-2019 y no se incluye la estepa andina (cordillera alta, otro régimen de
 humedad y sin predios agrícolas). La geometría se simplifica a 10 m (el píxel de Sentinel-2): sin eso la capa
 pesa más de 100 MB por los vértices de CONAF.
@@ -41,6 +47,8 @@ RAW = DATA / "raw" / "conaf"
 URL = "https://esri.ciren.cl/server/rest/services/IDEMINAGRI/USO_DE_LA_TIERRA_CUT_CONAF/MapServer/5/query"
 PAGINA = 2000  # maxRecordCount del servicio
 CRS_METROS = "EPSG:32719"
+URL_FRUTICOLA = "https://esri.ciren.cl/server/rest/services/IDEMINAGRI/CATASTRO_FRUTICOLA/MapServer/59/query"
+MARGEN_HUERTO_M = 20
 CAMPOS = "objectid,uso_01,uso_13,uso_16,uso_17,uso_19,des_uso_19,nom_com,sup_ha"
 # Código de uso 2019 -> clase de referencia. 0301xx praderas (solo la anual es secano de verano seco),
 # 0302 matorral-pradera, 0303 matorral, 0304 matorral arborescente, 0305 matorral con suculentas.
@@ -100,6 +108,36 @@ def descargar_comuna(comuna: str, destino: Path) -> None:
     destino.write_text(json.dumps({"type": "FeatureCollection", "features": features}))
 
 
+def descargar_fruticola(zonas: dict, destino: Path) -> None:
+    """Huertos del Catastro Frutícola 2025 que tocan el bounding box de cada zona."""
+    features, vistos = [], set()
+    for cfg in zonas.values():
+        offset = 0
+        while True:
+            url = URL_FRUTICOLA + "?" + urllib.parse.urlencode(
+                {
+                    "geometry": ",".join(str(v) for v in cfg["bbox"]),
+                    "geometryType": "esriGeometryEnvelope",
+                    "inSR": 4326,
+                    "spatialRel": "esriSpatialRelIntersects",
+                    "outFields": "mslink",
+                    "outSR": 4326,
+                    "orderByFields": "objectid",
+                    "resultOffset": offset,
+                    "resultRecordCount": 2000,
+                    "f": "geojson",
+                }
+            )
+            with urllib.request.urlopen(url, timeout=120) as r:
+                lote = json.loads(r.read()).get("features", [])
+            features += [f for f in lote if f["properties"]["mslink"] not in vistos]
+            vistos.update(f["properties"]["mslink"] for f in lote)
+            if len(lote) < 2000:
+                break
+            offset += 2000
+    destino.write_text(json.dumps({"type": "FeatureCollection", "features": features}))
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     ap.add_argument("--refrescar", action="store_true")
@@ -122,23 +160,36 @@ def main() -> int:
             partes.append(gdf)
     gdf = gpd.GeoDataFrame(pd.concat(partes, ignore_index=True), crs="EPSG:4326")
 
+    ruta_fruta = RAW / "catastro_fruticola_2025.geojson"
+    if args.refrescar or not ruta_fruta.exists():
+        descargar_fruticola(zonas, ruta_fruta)
+    huertos = gpd.read_file(ruta_fruta).to_crs(CRS_METROS)
+    print(f"{len(huertos)} huertos del Catastro Frutícola 2025")
+
     gdf["uso_cod"] = gdf["uso_19"]
     gdf["clase"] = gdf["uso_cod"].map(CLASES)
     gdf = gdf[gdf["clase"].notna()].copy()
     gdf["estable"] = (gdf[["uso_01", "uso_13", "uso_16", "uso_17"]].eq(gdf["uso_19"], axis=0)).all(axis=1)
+    metros = gdf.to_crs(CRS_METROS)
+    mascara = huertos.buffer(MARGEN_HUERTO_M).union_all()
+    recortado = metros.difference(mascara)
+    gdf["recortado_fruta"] = ~recortado.geom_equals(metros.geometry)
+    gdf["geometry"] = recortado.to_crs("EPSG:4326")
+    gdf = gdf[~gdf.is_empty].copy()
     gdf["area_ha"] = (gdf.to_crs(CRS_METROS).area / 10_000).round(3)
     gdf = gdf[(gdf["area_ha"] >= args.area_min_ha) & gdf["estable"] & (gdf["clase"] != "estepa_andina")].copy()
     simple = gdf.to_crs(CRS_METROS).simplify(args.simplificar_m, preserve_topology=True)
     gdf["geometry"] = simple.make_valid().to_crs("EPSG:4326")  # la simplificación deja algunos polígonos inválidos
     gdf["ref_id"] = gdf["objectid"].astype(int)
     gdf = gdf.drop_duplicates("ref_id").sort_values(["zona", "comuna", "ref_id"]).reset_index(drop=True)
-    gdf = gdf[["ref_id", "zona", "comuna", "clase", "uso_cod", "area_ha", "estable", "geometry"]]
+    gdf = gdf[["ref_id", "zona", "comuna", "clase", "uso_cod", "area_ha", "estable", "recortado_fruta", "geometry"]]
 
     salida = DATA / "processed" / "referencia_secano.parquet"
     salida.parent.mkdir(parents=True, exist_ok=True)
     gdf.to_parquet(salida, index=False)
 
     print(f"\n{salida.relative_to(RAIZ)}: {len(gdf)} polígonos, {salida.stat().st_size / 1e6:.1f} MB")
+    print(f"recortados por huertos: {int(gdf['recortado_fruta'].sum())} polígonos")
     resumen = gdf.groupby(["zona", "estable", "clase"]).agg(poligonos=("ref_id", "size"), ha=("area_ha", "sum")).round(0)
     print(resumen.to_string())
     return 0

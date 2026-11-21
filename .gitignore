@@ -1,0 +1,10 @@
+# Datos descargados: se regeneran con scripts/extract/ (ver data/README.md)
+data/raw/
+
+# Capa completa de CIREN: no se redistribuye; se regenera con scripts/extract/predios_ciren.py
+data/processed/predio.parquet
+
+# Python
+__pycache__/
+.venv/
+.DS_Store

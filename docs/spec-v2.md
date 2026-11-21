@@ -96,7 +96,7 @@ Estas reglas permiten que cada persona extraiga datos por su cuenta y que todo s
 - Datums de los derechos: cada fila se convierte según su columna "Datum": 1956 → EPSG:24879, 1969 → EPSG:29189 y 1984 → EPSG:32719. Si el datum viene vacío, se usa EPSG:24879 y la fila se marca con confianza baja. Las filas con huso 18 o coordenadas fuera de la región se descartan.
 - Unidades de los derechos: se normaliza a m³ por mes con 1 l/s = 2.592 m³ en 30 días, a partir de la columna de cada mes. Los m³/año, m³/día y l/min se convierten. Las "Acciones" y los "%" quedan sin cifra. Los derechos eventuales se marcan y no se suman.
 - Cruce de derechos con predios: el punto de captación dentro del predio, o en un radio de 500 m. Si falla, por nombre del titular dentro de la comuna. Cada cruce guarda `metodo_cruce` y `confianza_cruce`.
-- Llaves: `predio_id` = `rol` de CIREN con prefijo de comuna (por ejemplo `HIJUELAS:87-3`), porque el rol se repite entre comunas. Toda tabla lleva `zona` (`Z1` o `Z2`).
+- Llaves: `predio_id` = `mslink` de CIREN, que es único en la capa. El `rol` no sirve como llave: se repite entre comunas y dentro de una misma comuna (un predio puede tener varios polígonos), y a veces no es un rol (`SR`, ríos, caminos). Se guarda como atributo para cruzar con el catastro frutícola, junto con `rol_valido`. Toda tabla lleva `zona` (`Z1` o `Z2`). Detalle de columnas en [data/README.md](../data/README.md).
 - Carpetas: `scripts/extract/` para los scripts de descarga, uno por fuente; `data/raw/` para lo descargado; `data/processed/` para las salidas en GeoParquet o Parquet, una tabla por entidad del modelo de datos y con la columna `zona`.
 - Git: `data/raw/` no se sube. Los nombres de titulares de derechos y otros datos personales tampoco se suben; el expediente los lee del archivo local. Lo que se sube son los scripts, que deben poder regenerar todo.
 - Antes de extraer algo nuevo, se registra la tarea en [tareas-datos-modelos.md](tareas-datos-modelos.md) para no duplicar trabajo.
@@ -157,7 +157,7 @@ Modelo de datos:
 
 | Entidad | Campos clave |
 | --- | --- |
-| predio | id (`comuna:rol`), zona, comuna, rol, geometría, área en hectáreas, especie (catastro frutícola, si existe) |
+| predio | predio\_id (`mslink` de CIREN), zona, comuna, rol, rol\_valido, geometría, área en hectáreas, especie (catastro frutícola, si existe) |
 | serie\_predio | predio\_id, fecha, ndvi, ndwi, ndmi, nubosidad\_pct, escena\_id |
 | clima | estación o celda, fecha, lluvia\_mm, et0\_mm |
 | derecho | código de expediente DGA, predio\_id, zona, naturaleza (superficial o subterránea), ejercicio (permanente o eventual), caudal\_ls, m3\_mes, datum\_origen, metodo\_cruce, confianza\_cruce |

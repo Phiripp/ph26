@@ -22,7 +22,7 @@ Vista rápida de qué datos están listos en cada zona. Se actualiza al cerrar u
 | --- | --- | --- | --- |
 | Series Sentinel-2 por predio | D1 | ⬜ | ⬜ |
 | Clima (lluvia y ET0) | D2 | ⬜ | ⬜ |
-| Predios | D3 | ⬜ | ⬜ |
+| Predios | D3 | ✅ | ✅ |
 | Derechos normalizados | D4 | ⬜ | ⬜ |
 | Cruce derechos–predios | D5 | ⬜ | ⬜ |
 | Fiscalizaciones (validación) | D6 | ⬜ | ⬜ |
@@ -40,7 +40,7 @@ Cada tarea entrega un script en `scripts/extract/` y un archivo en `data/process
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | D1 | Series mensuales de NDVI, NDWI y NDMI por predio, con máscara de nubes SCL; de enero de 2020 a octubre de 2026 (prioridad: 2021–2022 en Z2 y 2024–2026 en Z1) | Sentinel-2 L2A (STAC) | Z1, Z2 | Gabriela | D3 (geometrías) | `serie_predio.parquet` | ⬜ |
 | D2 | Lluvia diaria y ET0 en grilla; estaciones DMC, DGA e INIA donde existan | Open-Meteo y estaciones | Z1, Z2 | Gabriela | — | `clima.parquet` | ⬜ |
-| D3 | Descargar los predios de las comunas de cada zona y calcular el área en EPSG:32719. Entregar primero una muestra de 50 predios por zona para desbloquear D1 | CIREN Propiedades Rurales | Z1, Z2 | Por asignar | — | `predio.parquet` | ⬜ |
+| D3 | Descargar los predios de las comunas de cada zona y calcular el área en EPSG:32719. Entregar primero una muestra de 50 predios por zona para desbloquear D1 | CIREN Propiedades Rurales | Z1, Z2 | Tomás | — | `scripts/extract/predios_ciren.py` → `predio.parquet` (local) y `predio_muestra.geojson` (en git) | ✅ |
 | D4 | Descargar el Excel de derechos de Valparaíso; convertir datums; normalizar a m³ por mes; marcar los eventuales y las "Acciones" | DGA derechos registrados | Z1, Z2 | Por asignar | — | `derecho.parquet` (sin nombres de titulares; los nombres quedan en `data/raw/`) | ⬜ |
 | D5 | Cruzar derechos con predios: punto de captación en el predio o a menos de 500 m; si falla, por titular en la comuna. Guardar `metodo_cruce` y `confianza_cruce` | D3 + D4 | Z1, Z2 | Por asignar | D3, D4 | `derecho.parquet` con `predio_id` | ⬜ |
 | D6 | Filtrar la planilla de fiscalizaciones por extracción no autorizada en cada zona. Positivo: multa o "Constata infracción" / "Acoge". Negativo débil: "No acoge" / "Cierra expediente" | DGA planilla de fiscalización | Z1, Z2 | Por asignar | — | `fiscalizacion.parquet` | ⬜ |
@@ -85,3 +85,4 @@ D4 → D5 corre en paralelo y debe estar listo antes de M5.
 | 21-11-2026 | Zonas Z1 Petorca (demo) y Z2 Aconcagua bajo (validación), definidas en el spec v2 | Equipo |
 | 21-11-2026 | Gabriela extrae satélite (D1), clima (D2) y referencia de secano (D11) en ambas zonas | Equipo |
 | 21-11-2026 | Los nombres de titulares y los datos descargados no se suben a git | Equipo |
+| 21-11-2026 | `predio_id` = `mslink` de CIREN, no el rol (el rol se repite y a veces no es un rol) | Tomás |

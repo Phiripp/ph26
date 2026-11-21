@@ -1,0 +1,21 @@
+{
+  "_fuente": "Copia legible por código de docs/spec-v2.md#zonas-de-estudio. El spec manda: si cambia una zona, se edita el spec y este archivo en el mismo commit.",
+  "crs_bbox": "EPSG:4326",
+  "periodo": {"inicio": "2020-01-01", "fin": "2026-10-31"},
+  "zonas": {
+    "Z1": {
+      "nombre": "Petorca",
+      "uso": "Demo principal",
+      "comunas": ["PETORCA", "CABILDO", "LA LIGUA", "PAPUDO", "ZAPALLAR"],
+      "bbox": [-71.5421, -32.7328, -70.4104, -32.0200],
+      "periodo_prioritario": {"inicio": "2024-01-01", "fin": "2026-10-31"}
+    },
+    "Z2": {
+      "nombre": "Aconcagua bajo",
+      "uso": "Validación y segunda demo",
+      "comunas": ["HIJUELAS", "LA CRUZ", "QUILLOTA", "NOGALES", "LA CALERA"],
+      "bbox": [-71.5008, -32.9905, -70.9708, -32.5897],
+      "periodo_prioritario": {"inicio": "2021-01-01", "fin": "2022-12-31"}
+    }
+  }
+}

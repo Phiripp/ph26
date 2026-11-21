@@ -23,7 +23,7 @@ Vista rápida de qué datos están listos en cada zona. Se actualiza al cerrar u
 | Series Sentinel-2 por predio | D1 | ⬜ | ⬜ |
 | Clima (lluvia y ET0) | D2 | ✅ | ✅ |
 | Predios | D3 | ✅ | ✅ |
-| Derechos normalizados | D4 | ⬜ | ⬜ |
+| Derechos normalizados | D4 | ✅ | ✅ |
 | Cruce derechos–predios | D5 | ⬜ | ⬜ |
 | Fiscalizaciones (validación) | D6 | ⬜ | ⬜ |
 | Especie por predio | D7 | ⬜ | ⬜ |
@@ -41,8 +41,8 @@ Cada tarea entrega un script en `scripts/extract/` y un archivo en `data/process
 | D1 | Series mensuales de NDVI, NDWI y NDMI por predio, con máscara de nubes SCL; desde enero de 2020 hasta la última escena limpia (periodos prioritarios en `data/zonas.json`: Z1 desde diciembre de 2024; Z2 en 2021–2022 y de diciembre de 2024 a mayo de 2025) | Sentinel-2 L2A (STAC) | Z1, Z2 | Gabriela | D3 (geometrías) | `serie_predio.parquet` | ⬜ |
 | D2 | Lluvia diaria y ET0 en grilla; estaciones DMC, DGA e INIA donde existan | Open-Meteo y estaciones | Z1, Z2 | Gabriela | — | `clima.parquet`, `predio_clima.parquet` y `estacion_clima.parquet` (plan: [d2-clima.md](plans/d2-clima.md)) | ✅ |
 | D3 | Descargar los predios de las comunas de cada zona y calcular el área en EPSG:32719. Entregar primero una muestra de 50 predios por zona para desbloquear D1 | CIREN Propiedades Rurales | Z1, Z2 | Tomás | — | `scripts/extract/predios_ciren.py` → `predio.parquet` (local) y `predio_muestra.geojson` (en git) | ✅ |
-| D4 | Descargar el Excel de derechos de Valparaíso; convertir datums; normalizar a m³ por mes; marcar los eventuales y las "Acciones" | DGA derechos registrados | Z1, Z2 | Tomás | — | `derecho.parquet` (sin nombres de titulares; los nombres quedan en `data/raw/`) | ⬜ |
-| D5 | Cruzar derechos con predios: punto de captación en el predio o a menos de 500 m; si falla, por titular en la comuna. Guardar `metodo_cruce` y `confianza_cruce` | D3 + D4 | Z1, Z2 | Tomás | D3, D4 | `derecho.parquet` con `predio_id` | ⬜ |
+| D4 | Descargar el Excel de derechos de Valparaíso; convertir datums; normalizar a m³ por mes; marcar los eventuales y las "Acciones" | DGA derechos registrados | Z1, Z2 | Tomás | — | `scripts/extract/derechos_dga.py` → `derecho.parquet` (en git, sin nombres); Excel y titulares en `data/raw/dga/` (local) | ✅ |
+| D5 | Cruzar derechos con predios: punto de captación en el predio o a menos de 500 m; si falla, por titular en la comuna. Guardar `metodo_cruce` y `confianza_cruce`. No asignar por coordenada los `gran_derecho` (100 l/s o más: canales y comunidades de aguas) | D3 + D4 | Z1, Z2 | Tomás | D3, D4 | `derecho.parquet` con `predio_id` | ⬜ |
 | D6 | Filtrar la planilla de fiscalizaciones por extracción no autorizada en cada zona. Positivo: multa o "Constata infracción" / "Acoge". Negativo débil: "No acoge" / "Cierra expediente" | DGA planilla de fiscalización | Z1, Z2 | Tomás | — | `fiscalizacion.parquet` | ⬜ |
 | D7 | Especie plantada por predio | CIREN Catastro Frutícola 2025 | Z1, Z2 | Tomás | D3 | columna `especie` en `predio.parquet` | ⬜ |
 | D8 | Cauces y canales de riego | DGA red de drenajes (SMA) y CIREN infraestructura de riego | Z1, Z2 | Por asignar | — | `cauce.parquet` | ⬜ |
@@ -90,7 +90,7 @@ Orden de trabajo al 21-11-2026. Se actualiza cuando cambia lo que bloquea.
 | Orden | Tarea | Responsable | Por qué ahora | Qué ya hay |
 | --- | --- | --- | --- | --- |
 | 1 | D1, D2, D11 | Gabriela | Es el inicio del camino crítico | Zonas, muestra de predios y casos en `data/` |
-| 2 | D4 Derechos normalizados | Tomás | Es la tarea de datos más difícil (datums, unidades) y M5 no puede partir sin ella | Excel de Valparaíso descargado y columnas revisadas |
+| ✅ | D4 Derechos normalizados | Tomás | Es la tarea de datos más difícil (datums, unidades) y M5 no puede partir sin ella | Excel de Valparaíso descargado y columnas revisadas |
 | 3 | D5 Cruce derechos–predios | Tomás | Sin el cruce no hay "consumo sobre derechos", que es el núcleo del índice | Predios listos (D3) |
 | 4 | D6 Fiscalizaciones | Tomás | Desbloquea la validación (M6) y la métrica de impacto (M9); reemplaza `data/casos_validacion.geojson` | Planilla descargada y filtros probados |
 | 5 | D7 Especie por predio | Tomás | Mejora el Kc de M4; es rápida porque la llave es el rol | Capa de CIREN probada |

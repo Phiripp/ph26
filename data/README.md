@@ -28,6 +28,9 @@ Datos de entrada de Caudal. Las zonas, las fuentes y las convenciones están en 
 | `processed/predio_muestra.geojson` | Sí | 100 predios cerca de los casos, con `caso_cercano` y `dist_caso_m` | `scripts/extract/predios_ciren.py` |
 | `processed/predio.parquet` | No | Todos los predios de Z1 (9.331) y Z2 (10.719), GeoParquet | `scripts/extract/predios_ciren.py` |
 | `raw/ciren/<COMUNA>.geojson` | No | Respuesta cruda de CIREN, una por comuna (caché) | `scripts/extract/predios_ciren.py` |
+| `processed/derecho.parquet` | Sí | 9.138 derechos de agua de Z1 y Z2, normalizados, sin nombres; punto de captación en EPSG:4326 | `scripts/extract/derechos_dga.py` |
+| `raw/dga/Derechos_Concedidos_V_Region.xls` | No | Excel de derechos de la DGA, Región de Valparaíso (trae nombres de titulares) | `scripts/extract/derechos_dga.py` |
+| `raw/dga/derecho_titulares.parquet` | No | `derecho_id` y nombre del titular, para el cruce por titular (D5) y el expediente | `scripts/extract/derechos_dga.py` |
 
 ## Columnas de `predio`
 
@@ -43,7 +46,29 @@ Datos de entrada de Caudal. Las zonas, las fuentes y las convenciones están en 
 
 La muestra tiene además `caso_cercano` (expediente del caso más cercano) y `dist_caso_m` (distancia en metros). Solo incluye predios con `rol_valido` y área de 0,5 ha o más.
 
+## Columnas de `derecho`
+
+Para regenerar: `uv run scripts/extract/derechos_dga.py` (usa el Excel local; `--refrescar` baja el del mes desde la DGA).
+
+| Columna | Descripción |
+| --- | --- |
+| `derecho_id` | `expediente/solicitud`; si se repite, con sufijo de secuencia (`ND-0501-3458/1-2`) |
+| `expediente`, `zona`, `comuna`, `fecha_resolucion` | Del Excel; la zona sale de la comuna |
+| `naturaleza` | `subterranea` o `superficial` |
+| `fuente` | Sector del acuífero o cauce (p. ej. `Sector 7 - Rio La Ligua Cabildo`) |
+| `consuntivo`, `eventual`, `provisional` | Tipo y ejercicio del derecho |
+| `unidad_origen`, `caudal_origen` | Como vienen en el Excel |
+| `caudal_ls`, `m3_anual`, `m3_mes` | Normalizados; `m3_mes` = `m3_anual` / 12. Vacíos si la unidad es "Acciones" o "%" |
+| `sumable` | Consuntivo, no eventual y con cifra. Solo estos cuentan como derecho de un predio |
+| `gran_derecho` | 100 l/s o más: casi siempre un canal o una comunidad de aguas, no un predio |
+| `utm_norte`, `utm_este`, `huso_origen`, `datum_origen` | Coordenada original |
+| `coord_estado` | `ok` (7.663), `sin_coordenada` (1.314), `datum_supuesto` (111), `huso_corregido` (37), `fuera_de_region` (13) |
+| `geometry` | Punto de captación en EPSG:4326; vacío si no hay coordenada válida |
+
 ## Lo que hay que saber
+
+- Derechos: hay 7.295 derechos sumables, menores de 100 l/s y con punto, para cruzar con predios (D5); el 92 % son subterráneos.
+- Derechos, prueba con casos: el pozo de FO-0504-95 (multado por "2 pozos sin derechos") no tiene ningún derecho a menos de 500 m; el más cercano está a 1.280 m. El de FO-0501-462 tiene 11 derechos a menos de 500 m, así que ahí la infracción sería extraer más de lo autorizado.
 
 - Filtra `rol_valido = True` antes de calcular series; los demás polígonos son cauces, caminos o cerros sin rol.
 - Hay polígonos muy grandes (hasta unas 1.000 ha) que son cerros o fundos enteros. Su NDVI promedio diluye la señal de riego.

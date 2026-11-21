@@ -391,7 +391,8 @@ export async function initValle({
   let satTex = {}, satLoading = {};
   let stops = [], startPin = null, zoneEls = [];
   let outsideImagery = [];
-  let focusPts = null;
+  let focusPts = null, focusArr = null; // focusArr: the same points as a flat xyz array (fitHome hot loop)
+  let sortedFeatures = [], caseFeatures = [], idIndex = new Map(); // overlay paint order, case predios, id -> index in `features`
 
   const uvToWorld = (u, v, lift = 0) => new THREE.Vector3((u - 0.5) * W, heightAt(u, v) + lift, (0.5 - v) * H);
   const llToWorld = (lon, lat, lift = 0) => { const [u, v] = toUV(lon, lat); return uvToWorld(u, v, lift); };
@@ -431,6 +432,7 @@ export async function initValle({
     dotUniforms.uScale.value = clamp(Math.sqrt(home.r / Math.max(cam.r, 0.1)) * 0.9, 1, 1.6);
   }
   const tmpV = new THREE.Vector3();
+  const fitVP = new THREE.Matrix4();
   function project(v) {
     tmpV.copy(v).project(camera);
     return { x: (tmpV.x * 0.5 + 0.5) * host.clientWidth, y: (-tmpV.y * 0.5 + 0.5) * host.clientHeight, ok: tmpV.z < 1 };
@@ -456,8 +458,12 @@ export async function initValle({
   // numeric fit: project focus points with the final pose and search radius + target that fill the visible area
   function fitHome() {
     if (!SB) return;
-    if (!focusPts) focusPts = buildFocusPts();
-    const { fh, vx0, vx1, vy0, vy1 } = viewport();
+    if (!focusPts) {
+      focusPts = buildFocusPts();
+      focusArr = new Float32Array(focusPts.length * 3);
+      focusPts.forEach((v, i) => { focusArr[i * 3] = v.x; focusArr[i * 3 + 1] = v.y; focusArr[i * 3 + 2] = v.z; });
+    }
+    const { fw, fh, vx0, vx1, vy0, vy1 } = viewport();
     const vw = vx1 - vx0, vh = vy1 - vy0;
     const [cu, cv] = toUV((FB.w + FB.e) / 2, (FB.s + FB.n) / 2);
     const t = uvToWorld(cu, cv); t.y = heightAt(cu, cv) * 0.6;
@@ -472,9 +478,16 @@ export async function initValle({
     const box = (r) => {
       placeCameraWith(t, FINAL_POL, r); camera.updateMatrixWorld();
       let x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity;
-      for (const v of focusPts) {
-        const q = project(v);
-        x0 = Math.min(x0, q.x); x1 = Math.max(x1, q.x); y0 = Math.min(y0, q.y); y1 = Math.max(y1, q.y);
+      // box() runs ~88 times per fit and there is one focus point per predio: project them inline
+      // (same maths as project(), minus a Vector3 and two layout reads per point)
+      fitVP.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse);
+      const e = fitVP.elements;
+      for (let i = 0; i < focusArr.length; i += 3) {
+        const X = focusArr[i], Y = focusArr[i + 1], Z = focusArr[i + 2];
+        const w = e[3] * X + e[7] * Y + e[11] * Z + e[15];
+        const qx = ((e[0] * X + e[4] * Y + e[8] * Z + e[12]) / w * 0.5 + 0.5) * fw;
+        const qy = (-(e[1] * X + e[5] * Y + e[9] * Z + e[13]) / w * 0.5 + 0.5) * fh;
+        if (qx < x0) x0 = qx; if (qx > x1) x1 = qx; if (qy < y0) y0 = qy; if (qy > y1) y1 = qy;
       }
       for (const c of casos) {
         const q = project(c.world), p = tagPad(c);
@@ -597,25 +610,25 @@ export async function initValle({
   }
   const rgba = (c, a) => `rgba(${c[0]},${c[1]},${c[2]},${a})`;
   const kmPx = (km, min = 1) => Math.max(min, km * pxPerKm);
-  function drawOverlay() {
-    if (!ovCtx) return;
-    ovCtx.clearRect(0, 0, OW, OH);
-    ovCtx.lineJoin = 'round';
-    ovCtx.lineCap = 'round';
-    const sorted = features.slice().sort((a, b) => BAND_ORDER.indexOf(a.properties.banda) - BAND_ORDER.indexOf(b.properties.banda));
-    for (const f of sorted) {
-      const id = String(f.properties.id);
-      if (id === selectedId) continue;
+  // Selecting a predio used to repaint every polygon of the zone (twice) on the 4096 px canvas. The base
+  // (all predios by band + case outlines) is painted once per zone; a selection change only repaints the
+  // rectangles around the previously and newly selected predios.
+  const selPad = () => Math.ceil(kmPx(0.08, 6) * 2 + kmPx(0.04, 2.5) + 4); // glow + stroke of the selected predio
+  function paintRegion(r) {
+    const m = selPad();
+    const hit = (f) => !r || (f._px.x1 + m >= r.x && f._px.x0 - m <= r.x + r.w && f._px.y1 + m >= r.y && f._px.y0 - m <= r.y + r.h);
+    for (const f of sortedFeatures) {
+      if (f.properties.id === selectedId || !hit(f)) continue;
       const B = bandOf(f.properties.banda);
       tracePath(f);
-      if (B.fill) { ovCtx.fillStyle = rgba(B.fill, selectedId ? B.fa * 0.8 : B.fa); ovCtx.fill('evenodd'); }
+      if (B.fill) { ovCtx.fillStyle = rgba(B.fill, B.fa); ovCtx.fill('evenodd'); }
       ovCtx.strokeStyle = B.stroke;
       ovCtx.lineWidth = kmPx(B.sw, 1.2);
       ovCtx.stroke();
     }
     // case predios: white outline on top so they read as "caso" even when their band is low / sin dato
-    for (const f of features) {
-      if (!casoByPredio.has(String(f.properties.id)) || String(f.properties.id) === selectedId) continue;
+    for (const f of caseFeatures) {
+      if (f.properties.id === selectedId || !hit(f)) continue;
       tracePath(f);
       ovCtx.save();
       ovCtx.setLineDash([kmPx(0.05, 3), kmPx(0.03, 2)]);
@@ -625,7 +638,7 @@ export async function initValle({
       ovCtx.restore();
     }
     const sf = selectedId && byId.get(selectedId);
-    if (sf) {
+    if (sf && hit(sf)) {
       const B = bandOf(sf.properties.banda);
       tracePath(sf);
       ovCtx.save();
@@ -638,13 +651,39 @@ export async function initValle({
       ovCtx.stroke();
       ovCtx.restore();
     }
+  }
+  /** changedIds: predio ids whose look changed (previous + new selection); omit to repaint the whole zone. */
+  function drawOverlay(changedIds = null) {
+    if (!ovCtx) return;
+    ovCtx.lineJoin = 'round';
+    ovCtx.lineCap = 'round';
+    if (!changedIds) {
+      ovCtx.clearRect(0, 0, OW, OH);
+      paintRegion(null);
+    } else {
+      const pad = selPad();
+      for (const id of changedIds) {
+        const f = id && byId.get(id);
+        if (!f) continue;
+        const r = { x: Math.floor(f._px.x0 - pad), y: Math.floor(f._px.y0 - pad), w: Math.ceil(f._px.x1 - f._px.x0 + 2 * pad) + 1, h: Math.ceil(f._px.y1 - f._px.y0 + 2 * pad) + 1 };
+        ovCtx.save();
+        ovCtx.beginPath();
+        ovCtx.rect(r.x, r.y, r.w, r.h);
+        ovCtx.clip();
+        ovCtx.clearRect(r.x, r.y, r.w, r.h);
+        paintRegion(r);
+        ovCtx.restore();
+      }
+    }
     ovTex.needsUpdate = true;
     dirty = true;
   }
-  function updateDotSel() {
+  /** Selection flag of the predio dots. changedIds: only those dots; omit to rewrite them all. */
+  function updateDotSel(changedIds = null) {
     if (!dots) return;
     const a = dots.geometry.getAttribute('aSel');
-    features.forEach((f, i) => { a.setX(i, String(f.properties.id) === selectedId ? 1 : 0); });
+    if (!changedIds) features.forEach((f, i) => { a.setX(i, f.properties.id === selectedId ? 1 : 0); });
+    else for (const id of changedIds) { const i = idIndex.get(id); if (i != null) a.setX(i, id === selectedId ? 1 : 0); }
     a.needsUpdate = true;
   }
 
@@ -659,7 +698,7 @@ export async function initValle({
     if (ovTex) { ovTex.dispose(); ovTex = null; }
     zoneEls.forEach((el) => el.remove());
     zoneEls = []; stops = []; startPin = null; casos = [];
-    selectedId = null; hoverId = null; focus = null; pendingFocus = null; focusPts = null;
+    selectedId = null; hoverId = null; focus = null; pendingFocus = null; focusPts = null; focusArr = null;
     state.routeT = 0; lastT = 0; lastReached = 0;
     selLabel.style.transform = OFF; tip.style.transform = OFF; headDot.style.opacity = '0';
   }
@@ -852,6 +891,14 @@ export async function initValle({
     OW = W >= H ? OVERLAY_MAX : Math.round(OVERLAY_MAX * W / H);
     OH = W >= H ? Math.round(OVERLAY_MAX * H / W) : OVERLAY_MAX;
     pxPerKm = OW / W;
+    // per-zone tables for the overlay and picking: paint order, case predios, pixel bbox, id -> index
+    sortedFeatures = features.slice().sort((a, b) => BAND_ORDER.indexOf(a.properties.banda) - BAND_ORDER.indexOf(b.properties.banda));
+    caseFeatures = features.filter((f) => casoByPredio.has(f.properties.id));
+    idIndex = new Map(features.map((f, i) => [f.properties.id, i]));
+    features.forEach((f) => {
+      const [x0, y1] = pxOf(f._bb.w, f._bb.s), [x1, y0] = pxOf(f._bb.e, f._bb.n);
+      Object.defineProperty(f, '_px', { value: { x0, y0, x1, y1 }, configurable: true, writable: true, enumerable: false });
+    });
     if (!ovCanvas) { ovCanvas = document.createElement('canvas'); ovCtx = ovCanvas.getContext('2d'); }
     ovCanvas.width = OW; ovCanvas.height = OH;
     ovTex = new THREE.CanvasTexture(ovCanvas);
@@ -1175,11 +1222,16 @@ export async function initValle({
     const hr = host.getBoundingClientRect();
     const mx = cx - hr.left, my = cy - hr.top;
     let best = null, bd = 11 * dotUniforms.uScale.value;
-    for (const f of features) {
-      const [lon, lat] = f.properties.centroid;
-      const g = project(llToWorld(lon, lat, 0.03));
-      const d = Math.hypot(g.x - mx, g.y - my);
-      if (g.ok && d < bd) { bd = d; best = f; }
+    if (!dots) return best;
+    // runs on every pointer move: reuse the dot positions (centroids on the terrain) instead of
+    // building a Vector3 per predio per frame
+    const pa = dots.geometry.getAttribute('position').array;
+    const hw = hr.width, hh = hr.height;
+    for (let i = 0; i < features.length; i++) {
+      tmpV.set(pa[i * 3], pa[i * 3 + 1], pa[i * 3 + 2]).project(camera);
+      if (tmpV.z >= 1) continue;
+      const d = Math.hypot((tmpV.x * 0.5 + 0.5) * hw - mx, (-tmpV.y * 0.5 + 0.5) * hh - my);
+      if (d < bd) { bd = d; best = features[i]; }
     }
     return best;
   }
@@ -1188,9 +1240,10 @@ export async function initValle({
     const nid = id == null ? null : String(id);
     if (nid && !byId.has(nid)) return false;
     if (nid !== selectedId) {
+      const changed = [selectedId, nid];
       selectedId = nid;
-      drawOverlay();
-      updateDotSel();
+      drawOverlay(changed);
+      updateDotSel(changed);
       renderSelLabel();
       stops.forEach((st) => { st.sel = null; });
     }

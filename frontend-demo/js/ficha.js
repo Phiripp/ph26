@@ -12,48 +12,120 @@ export function seasonRange(t) {
   return { from: `${y}-12-01`, to: `${y + 1}-03-31` };
 }
 
-export function renderRanking(el, data, { onSelect, selectedId } = {}) {
-  if (!el) return;
-  const groups = { alta: [], media: [], baja: [], sin_alerta: [], sin_dato: [] };
-  for (const f of data.predios) (groups[f.properties.banda] || groups.sin_dato).push(f);
-  for (const k in groups) groups[k].sort(rank);
+/* ---------- ranking: rows are mounted in batches as the list scrolls ---------- */
+// With thousands of predios, one <button> per predio up front meant ~28k DOM nodes and a 0.4 s freeze every
+// time the list was (re)built. A group mounts ROWS_FIRST rows and more when its sentinel scrolls into view.
+const ROWS_FIRST = 60;
+const ROWS_STEP = 120;
+const groupsCache = new WeakMap(); // zone data -> predios grouped by band, each group ranked
 
-  const row = (f, withPill = false) => {
-    const p = f.properties;
-    const meta = p.banda === 'sin_dato' ? '<span class="pn-row-meta">sin dato</span>' : `<span class="pn-row-meta pn-range">${fmtRange(p.m3_estimado_min, p.m3_estimado_max, '')}</span>`;
-    return `<li><button type="button" class="pn-row pn-r-${p.banda}${p.id === selectedId ? ' is-sel' : ''}" data-id="${esc(p.id)}" aria-pressed="${p.id === selectedId}" title="Predio ${esc(p.id)} · ${esc(fmtComuna(p.comuna))}">
+function groupsOf(data) {
+  let g = groupsCache.get(data);
+  if (!g) {
+    g = { alta: [], media: [], baja: [], sin_alerta: [], sin_dato: [] };
+    for (const f of data.predios) (g[f.properties.banda] || g.sin_dato).push(f);
+    for (const k in g) g[k].sort(rank);
+    groupsCache.set(data, g);
+  }
+  return g;
+}
+
+function rowHTML(f, withPill, selectedId) {
+  const p = f.properties;
+  const meta = p.banda === 'sin_dato' ? '<span class="pn-row-meta">sin dato</span>' : `<span class="pn-row-meta pn-range">${fmtRange(p.m3_estimado_min, p.m3_estimado_max, '')}</span>`;
+  return `<li><button type="button" class="pn-row pn-r-${p.banda}${p.id === selectedId ? ' is-sel' : ''}" data-id="${esc(p.id)}" aria-pressed="${p.id === selectedId}" title="Predio ${esc(p.id)} · ${esc(fmtComuna(p.comuna))}">
       <span class="pn-row-top"><b class="pn-id">${esc(p.rol || p.id)}</b>${withPill ? pill(p.banda) : ''}${p.caso ? casoTag(p.caso) : ''}${meta}</span>
     </button></li>`;
+}
+
+/**
+ * Fills a <ul> with `items` in batches. Returns { reveal(id) } which mounts rows up to that predio.
+ * state = { selectedId } is read when each batch is mounted, so late rows get the current selection.
+ */
+function mountRows(ul, items, { withPill, state, root }) {
+  let mounted = 0;
+  let sentinel = null, io = null;
+  const more = (upTo) => {
+    const to = Math.min(items.length, Math.max(upTo, mounted));
+    if (to > mounted) {
+      const html = items.slice(mounted, to).map(f => rowHTML(f, withPill, state.selectedId)).join('');
+      if (sentinel) sentinel.insertAdjacentHTML('beforebegin', html); else ul.insertAdjacentHTML('beforeend', html);
+      mounted = to;
+    }
+    if (mounted >= items.length && sentinel) { io?.disconnect(); sentinel.remove(); sentinel = null; }
   };
+  if (items.length > ROWS_FIRST) {
+    sentinel = document.createElement('li');
+    sentinel.className = 'pn-rows-more';
+    sentinel.setAttribute('aria-hidden', 'true');
+    sentinel.style.cssText = 'height:1px;margin:0;padding:0;list-style:none';
+    ul.appendChild(sentinel);
+    if ('IntersectionObserver' in window) {
+      io = new IntersectionObserver(es => { if (es.some(e => e.isIntersecting)) more(mounted + ROWS_STEP); }, { root, rootMargin: '600px 0px' });
+      io.observe(sentinel);
+    }
+  }
+  more('IntersectionObserver' in window ? ROWS_FIRST : items.length);
+  return {
+    reveal(id) {
+      const i = items.findIndex(f => f.properties.id === id);
+      if (i >= mounted) more(i + 1 + ROWS_STEP / 2);
+      return i >= 0;
+    },
+  };
+}
+
+/** Marks `id` (or nothing) as the selected row of a ranking built by renderRanking(), mounting it if needed. */
+export function selectRankingRow(el, id, { scroll = true } = {}) {
+  const st = el?._rank;
+  if (!st) return;
+  st.state.selectedId = id || null;
+  el.querySelectorAll('.pn-row.is-sel').forEach(x => { x.classList.remove('is-sel'); x.setAttribute('aria-pressed', 'false'); });
+  if (!id) return;
+  st.lists.some(l => l.reveal(id));
+  const sel = el.querySelector(`.pn-row[data-id="${CSS.escape(id)}"]`);
+  if (!sel) return;
+  sel.classList.add('is-sel'); sel.setAttribute('aria-pressed', 'true');
+  sel.closest('details')?.setAttribute('open', '');
+  if (scroll) sel.scrollIntoView({ block: 'nearest' });
+}
+
+export function renderRanking(el, data, { onSelect, selectedId } = {}) {
+  if (!el) return;
+  const groups = groupsOf(data);
+  const state = { selectedId: selectedId || null };
+  const root = el.closest('.vp-body') || null;
   const c = data.counts;
   const sinInd = (c.sin_alerta || 0) + (c.sin_dato || 0);
+  const lists = []; // [{ key, items, withPill }] in DOM order
   let h = `<div class="pn-sum" role="list">
       ${['alta', 'media', 'baja'].map(b => `<span role="listitem" class="pn-sum-i pn-${b}"><b>${c[b] || 0}</b>${esc(BAND_SHORT[b])}</span>`).join('')}
       <span role="listitem" class="pn-sum-i pn-sin_alerta"><b>${sinInd}</b>Sin indicio</span>
     </div>`;
   for (const b of ['alta', 'media']) {
     if (!groups[b].length) continue;
-    h += `<section class="pn-group pn-g-${b}"><h4 class="pn-gh"><span class="pn-dot pn-${b}"></span>${esc(BAND_LABEL[b])}<span class="pn-count">${groups[b].length}</span></h4><ul class="pn-list">${groups[b].map(f => row(f)).join('')}</ul></section>`;
+    lists.push({ key: b, items: groups[b], withPill: false });
+    h += `<section class="pn-group pn-g-${b}"><h4 class="pn-gh"><span class="pn-dot pn-${b}"></span>${esc(BAND_LABEL[b])}<span class="pn-count">${groups[b].length}</span></h4><ul class="pn-list" data-list="${b}"></ul></section>`;
   }
   const rest = [...groups.baja, ...groups.sin_alerta, ...groups.sin_dato];
   if (rest.length) {
     const open = !groups.alta.length && !groups.media.length;
-    h += `<details class="pn-group pn-g-rest pn-more"${open ? ' open' : ''}><summary class="pn-gh"><span class="pn-dot pn-sin_alerta"></span>Otros predios<span class="pn-count">${rest.length}</span></summary><ul class="pn-list">${rest.map(f => row(f, true)).join('')}</ul></details>`;
+    lists.push({ key: 'rest', items: rest, withPill: true });
+    h += `<details class="pn-group pn-g-rest pn-more"${open ? ' open' : ''}><summary class="pn-gh"><span class="pn-dot pn-sin_alerta"></span>Otros predios<span class="pn-count">${rest.length}</span></summary><ul class="pn-list" data-list="rest"></ul></details>`;
   }
   h += `<p class="pn-foot">Consumo estimado ${esc(temporadaOf(data))} en mil m³ (rango). Bandas provisionales hasta el modelo M5.</p>`;
   el.innerHTML = h;
+  el._rank = {
+    state,
+    lists: lists.map(l => mountRows(el.querySelector(`[data-list="${l.key}"]`), l.items, { withPill: l.withPill, state, root })),
+  };
   el.onclick = e => {
     const b = e.target.closest('.pn-row');
     if (!b || !el.contains(b)) return;
-    el.querySelectorAll('.pn-row.is-sel').forEach(x => { x.classList.remove('is-sel'); x.setAttribute('aria-pressed', 'false'); });
-    b.classList.add('is-sel'); b.setAttribute('aria-pressed', 'true');
+    selectRankingRow(el, b.dataset.id, { scroll: false });
     onSelect?.(b.dataset.id);
   };
-  if (selectedId) {
-    const sel = el.querySelector(`.pn-row[data-id="${CSS.escape(selectedId)}"]`);
-    sel?.closest('details')?.setAttribute('open', '');
-    sel?.scrollIntoView({ block: 'nearest' });
-  }
+  if (state.selectedId) selectRankingRow(el, state.selectedId);
 }
 
 /** "Derecho del rol · DGA" value: real m³, or the reason there is none. */

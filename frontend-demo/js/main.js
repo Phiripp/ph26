@@ -448,12 +448,43 @@ function setupZonaPanel({ getValle }) {
   };
 
   /* --- Predios --- */
+  // The pane holds two parts: the ranking, kept alive while the zone is open (rebuilding thousands of
+  // rows on every "← Ranking" froze the panel), and the detail (ficha / expediente) shown in its place.
+  const parts = { rank: null, detail: null, rankFor: null, rankScroll: 0 };
+  function prediosParts() {
+    if (!parts.rank || !panes.predios.contains(parts.rank)) {
+      parts.rank = document.createElement('div');
+      parts.detail = document.createElement('div');
+      parts.detail.hidden = true;
+      parts.rankFor = null; parts.rankScroll = 0;
+      panes.predios.replaceChildren(parts.rank, parts.detail);
+    }
+    return parts;
+  }
+  /** Detail container (ranking hidden, its scroll position remembered). */
+  function detailPart() {
+    const p = prediosParts();
+    if (!p.rank.hidden) { p.rankScroll = body.scrollTop; p.rank.hidden = true; }
+    p.detail.hidden = false;
+    return p.detail;
+  }
+
   async function showRanking() {
     st.view = 'ranking';
     try {
       const [d, P] = await Promise.all([data(), panels()]);
       if (st.view !== 'ranking') return;
-      P.renderRanking(panes.predios, d, { selectedId: st.selectedId, onSelect: id => selectPredio(id, { from: 'panel' }) });
+      const p = prediosParts();
+      const wasHidden = p.rank.hidden;
+      p.detail.hidden = true; p.detail.replaceChildren(); p.detail.onclick = null;
+      p.rank.hidden = false;
+      if (p.rankFor !== d || typeof P.selectRankingRow !== 'function') {
+        P.renderRanking(p.rank, d, { selectedId: st.selectedId, onSelect: id => selectPredio(id, { from: 'panel' }) });
+        p.rankFor = d;
+      } else {
+        if (wasHidden && st.tab === 'predios') body.scrollTop = p.rankScroll;
+        P.selectRankingRow(p.rank, st.selectedId, { scroll: !wasHidden });
+      }
     } catch (err) { fail(panes.predios, err, 'el ranking de predios'); }
   }
 
@@ -466,7 +497,7 @@ function setupZonaPanel({ getValle }) {
       if (!f) { showRanking(); return; }
       await P.Z.ensureSeries(d, id);
       if (st.view !== 'ficha' || st.selectedId !== id) return;
-      P.renderFicha(panes.predios, f, d, {
+      P.renderFicha(detailPart(), f, d, {
         onExpediente: pid => showExpediente(pid || id),
         onBack: () => deselect(),
         onCaso: exp => showCaso(exp),
@@ -486,7 +517,7 @@ function setupZonaPanel({ getValle }) {
       await P.Z.ensureSeries(d, id);
       if (st.view !== 'expediente') return;
       st.selectedId = id;
-      P.renderExpediente(panes.predios, f, d, { onBack: () => showFicha(id) });
+      P.renderExpediente(detailPart(), f, d, { onBack: () => showFicha(id) });
       body.scrollTop = 0;
     } catch (err) { fail(panes.predios, err, 'el expediente'); }
   }

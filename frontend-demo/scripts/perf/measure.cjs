@@ -392,4 +392,5 @@ async function main() {
   process.stdout.write(txt + '\n');
 }
 
-main().catch((err) => { process.stderr.write(`[measure] ${err.stack || err}\n`); process.exit(1); });
+if (require.main === module) main().catch((err) => { process.stderr.write(`[measure] ${err.stack || err}\n`); process.exit(1); });
+module.exports = { newPage, VIEWPORT };

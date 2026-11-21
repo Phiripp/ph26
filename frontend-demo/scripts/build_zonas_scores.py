@@ -1007,6 +1007,10 @@ def main():
     if zonas == ["z1", "z2"]:
         with open(os.path.join(OUT, "README.md"), "w") as f:
             f.write(readme)
+    # archivos livianos que carga la página (resumen.json, scores.lite.json, series/ por bloque)
+    web = subprocess.run([sys.executable, os.path.join(os.path.dirname(os.path.abspath(__file__)), "build_zonas_web.py"), "--check"])
+    if web.returncode:
+        log("AVISO: build_zonas_web.py falló; la página caerá a los JSON completos (más lentos)")
     log("listo")
     os._exit(0)
 

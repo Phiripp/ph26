@@ -33,6 +33,8 @@ Datos de entrada de Caudal. Las zonas, las fuentes y las convenciones están en 
 | `processed/predio_derecho.parquet` | Sí | Resumen por predio con rol válido (18.244): m³ con derecho, derechos del entorno y `estado_derechos`. Lo leen M5 y M12 | `scripts/extract/cruce_derechos_predios.py` |
 | `processed/fiscalizacion.parquet` | Sí | 835 expedientes de fiscalización de la DGA en Z1 y Z2 (497 de extracción de aguas), con etiqueta y predio. Sin nombres | `scripts/extract/fiscalizaciones_dga.py` |
 | `raw/dga/planilla_fiscalizacion.xlsx` | No | Planilla de seguimiento de fiscalización de la DGA (se regenera) | `scripts/extract/fiscalizaciones_dga.py` |
+| `processed/predio_cultivo.parquet` | Sí | Especie frutal y superficie plantada por predio elegible (Catastro Frutícola CIREN 2025), sin geometría | `scripts/extract/cultivos_ciren.py` |
+| `raw/ciren_fruticola/cuarteles.parquet` | No | 5.696 cuarteles plantados de las comunas de Z1 y Z2 (caché) | `scripts/extract/cultivos_ciren.py` |
 | `raw/dga/Derechos_Concedidos_V_Region.xls` | No | Excel de derechos de la DGA, Región de Valparaíso (trae nombres de titulares) | `scripts/extract/derechos_dga.py` |
 | `raw/dga/derecho_titulares.parquet` | No | `derecho_id` y nombre del titular, para el cruce por titular (D5) y el expediente | `scripts/extract/derechos_dga.py` |
 
@@ -118,6 +120,23 @@ Para regenerar: `uv run scripts/extract/fiscalizaciones_dga.py` (baja la planill
 | `geometry` | Punto del acta en EPSG:4326, suponiendo datum WGS84 |
 
 Extracción de aguas por etiqueta: Z1 46 positivos, 290 negativos, 6 en trámite; Z2 33 positivos, 110 negativos, 9 en trámite. Con predio elegible a 50 m o menos: 62 positivos y 318 negativos. Los negativos son débiles: la DGA no encontró infracción el día de la visita. Los `en_tramite` no se muestran como infractores.
+
+## Especie por predio (D7)
+
+Para regenerar: `uv run scripts/extract/cultivos_ciren.py` (necesita `predio.parquet`; `--refrescar` vuelve a bajar los cuarteles).
+
+Los polígonos del Catastro Frutícola son cuarteles plantados (mediana 1,45 ha), no predios. El cruce es por superficie: para cada predio elegible se suma la superficie plantada de cada especie que cae dentro (se ignoran solapes de menos de 0,05 ha). Un cuartel con varias especies se reparte en partes iguales.
+
+| Columna | Descripción |
+| --- | --- |
+| `predio_id`, `zona`, `comuna`, `area_ha` | Del predio elegible |
+| `con_frutales` | Al menos un cuartel dentro: 1.999 de 7.911 predios (25 %) |
+| `area_fruticola_ha`, `frac_fruticola` | Superficie plantada y fracción del predio (tope 1) |
+| `especie_principal`, `especies` | Especie con más superficie; todas, separadas por `;`, de mayor a menor. Palto en el 68 % de los predios con frutales |
+| `n_cuarteles` | Cuarteles que caen dentro |
+| `rol_coincide` | Algún cuartel trae el mismo rol y comuna que el predio (67 % de los predios con frutales) |
+
+Para M4: el 44 % de los predios con infracción (positivos de D6) no tiene frutales en el catastro (pueden ser hortalizas, praderas o cultivos anuales). El Kc tiene que salir del NDVI; la especie solo ajusta cuando existe.
 
 ## Lo que hay que saber
 

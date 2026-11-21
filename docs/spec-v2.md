@@ -174,7 +174,7 @@ Modelo de datos:
 
 | Entidad | Campos clave |
 | --- | --- |
-| predio | predio\_id (`mslink` de CIREN), zona, comuna, rol, rol\_valido, geometría, área en hectáreas, especie (catastro frutícola, si existe) |
+| predio | predio\_id (`mslink` de CIREN), zona, comuna, rol, rol\_valido, geometría, área en hectáreas, elegible; la especie va en `predio_cultivo` (catastro frutícola, si existe) |
 | serie\_predio | predio\_id, fecha, ndvi, ndwi, ndmi, nubosidad\_pct, escena\_id |
 | clima | estación o celda, fecha, lluvia\_mm, et0\_mm |
 | derecho | derecho\_id, expediente DGA, zona, naturaleza (superficial o subterránea), ejercicio, caudal\_ls, m3\_anual, m3\_mes, sumable, gran\_derecho, coord\_estado, punto de captación |

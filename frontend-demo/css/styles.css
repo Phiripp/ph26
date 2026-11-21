@@ -280,6 +280,9 @@ figure.chart{margin:28px 0 0;border:1px solid var(--rule);background:linear-grad
 .valles-grid{display:grid;grid-template-columns:minmax(0,1.15fr) minmax(0,1fr);gap:20px;margin-top:44px;align-items:start}
 .vs-side{display:flex;flex-direction:column;gap:20px;min-width:0}
 .stats-4{grid-template-columns:repeat(4,minmax(0,1fr))}
+.zc .stats-4{grid-template-columns:repeat(3,minmax(0,1fr)) minmax(0,1.4fr)}
+.zc .stats-4 div{padding:12px 8px}
+.zc .stats-4 dd{overflow-wrap:normal;white-space:nowrap}
 .stats dd.b-alta{color:var(--crit)} .stats dd.b-media{color:var(--loss)} .stats dd.b-baja{color:#d6c86e}
 .vs-route{margin:0;font:12px var(--f-mono);color:var(--water);letter-spacing:.04em}
 .vs-flow h3{font-size:21px;margin:0}

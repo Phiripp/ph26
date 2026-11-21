@@ -14,6 +14,7 @@
 <link rel="stylesheet" href="css/styles.css">
 <link rel="stylesheet" href="css/panels.css">
 <link rel="stylesheet" href="css/intro.css">
+<link rel="stylesheet" href="css/impacto.css">
 <script type="importmap">
 {"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.min.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"}}
 </script>
@@ -46,6 +47,7 @@
       <nav aria-label="Principal">
         <a href="#como">Cómo funciona</a>
         <a href="#zonas">Zonas</a>
+        <a href="#impacto">Impacto</a>
         <span class="chip"><span class="rec"></span>Prototipo · Platanus Hack 26</span>
       </nav>
     </div>
@@ -70,7 +72,7 @@
   <aside class="valle-panel hud" id="valle-panel" aria-label="Priorización de la zona" hidden>
     <button class="vp-grip" id="vp-grip" type="button" aria-expanded="false" aria-controls="valle-panel"><span aria-hidden="true"></span><b id="vp-grip-l">Priorización</b></button>
     <div class="vp-head">
-      <p class="vp-kicker" id="vp-kicker">Zona · priorización provisional</p>
+      <p class="vp-kicker" id="vp-kicker">Zona · priorización</p>
       <div class="vp-tabs" role="tablist" aria-label="Vistas de la zona">
         <button class="vp-tab" role="tab" id="vt-predios" aria-controls="vp-predios" aria-selected="true" type="button">Predios <span class="vp-n" id="vt-predios-n"></span></button>
         <button class="vp-tab" role="tab" id="vt-casos" aria-controls="vp-casos" aria-selected="false" type="button" tabindex="-1">Casos <span class="vp-n" id="vt-casos-n"></span></button>
@@ -175,7 +177,7 @@
           <p class="note">Expedientes de fiscalización resueltos con multa. Cada uno abre su zona, la serie del predio con la fecha de inspección y, en 3 casos, recortes Sentinel-2 antes y después.</p>
           <ol class="caso-list" id="casos-list"><li class="note">Cargando…</li></ol>
         </article>
-        <p class="note">Bandas e índice provisionales hasta el modelo M5 del equipo. Caudal muestra rangos, nunca una cifra única, y no identifica dueños.</p>
+        <p class="note"><b id="total-predios">—</b> predios analizados en las dos zonas. Bandas y puntaje del modelo M5. Caudal muestra rangos, nunca una cifra única, y no identifica dueños.</p>
       </div>
 
       <div class="vs-side">
@@ -194,7 +196,7 @@
         <article class="panel vs-flow" aria-labelledby="flow-title">
           <h3 id="flow-title">Caudal prepara. Una persona presenta.</h3>
           <ol class="flow">
-            <li><b>Ficha</b> del predio: banda provisional, confianza y por qué, derecho del rol en la DGA, series NDVI/NDMI con ventanas secas.</li>
+            <li><b>Ficha</b> del predio: banda, confianza y por qué, derecho del rol en la DGA, series NDVI/NDMI con ventanas secas.</li>
             <li><b>Expediente</b> en borrador con los campos de la guía de denuncias de la DGA. La afectación y los datos del denunciante los escribe la persona.</li>
             <li>Se presenta en la <b>Oficina Virtual DGA (SNIA) con Clave Única</b>. Caudal no presenta nada.</li>
           </ol>
@@ -208,7 +210,7 @@
 <footer>
   <div class="wrap">
     <span>Caudal · Platanus Hack 26 · Track Physical World</span>
-    <span>Prototipo. Datos reales: predios del catastro CIREN, derechos de agua por rol (DGA), casos y fiscalizaciones de la DGA (expedientes públicos), clima de estaciones DMC con Open-Meteo corregido, NDVI/NDMI Sentinel-2 L2A (Element84), imágenes EOX Sentinel-2 cloudless, ruta OSRM sobre OpenStreetMap optimizada con OR-Tools. Provisional: bandas, índice y rangos de consumo, hasta el modelo M5 del equipo. Caudal prioriza, no acusa: no identifica dueños ni presenta denuncias.</span>
+    <span>Prototipo. Datos reales: predios del catastro CIREN, derechos de agua por rol (DGA), casos y fiscalizaciones de la DGA (expedientes públicos), clima de estaciones DMC con Open-Meteo corregido, NDVI/NDMI Sentinel-2 L2A (Element84), imágenes EOX Sentinel-2 cloudless, ruta OSRM sobre OpenStreetMap optimizada con OR-Tools. Caudal prioriza, no acusa: no identifica dueños ni presenta denuncias.</span>
   </div>
 </footer>
 </body>

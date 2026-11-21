@@ -1,0 +1,179 @@
+{
+  "temporada": "2025-26",
+  "candidatos": 501,
+  "candidatos_por_zona": {
+    "Z1": 242,
+    "Z2": 259
+  },
+  "candidatos_mas_100ha": 34,
+  "acierto_dga": 0.32710280373831774,
+  "acierto_caudal": {
+    "bajo": 0.24809225259746442,
+    "central": 0.4666666666666667,
+    "alto": 0.6988336984894921
+  },
+  "lift_alta": 3.6646111023105297,
+  "auc_fiscalizados": 0.618969298245614,
+  "escenarios": {
+    "conservador": {
+      "candidatos": 158,
+      "acierto": 0.24809225259746442,
+      "casos": 39.19857591039938,
+      "m3_ano": 2132658.560730407,
+      "clp_ano": 5544912257.899058,
+      "personas": 34397.71872145818,
+      "multas_clp": 328225698.51567733
+    },
+    "central": {
+      "candidatos": 467,
+      "acierto": 0.32710280373831774,
+      "casos": 152.7570093457944,
+      "m3_ano": 9335308.59813084,
+      "clp_ano": 40141826971.962616,
+      "personas": 255761.87940084495,
+      "multas_clp": 6371772820.286215
+    },
+    "alto": {
+      "candidatos": 467,
+      "acierto": 0.6988336984894921,
+      "casos": 326.3553371945928,
+      "m3_ano": 43556894.18044649,
+      "clp_ano": 609796518526.2509,
+      "personas": 2386679.13317515,
+      "multas_clp": 22325084194.518295
+    }
+  },
+  "adelanto_mediana_anos": 1.9712525667351128,
+  "adelanto_casos": 8,
+  "supuestos": {
+    "clp_m3": {
+      "bajo": 2600,
+      "central": 4300,
+      "alto": 14000
+    },
+    "m3_persona_ano": {
+      "bajo": 62.0,
+      "central": 36.5,
+      "alto": 18.25
+    },
+    "utm_clp": 72450
+  },
+  "lift_alta_sin_calibrar": {
+    "valor": 2.5975,
+    "ic_bajo": 1.2637249583281596,
+    "ic_alto": 4.440753596271995,
+    "positivos": 6,
+    "de": 19,
+    "umbrales": {
+      "umbral_verdor": 2.0,
+      "umbral_humedad": 2.0,
+      "frac_min": 0.5,
+      "dias_min": 10
+    }
+  },
+  "capacidad": {
+    "fiscalizaciones_por_ano": 33.333333333333336,
+    "candidatos_hasta_100ha": 467,
+    "anos": 14.01
+  },
+  "equivalencias": {
+    "m3_persona_ano": {
+      "valor": 36.5,
+      "nota": "100 litros por persona al día",
+      "fuente": "Corte Suprema, 2021 (dotación mínima para Petorca)",
+      "url": "https://www.24horas.cl/regiones/valparaiso/corte-suprema-determina-100-litros-de-agua-por-habitantes-de-petorca-4708851"
+    },
+    "lata_monster_ml": {
+      "valor": 473,
+      "nota": "lata de Monster Energy",
+      "fuente": "ficha del producto",
+      "url": "https://andina.micoca-cola.cl/monster-energy-green-473-ml/p"
+    },
+    "torre_costanera_m3": {
+      "valor": 449925.0,
+      "nota": "estimación propia: 107.125 m² construidos x 4,2 m por piso; ninguna fuente publica el volumen",
+      "fuente": "WikiArquitectura (superficie y alturas de piso)",
+      "url": "https://es.wikiarquitectura.com/edificio/gran-torre-santiago-torre-gran-costanera/"
+    }
+  },
+  "torres_costanera_ano": {
+    "conservador": 4.740031251276117,
+    "central": 20.74858831612122
+  },
+  "generado": "2026-11-21T18:15:07",
+  "fuentes": [
+    "data/processed/puntaje.parquet",
+    "data/processed/puntaje_validacion.parquet",
+    "data/processed/fiscalizacion.parquet",
+    "data/processed/calibracion_grilla.csv"
+  ],
+  "pitch": {
+    "generado": "2026-11-21",
+    "lift": {
+      "valor": 2.6,
+      "ic_bajo": 1.26,
+      "ic_alto": 4.44,
+      "positivos": 6,
+      "de": 19,
+      "fuente": "impacto.json lift_alta_sin_calibrar (umbrales fijados antes de mirar; docs/validacion.md)",
+      "nota": "No se usa lift_alta: se midió con los mismos casos que calibraron los umbrales"
+    },
+    "predio": {
+      "predio_id": 5301984,
+      "zona": "Z2",
+      "m3_exceso_min": 104648,
+      "m3_exceso_central": 162924,
+      "m3_exceso_max": 280044,
+      "m3_persona_ano": 36.5,
+      "personas": 2867,
+      "m3_lata": 0.000473,
+      "latas": 221243129,
+      "persona": {
+        "valor": 36.5,
+        "nota": "100 litros por persona al día",
+        "fuente": "Corte Suprema, 2021 (dotación mínima para Petorca)",
+        "url": "https://www.24horas.cl/regiones/valparaiso/corte-suprema-determina-100-litros-de-agua-por-habitantes-de-petorca-4708851"
+      },
+      "lata": {
+        "valor": 473,
+        "nota": "lata de Monster Energy",
+        "fuente": "ficha del producto",
+        "url": "https://andina.micoca-cola.cl/monster-energy-green-473-ml/p"
+      },
+      "fuente": "puntaje.parquet m3_exceso_min del predio ÷ impacto.json equivalencias"
+    },
+    "candidatos": {
+      "n": 501,
+      "por_zona": {
+        "Z1": 242,
+        "Z2": 259
+      },
+      "fuente": "impacto.json candidatos: banda alta 2025-26 sin fiscalización de la DGA a 500 m desde 2018"
+    },
+    "torres": {
+      "m3_torre": 449925.0,
+      "torre": {
+        "valor": 449925.0,
+        "nota": "estimación propia: 107.125 m² construidos x 4,2 m por piso; ninguna fuente publica el volumen",
+        "fuente": "WikiArquitectura (superficie y alturas de piso)",
+        "url": "https://es.wikiarquitectura.com/edificio/gran-torre-santiago-torre-gran-costanera/"
+      },
+      "m3_ano_conservador": 2132659,
+      "m3_ano_central": 9335309,
+      "valor_min": 4.74,
+      "valor_max": 20.75,
+      "min": 5,
+      "max": 20,
+      "redondeo": "mínimo al entero más cercano y máximo hacia abajo (4,7 → 5; 20,7 → 20)",
+      "fuente": "impacto.json torres_costanera_ano (conservador y central)"
+    },
+    "capacidad": {
+      "candidatos_hasta_100ha": 467,
+      "fiscalizaciones_ano": 33.3,
+      "anos_valor": 14.01,
+      "anos": 14,
+      "fuente": "impacto.json capacidad"
+    },
+    "pie": "2,1 a 9,3 millones de m³ al año · torre estimada en 449.925 m³"
+  }
+}

@@ -2,6 +2,19 @@
 
 21-11-2026 · plazo: 12 horas · complementa [spec-v2.md](spec-v2.md) y [spec-demo.md](spec-demo.md)
 
+## Estado de la corrida (22-11, 23:30)
+
+| Etapa | Estado |
+| --- | --- |
+| `base` | ✅ 14 de 14 regiones (`caudal-chile-datos-l4dth`), sin fallas. Antes hubo dos arreglos: columnas de especie por capa en `cultivos_ciren.py`, y la paginación de ArcGIS cortaba en una página repetida (el servidor de la DGA ignora `resultOffset`) |
+| `plan` | ✅ Solo Valparaíso, con el año completo (abril de 2025 a hoy): 8 tiles, 1.198 escenas y 40 partes de carga pareja (reparto por escena). Las demás regiones se planifican después |
+| `satelite` | ▶ En curso: 40 tareas en us-west1, us-west2, us-west4 y us-central1. Estimado: ~1 h (el piloto midió ~0,47 escenas por minuto por tarea) |
+| `region` y `nacional` | Pendiente. Valparaíso primero |
+
+- **Imagen de los jobs:** `caudal-jobs/pipeline:e6d5ad0315fe`.
+- **API de la demo:** `caudal-api` está en producción (T7 en [spec-demo.md](spec-demo.md)) y no depende de esta corrida.
+- **Ranking:** no cambia con el año completo de Valparaíso. Ver [Año completo en Valparaíso](#año-completo-en-valparaíso).
+
 ## Objetivo
 
 Correr el ranking de la temporada seca 2025-26 (M1 a M5) sobre todos los predios elegibles de Chile, no solo los de Z1 y Z2. Lo hacen tres Cloud Run Jobs (el segundo es el mismo job repetido en cuatro regiones) que dejan todo en un bucket de GCS. Ese bucket se monta como volumen en los jobs y en `caudal-web`.

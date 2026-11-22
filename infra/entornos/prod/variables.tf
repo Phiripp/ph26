@@ -25,7 +25,7 @@ variable "cuenta_servicio_web" {
 variable "version_imagen" {
   description = "Etiqueta de la imagen de los jobs en Artifact Registry: el commit corto que imprime infra/imagen/construir.sh."
   type        = string
-  default     = "ecef4d1bf4cd"
+  default     = "e6d5ad0315fe"
 }
 
 variable "corrida" {

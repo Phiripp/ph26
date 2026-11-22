@@ -1,0 +1,166 @@
+{
+ "inicio": {
+  "lon": -71.2474,
+  "lat": -32.88,
+  "acceso_lon": -71.247434,
+  "acceso_lat": -32.880526,
+  "camino": "La Concepción",
+  "nombre": "Plaza de Armas de Quillota"
+ },
+ "hora_inicio": "08:30",
+ "hora_termino": "12:54",
+ "jornada_h": 8,
+ "min_por_visita": 30,
+ "max_paradas": 5,
+ "total_min": 264.9,
+ "manejo_min": 114.9,
+ "visita_min": 150.0,
+ "total_km": 89.2,
+ "km_trazado": 93.0,
+ "n_candidatos": 12,
+ "n_visitados": 5,
+ "puntaje_visitado": 827.6857,
+ "puntaje_candidatos": 1605.8431,
+ "paradas": [
+  {
+   "orden": 1,
+   "predio_id": 5341456,
+   "puntaje": 140.8804,
+   "lon": -71.28820461026811,
+   "lat": -32.88861321516509,
+   "acceso_lon": -71.288549,
+   "acceso_lat": -32.889258,
+   "dist_camino_m": 78,
+   "camino": "",
+   "min_desde_anterior": 8.7,
+   "km_desde_anterior": 5.7,
+   "llegada": "08:38",
+   "salida": "09:08",
+   "enlace_navegacion": "https://www.google.com/maps/dir/?api=1&destination=-32.889258,-71.288549&travelmode=driving"
+  },
+  {
+   "orden": 2,
+   "predio_id": 5339047,
+   "puntaje": 152.89,
+   "lon": -71.21043645344876,
+   "lat": -32.90607463694951,
+   "acceso_lon": -71.210441,
+   "acceso_lat": -32.907051,
+   "dist_camino_m": 108,
+   "camino": "Los Almendros",
+   "min_desde_anterior": 19.0,
+   "km_desde_anterior": 11.7,
+   "llegada": "09:27",
+   "salida": "09:57",
+   "enlace_navegacion": "https://www.google.com/maps/dir/?api=1&destination=-32.907051,-71.210441&travelmode=driving"
+  },
+  {
+   "orden": 3,
+   "predio_id": 5340136,
+   "puntaje": 184.76,
+   "lon": -71.22118564541508,
+   "lat": -32.89484064042563,
+   "acceso_lon": -71.220236,
+   "acceso_lat": -32.895164,
+   "dist_camino_m": 96,
+   "camino": "",
+   "min_desde_anterior": 6.0,
+   "km_desde_anterior": 2.9,
+   "llegada": "10:03",
+   "salida": "10:33",
+   "enlace_navegacion": "https://www.google.com/maps/dir/?api=1&destination=-32.895164,-71.220236&travelmode=driving"
+  },
+  {
+   "orden": 4,
+   "predio_id": 5301325,
+   "puntaje": 189.2141,
+   "lon": -71.05258948525724,
+   "lat": -32.81880209768319,
+   "acceso_lon": -71.05323,
+   "acceso_lat": -32.816813,
+   "dist_camino_m": 229,
+   "camino": "Camino Agrícola",
+   "min_desde_anterior": 42.5,
+   "km_desde_anterior": 33.5,
+   "llegada": "11:16",
+   "salida": "11:46",
+   "enlace_navegacion": "https://www.google.com/maps/dir/?api=1&destination=-32.816813,-71.053230&travelmode=driving"
+  },
+  {
+   "orden": 5,
+   "predio_id": 5300142,
+   "puntaje": 159.9412,
+   "lon": -71.16124871716724,
+   "lat": -32.781407226570145,
+   "acceso_lon": -71.161116,
+   "acceso_lat": -32.781037,
+   "dist_camino_m": 43,
+   "camino": "",
+   "min_desde_anterior": 19.2,
+   "km_desde_anterior": 17.0,
+   "llegada": "12:05",
+   "salida": "12:35",
+   "enlace_navegacion": "https://www.google.com/maps/dir/?api=1&destination=-32.781037,-71.161116&travelmode=driving"
+  }
+ ],
+ "fuera": [
+  {
+   "predio_id": 5330868,
+   "puntaje": 132.7417,
+   "lon": -71.23700550955934,
+   "lat": -32.81754064346532,
+   "motivo": "tope_de_paradas",
+   "min_ida": 11.6
+  },
+  {
+   "predio_id": 5346349,
+   "puntaje": 122.6862,
+   "lon": -71.17721403116698,
+   "lat": -32.77273221435807,
+   "motivo": "tope_de_paradas",
+   "min_ida": 19.6
+  },
+  {
+   "predio_id": 5346453,
+   "puntaje": 106.8086,
+   "lon": -71.14765101270959,
+   "lat": -32.8448082234395,
+   "motivo": "tope_de_paradas",
+   "min_ida": 28.2
+  },
+  {
+   "predio_id": 5346467,
+   "puntaje": 106.7277,
+   "lon": -71.1500838393757,
+   "lat": -32.846811066663015,
+   "motivo": "tope_de_paradas",
+   "min_ida": 29.0
+  },
+  {
+   "predio_id": 5346409,
+   "puntaje": 105.5728,
+   "lon": -71.14563716285195,
+   "lat": -32.847702051845275,
+   "motivo": "tope_de_paradas",
+   "min_ida": 29.0
+  },
+  {
+   "predio_id": 5330468,
+   "puntaje": 101.8867,
+   "lon": -71.26327043031066,
+   "lat": -32.818519302645214,
+   "motivo": "tope_de_paradas",
+   "min_ida": 17.7
+  },
+  {
+   "predio_id": 5339377,
+   "puntaje": 101.7337,
+   "lon": -71.32483656175374,
+   "lat": -32.89137178833904,
+   "motivo": "tope_de_paradas",
+   "min_ida": 12.6
+  }
+ ],
+ "fuente": "OSRM público (router.project-osrm.org, OpenStreetMap, perfil auto); orden con OR-Tools",
+ "zona": "Z2"
+}

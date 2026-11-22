@@ -100,7 +100,7 @@ La etapa `base` de la corrida nacional ya bajó los derechos y los sectores de a
 | # | Tarea | Prioridad | Quién | Depende de | Hecho cuando |
 | --- | --- | --- | --- | --- | --- |
 | AP1 | `scripts/models/agua_potable.py`: escribe `data/processed/predio_agua_potable.parquet` y `data/processed/pozo_agua_potable.geojson` (ver el contrato) | P0 | — | — | Da 72 candidatos cerca con 1.000 m |
-| AP1b | `scripts/extract/apr_mop.py`: baja la [capa APR del MOP](https://rest-sit.mop.gob.cl/arcgis/rest/services/DOH/APR/MapServer/0) con `scripts/comun/arcgis.py`, deduplica por `ID_IDE` (la paginación devuelve cada sistema dos veces) y escribe `data/processed/apr.parquet`. `agua_potable.py` le asigna a cada pozo de agua potable los APR a `RADIO_APR_M` (2.000 m) o menos | P0 | — | — | 90 APR y 93.489 beneficiarios en las comunas de Z1 y Z2; 22 APR y unos 23.800 beneficiarios cerca de los 26 pozos con candidatos |
+| AP1b | Hecho con `scripts/extract/apr_doh.py` (D12), que ya baja la [capa APR del MOP](https://rest-sit.mop.gob.cl/arcgis/rest/services/DOH/APR/MapServer/0), deduplica por `ID_IDE` y escribe `data/processed/apr.parquet` (beneficiarios en `beneficiarios_est`). `agua_potable.py` le asigna a cada pozo de agua potable los APR a `RADIO_APR_M` (2.000 m) o menos | P0 | — | — | 90 APR y 93.489 beneficiarios en las comunas de Z1 y Z2; 22 APR y unos 23.800 beneficiarios cerca de los 26 pozos con candidatos |
 | AP2 | `impacto.py`: bloque `agua_potable` en `impacto.json` y sección "Agua potable" en `impacto.md`, con el mismo universo de candidatos (`candidatos()`) | P0 | — | AP1 | `impacto.md` muestra los candidatos cerca, por zona, sin canal cerca, en m³ y en personas |
 | AP3 | `explicacion.py`: en `_contexto`, agregar la frase y el campo `dist_agua_potable_m`. No se agrega una razón nueva: se mantienen las 4 | P0 | — | AP1 | `/api/predios/5301325` dice "Pozo de agua potable del mismo acuífero a 853 m" |
 | AP4 | `build_m5_web.py`: campos `agua_potable` y `dist_agua_potable_m` en `scores.lite.json`, y copia de `pozo_agua_potable.geojson` a `data/zonas/` | P0 | — | AP1 | Los archivos exportados traen los campos |
@@ -131,7 +131,7 @@ Orden sugerido: AP1, AP1b y AP7 en paralelo (el guion se escribe con la cifra de
 
 **`pozo_agua_potable.geojson`:** son puntos con `derecho_id`, `zona`, `comuna`, `caudal_ls`, `m3_anual`, `cod_shac` y `n_candidatos_cerca` (candidatos de los 467 a `RADIO_M` o menos). No lleva titular.
 
-**`apr.parquet`:** una fila por sistema de agua potable rural (SSR, ex APR).
+**`apr.parquet`:** una fila por sistema de agua potable rural (SSR, ex APR). Lo escribe `apr_doh.py`; los nombres de columna reales están en su docstring (por ejemplo, `beneficiarios_est` y no `beneficiarios`).
 
 | Campo | Origen en la capa del MOP | Nota |
 | --- | --- | --- |
@@ -174,24 +174,27 @@ En `pozo_agua_potable.geojson` se agregan `apr_cercanos` (lista de `nombre`) y `
 
 1. Universo: los 467 candidatos de `impacto.py` (`candidatos()`).
 2. `agua_potable` (AP1): pozo de agua potable del mismo SHAC a 1.000 m o menos.
-3. `beneficiarios_cercanos` (AP1b): suma de `BENEF_EST` de los APR a 2.000 m o menos de ese pozo.
-4. `rank_agua`, por zona. Primero van los candidatos con `agua_potable`, ordenados por `beneficiarios_cercanos` y después por `puntaje`, de mayor a menor. Después va el resto, por `puntaje`.
-5. Ruta: entran a `ruta_inspeccion.py --puntajes` solo los candidatos con `beneficiarios_cercanos` > 0. Cada uno pesa `prioridad = puntaje × (1 + beneficiarios_cercanos / máximo de la zona)`, de modo que el del pozo con más gente pesa hasta el doble. Se usan `--top 40 --max-paradas 5` y `--salida data/processed/ruta_agua_<zona>`.
+3. `beneficiarios_cercanos` (AP1b): suma de `beneficiarios_est` de los APR a 2.000 m o menos de ese pozo.
+4. `rank_agua`, por zona. Primero van los candidatos con `agua_potable`, ordenados por `beneficiarios_cercanos` y después por `puntaje`, de mayor a menor. Después va el resto, por `puntaje`. **En la práctica ordena por beneficiarios y el puntaje solo desempata:** dentro de la banda alta el puntaje no separa a los infractores (89,3 contra 89,7), así que no hay razón para pesarlo más.
+5. Ruta: entran a `ruta_inspeccion.py --puntajes` solo los candidatos con `beneficiarios_cercanos` > 0, **uno por pozo** (el de mayor puntaje), para que dos paradas no lleven al mismo pozo. Cada uno pesa `prioridad = puntaje × (1 + beneficiarios_cercanos / máximo de la zona)`, de modo que el del pozo con más gente pesa hasta el doble. `agua_potable.py` escribe esa lista en `data/processed/prioridad_agua.parquet` (con `puntaje` = prioridad) y la ruta se calcula con `--puntajes data/processed/prioridad_agua.parquet --top 40 --max-paradas 5 --salida data/processed/ruta_agua_<zona>`.
 
-**Prototipo del 21-11, Z2:** 37 candidatos con APR cerca.
+**Resultado del 22-11 (`agua_potable.py`):** en Z2 hay 37 candidatos con APR cerca y quedan 12 al dejar uno por pozo; en Z1, 20 y 8.
 
-| Ruta | Paradas | Horario | Km |
-| --- | --- | --- | --- |
-| Actual, por sospecha (`ruta_z2`) | 5331169, 5331643, 5331040, 5300317, 5301325 | 08:30–12:28 | 71,3 |
-| Agua potable (`ruta_agua_z2`) | 5340803, 5340136, 5301352, 5301325, 5300860 | 08:30–12:37 | 75,3 |
+| Ruta | Paradas | Horario | Km | APR distintos | Beneficiarios (cada APR una vez) |
+| --- | --- | --- | --- | --- | --- |
+| Z2 por sospecha (`ruta_z2`, sin cambios) | 5331169, 5331643, 5331040, 5300317, 5301325 | 08:30–12:28 | 71,3 | — | — |
+| Z2 agua potable (`ruta_agua_z2`) | 5341456, 5339047, 5340136, 5301325, 5300142 | 08:30–12:54 | 89,2 | 9 | 13.696 |
+| Z1 agua potable (`ruta_agua_z1`) | 5345272, 5345202, 5320289, 5305667, 5311382 | 08:30–15:13 | 208,2 | 5 | 5.193 |
 
-Las paradas de la ruta de agua potable están cerca de los pozos asociados a los APR La Palma, 19 de Febrero y La Tetera (3.879 beneficiarios) y La Sombra (3.543). Los primeros puestos de `rank_agua` en Z2 son 5340136 (sube del puesto 51 al 1) y 5301325 (del 4 al 3). En Z1 el primero es 5311382 (sube del 101 al 1), cerca del pozo asociado al APR John Kennedy (2.133).
+El prototipo del 21-11 (sin la regla de un predio por pozo) daba en Z2 5340803, 5340136, 5301352, 5301325 y 5300860, de 08:30 a 12:37 y 75,3 km: dos pares de paradas iban al mismo pozo. Los primeros puestos de `rank_agua` no cambian: en Z2, 5340136 (sube del puesto 51 al 1) y 5301325 (del 4 al 3); en Z1, 5311382 (del 101 al 1), cerca del pozo asociado al APR John Kennedy (2.133).
 
 **Lo que este orden no sabe:**
 
 - Si el predio afecta de verdad al pozo: no hay modelo de la napa ni niveles de pozos, y 1.000 m es un criterio.
 - Si ese pozo abastece al APR: el APR se asocia por cercanía y su punto es la localidad, no la captación.
 - Si a ese APR le falta agua hoy: no hay datos de déficit ni de camión aljibe por APR.
+- **El orden dentro de los cerca es por beneficiarios:** el puntaje solo desempata, porque dentro de la banda alta no separa a los infractores.
+- **Pozos distintos pueden compartir APR:** un predio por pozo evita repetir pozos, pero dos pozos cercanos pueden quedar a 2.000 m del mismo APR (Bartolillo en Z1; 19 de Febrero y La Tetera en Z2). Por eso las cifras de la ruta cuentan cada APR una sola vez, no suman `beneficiarios_cercanos` por parada (Z2: 13.696 y no 14.850; Z1: 5.193 y no 6.591).
 
 Se presenta como "priorizamos los casos que podrían afectar el agua de más gente", nunca como "protegemos el agua de N personas".
 
@@ -200,7 +203,7 @@ Se presenta como "priorizamos los casos que podrían afectar el agua de más gen
 - Pesar por la tendencia de los 68 pozos de nivel de la DGA en las comunas de Z1 y Z2, entre ellos "Agua Potable Hierro Viejo".
 - Ubicar la captación real de cada APR.
 
-**Para la demo (opcional):** en la pestaña Ruta: "Y si la prioridad es el agua de la gente, la ruta cambia: cinco predios cerca de los pozos de cuatro APR, con unos 7.400 beneficiarios".
+La frase sobre la ruta de agua potable no va en el guion: queda en las respuestas al jurado (ver [Pitch](#pitch)).
 
 ## Textos
 
@@ -220,7 +223,10 @@ Esta frase va en el bloque de 2:00, después de "Revisarlos uno por uno tomaría
 
 Opcional en la ruta (1:35), si sobra tiempo: "Y la quinta parada está a 850 metros del pozo que abastece de agua potable".
 
-Respuesta lista para el jurado. Pregunta: "¿Cómo saben que afecta al pozo?". Respuesta: "No lo sabemos. Usamos el mismo acuífero y un kilómetro como criterio para priorizar. Medir el efecto requiere niveles de pozos, que la DGA tiene y nosotros no".
+Respuestas listas para el jurado:
+
+- Pregunta: "¿Cómo saben que afecta al pozo?". Respuesta: "No lo sabemos. Usamos el mismo acuífero y un kilómetro como criterio para priorizar. Medir el efecto requiere niveles de pozos, que la DGA tiene y nosotros no".
+- Pregunta: "¿Y si la prioridad fuera el agua de la gente?". Respuesta: "La ruta cambia. En Quillota pasa por cinco predios cerca de pozos de agua potable, junto a nueve sistemas de agua potable rural con unos 13.700 beneficiarios. Es una prioridad, no una medición del daño".
 
 ## Datos buscados para un plan de acceso
 

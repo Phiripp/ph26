@@ -10,11 +10,12 @@ Este documento define qué decimos y qué mostramos en los 3 minutos de la final
 | --- | --- | --- |
 | Duración | 3 minutos | Organización |
 | Demo mínima | 1 minuto 30 segundos | Organización |
-| Corte duro a los 3:00 y 2 minutos de preguntas | Confirmado | Equipo |
+| Corte duro a los 3:01 y 2 minutos de preguntas; 1:30 de evaluación | Guía de la organización | Organización |
+| 4 jueces: aspecto técnico 25 %, ambición 20 %, ejecución 20 %, impacto 20 %, originalidad 15 % | Guía de la organización | Organización |
+| Dos rondas: general de 9:30 a 11:30 y final de 12:30 a 3:30. La presentación se graba y se publica | Guía de la organización | Organización |
 | El reloj parte con la primera palabra | Confirmado | Equipo |
 | El jurado lee el repo y castiga las demos simuladas | Confirmado | Equipo |
 
-No hay una rúbrica oficial publicada.
 
 Consecuencias para nosotros:
 
@@ -31,7 +32,7 @@ Seguimos las dos guías de Y Combinator para presentar una empresa: [How to Pitc
 | La primera frase dice qué haces, en palabras simples. Demorarlo "siempre es un error" | El guion parte con "Soy Tomás, y esto es Caudales" y la slide dice "El agua está repartida. No todos respetan su parte.". Qué hacemos cierra el problema, a los 25 segundos |
 | Sin jerga, siglas ni lenguaje de marketing. Que suene "más tonto de lo que crees que debería" | No se nombran satélites, índices ni métodos. "DGA" se dice completo la primera vez |
 | El oyente retiene 3 o 4 ideas. Decirlas y repetirlas al final | Cuatro ideas (abajo); el cierre las repite |
-| El problema, corto | 24 segundos, con dos cifras |
+| El problema, corto | 21 segundos, con dos cifras |
 | Si hay resultados, no esconderlos. Sin exagerar: exagerar es un error fatal | El caso real y el 2,6 van con su fuente. Usamos 2,6 y no 3,7. No decimos "en vivo" de algo que ya estaba generado |
 | Tamaño del problema desde abajo, con números concretos | 425 en la zona que se muestra y 501 entre las dos |
 | Terminar con lo que quieres, sin rodeos | No la usamos: no le pedimos nada al jurado. El cierre repite las ideas y nombra al equipo |
@@ -53,50 +54,58 @@ Cuatro ideas que el jurado debe recordar:
 
 ## Guion
 
-Toda la demo ocurre en una sola zona (Aconcagua bajo, comuna de Hijuelas) para no gastar tiempo en vuelos entre zonas. El producto está en pantalla desde el 0:29 hasta el 2:28; el recorrido en vivo dura 1:43. La apertura y el cierre van con el deck ([deck/index.html](deck/index.html), 3 slides y 4 de reserva): se abre en el navegador, con las flechas se avanza y con F se pone en pantalla completa.
+Toda la demo ocurre en una sola zona (Aconcagua bajo, comuna de Hijuelas) para no gastar tiempo en vuelos entre zonas. El producto está en pantalla desde el 0:48 hasta el 2:33 (1:45); el recorrido de las cuatro pantallas dura 1:29. La apertura y el cierre van con el deck ([deck/index.html](deck/index.html), 4 slides y 4 de reserva): se abre en el navegador, con las flechas se avanza y con F se pone en pantalla completa.
 
 | Tiempo | Segundos | Tramo | Qué se ve |
 | --- | --- | --- | --- |
 | 0:00–0:05 | 5 | Intro | Slide 1: CAUDALES y "El agua está repartida. No todos respetan su parte." |
-| 0:05–0:29 | 24 | El problema | Slide 2: "50 litros al día". Al terminar se cambia al producto |
-| 0:29–0:47 | 18 | Demo: la zona | Vuelo a Aconcagua bajo; panel "De 3.639 predios, 425 tienen señal alta…" |
-| 0:47–1:22 | 35 | Demo: el caso real | Ficha del caso FO-0504-95: multa, "al menos 2,0 años antes" y el agua estimada |
-| 1:22–1:58 | 36 | Demo: un candidato de hoy | Ficha del candidato; se abre el expediente PDF |
-| 1:58–2:12 | 14 | Demo: la ruta de mañana | Pestaña Ruta: "5 predios · 4 horas · 71 km" |
-| 2:12–2:28 | 16 | Qué tan bien funciona | Sigue la pestaña Ruta: no se cambia de pantalla |
-| 2:28–2:44 | 16 | Cierre | Slide 3: 2 años, 2,6× y 501; caudales.dev y equipo. Se queda durante las preguntas |
+| 0:05–0:26 | 21 | El problema | Slide 2: "50 litros al día" |
+| 0:26–0:48 | 22 | La solución | Slide 3: "7.911 predios", 160 mil mediciones, 36 horas, 14 regiones. Al terminar se cambia al producto |
+| 0:48–1:03 | 15 | Demo: la zona | Vuelo a Aconcagua bajo; panel "De 3.639 predios, 425 tienen señal alta…" |
+| 1:03–1:36 | 33 | Demo: el caso real | Ficha del caso FO-0504-95: multa, "al menos 2,0 años antes" y el agua estimada |
+| 1:36–2:06 | 30 | Demo: un candidato de hoy | Ficha del candidato; se abre el expediente PDF |
+| 2:06–2:17 | 11 | Demo: la ruta de mañana | Pestaña Ruta: "5 predios · 4 horas · 71 km" |
+| 2:17–2:33 | 16 | Qué tan bien funciona | Sigue la pestaña Ruta: no se cambia de pantalla |
+| 2:33–2:46 | 13 | Cierre | Slide 4: 2 años, 2,6× y 501; caudales.dev y equipo. Se queda durante las preguntas |
 
-Termina a los 2:44: quedan 16 segundos de margen antes del corte. El reparto sale de la revisión del 22-11 con tres espectadores simulados (alguien cansado en la quinta fila, un jurado técnico y un coach de demo day) y de los tiempos medidos en producción: la zona carga en 2,6 segundos, el caso y el candidato abren al instante y el expediente en menos de 2. No hay esperas que cubrir hablando.
+Termina a los 2:46: quedan 15 segundos antes del corte, que es a los 3:01. El reparto sale de la revisión del 22-11 con tres espectadores simulados (alguien cansado en la quinta fila, un jurado técnico y un coach de demo day) y de los tiempos medidos en producción: la zona carga en 2,6 segundos, el caso y el candidato abren al instante y el expediente en menos de 2. No hay esperas que cubrir hablando.
+
+### Estructura de la organización
+
+La guía de la organización ("cómo hacer un buen demo", revisada el 22-11) sugiere: saludo con una descripción muy breve; problema en unos 20 segundos (cuál es, a quién afecta, por qué no está resuelto); solución, impacto y ambición en 20 a 30 segundos (qué es lo nuevo, qué tan ambiciosa es); y demo en vivo de 125 a 140 segundos (cómo funciona, qué usaron, cuánto avanzaron). El guion sigue ese orden. Los 4 jueces evalúan: aspecto técnico 25 %, ambición 20 %, ejecución 20 %, impacto 20 % y originalidad 15 %. Por eso "La solución" nombra lo que hay debajo (satélite, clima, registro de derechos), el tamaño (casi 8 mil predios, 160 mil mediciones) y hasta dónde llegamos en 36 horas.
 
 ### Texto
 
 El tono es hablado. No se nombran satélites, índices ni métodos (Sentinel-2, NDVI, FAO-56): van en el material de apoyo y en las respuestas. Como máximo dos cifras por tramo.
 
 **0:00 Intro.**
-"Soy Tomás, y esto es Caudales."
+"Hola, soy Tomás, y esto es Caudales."
 
 **0:05 El problema.**
-"En Petorca hay gente que ha vivido con 50 litros de agua al día, traída en camión. En dos años, el Estado gastó 5.700 millones en llevarla. Y ahí mismo hay paltos verdes en pleno verano, con más agua de la que les toca. Hoy eso se pilla solo si un vecino denuncia. Nosotros lo miramos desde el satélite."
+"En Petorca hay gente que ha vivido con 50 litros de agua al día, traída en camión. En dos años, el Estado gastó 5.700 millones en llevarla. Y ahí mismo hay paltos verdes en pleno verano, con más agua de la que les toca. Hoy eso se pilla solo si un vecino denuncia."
 
-**0:29 Demo: la zona.**
-"Este es el valle del Aconcagua, vecino de Petorca. En verano el cerro está seco: un predio que sigue verde es porque alguien lo está regando. Y si usa más agua de la que tiene por derecho, queda en alerta. En esta zona son 425."
+**0:26 La solución.**
+"Caudales mira cada predio desde el satélite: casi 8 mil predios, más de 160 mil mediciones. Las cruza con el clima y con el registro público de derechos de agua, y le dice al fiscalizador a dónde ir primero. Lo armamos en 36 horas, y ya bajamos los datos base para probarlo en el resto de Chile."
 
-**0:47 Demo: el caso real.**
+**0:48 Demo: la zona.**
+"Este es el valle del Aconcagua, vecino de Petorca. En verano el cerro está seco: lo que sigue verde, alguien lo riega. Si usa más agua de la que tiene por derecho, queda en alerta. Aquí son 425."
+
+**1:03 Demo: el caso real.**
 "Miren este predio de paltos, en Hijuelas. La Dirección General de Aguas lo fiscalizó en 2021 y lo multó con más de 140 millones de pesos por sacar agua sin derechos. Caudales lo tenía en alerta desde 2019: al menos dos años antes de que llegara un inspector. En ese tiempo, según nuestra estimación, sacó más de 100 mil metros cúbicos sin derecho. Lo que consumen 1.500 personas en esos dos años."
 
-**1:22 Demo: un candidato de hoy.**
+**1:36 Demo: un candidato de hoy.**
 "Ahora vamos al verano pasado, en la misma comuna. Diecinueve hectáreas de paltos, verdes todo el verano. Sin derechos de agua inscritos, sin un canal cerca, y nadie lo ha fiscalizado. El mismo patrón, hoy. Ojo: Caudales no acusa, prioriza; la infracción la confirma un inspector en terreno. Por eso, con un clic, sale con el expediente ya escrito, en el formato oficial de denuncias."
 
-**1:58 Demo: la ruta de mañana.**
+**2:06 Demo: la ruta de mañana.**
 "Y esto es lo que importa: a dónde ir primero. Cinco predios en una mañana, 71 kilómetros, y en cada uno, dónde mirar."
 
-**2:12 Qué tan bien funciona.**
+**2:17 Qué tan bien funciona.**
 "¿Funciona? Lo probamos con los casos que la DGA ya multó: con esta lista se encuentran más del doble de infracciones que sin ella. Y hoy, entre las dos zonas, hay 501 predios en alerta que nadie ha visitado."
 
-**2:28 Cierre.**
+**2:33 Cierre.**
 "El agua que falta no se ve. El verde en pleno verano, sí. Todo esto con datos públicos, que estaban ahí, dispersos: faltaba cruzarlos. Somos Nicolás, Felipe, Gabriela y Tomás. Gracias."
 
-El texto tiene 340 palabras (Intro: 6 · El problema: 59 · la zona: 45 · el caso real: 72 · un candidato de hoy: 65 · la ruta de mañana: 23 · Qué tan bien funciona: 39 · Cierre: 31). A 150 palabras por minuto son 2:16 hablando; el resto son los clics, los vuelos y las pausas.
+El texto tiene 385 palabras (Intro: 7 · El problema: 53 · La solución: 57 · la zona: 38 · el caso real: 72 · un candidato de hoy: 65 · la ruta de mañana: 23 · Qué tan bien funciona: 39 · Cierre: 31). A 150 palabras por minuto son 2:34 hablando; el resto son los clics, los vuelos y las pausas.
 
 Cuidados al decirlo:
 
@@ -150,6 +159,7 @@ Datos de reserva para las preguntas:
 | Comparación con la DGA | Una sola mención, como capacidad: "14 años". El 33 % queda para las preguntas | Abrir con "la DGA acierta 1 de cada 3" | No tenemos datos para decir que acertamos más (7 de 15, intervalo ancho) y la DGA es el cliente. La capacidad muestra que falta una herramienta; no nos presenta como una mejora de algo que ya existe |
 | Equivalencias de volumen | Solo personas, con la dotación de 100 litros al día, y pegada al caso real | Latas de Monster y Torres Costanera | Las comparaciones con latas y edificios le restan seriedad a un problema de gente sin agua. Decidido el 22-11 tras la revisión con espectadores |
 | Apertura | "Soy Tomás, y esto es Caudales" y el problema en 20 segundos | Un tramo aparte para decir qué hacemos | Los tres espectadores pidieron ver el producto antes. Qué hacemos queda en la última frase del problema: "Nosotros lo miramos desde el satélite" |
+| Tramo "La solución" | 22 segundos antes de la demo: qué hace, con qué datos, de qué tamaño y cuánto avanzamos | Pasar del problema directo al producto | Es el orden que sugiere la organización, y la rúbrica pesa lo técnico (25 %) y la ambición (20 %). "Más de 160 mil mediciones" son las 167.266 imágenes despejadas de verano por predio (`docs/ablacion-ventana.md`) |
 | Frase de la portada | "El agua está repartida. No todos respetan su parte." | "Quién riega sin derechos de agua"; "Si alguien saca agua de más, a otro le falta" | La primera sonaba a acusación. La idea es de reparto: el agua de un valle está repartida en derechos, y cuando alguien saca más de lo que le toca, es injusto para el resto |
 | Cómo se muestra el candidato | Por ID interno, sin rol ni dueño, con la palabra "candidato" | No mostrar ningún predio no multado | El expediente y la ruta necesitan un predio concreto. El equipo debe confirmar esta decisión (ver abajo) |
 

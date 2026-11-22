@@ -100,10 +100,10 @@
 .pn-sec h4{margin:0 0 8px;font:500 11px var(--f-mono);letter-spacing:.1em;text-transform:uppercase;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
 .pn-tag{font-style:normal;color:var(--water);border:1px solid rgba(69,214,238,.4);padding:1px 5px;font-size:9.5px}
 .pn-hint{margin:0 0 8px;font-size:12px;color:var(--dim)}
-.pn-fields{display:grid;grid-template-columns:1fr 1fr;gap:8px}
-.pn-fields label{display:flex;flex-direction:column;gap:3px;font:10px var(--f-mono);letter-spacing:.06em;text-transform:uppercase;color:var(--dim)}
+.pn-fields{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:8px}
+.pn-fields label{min-width:0;display:flex;flex-direction:column;gap:3px;font:10px var(--f-mono);letter-spacing:.06em;text-transform:uppercase;color:var(--dim)}
 .pn-fields label:first-child,.pn-fields label:nth-child(3){grid-column:1/-1}
-.pn input,.pn-ta{font:13px var(--f-body);color:var(--ink);background:var(--void);border:1px solid var(--rule-2);padding:7px 8px;border-radius:0;width:100%}
+.pn input,.pn-ta{font:13px var(--f-body);color:var(--ink);background:var(--void);border:1px solid var(--rule-2);padding:7px 8px;border-radius:0;width:100%;min-width:0;box-sizing:border-box}
 .pn input:focus,.pn-ta:focus{outline:none;border-color:var(--water)}
 .pn-ta{display:block;resize:vertical;line-height:1.5;font-size:12.5px}
 .pn-ubic{display:flex;gap:12px;align-items:flex-start}

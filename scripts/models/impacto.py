@@ -40,8 +40,9 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-RAIZ = Path(__file__).resolve().parents[2]
-PROC = RAIZ / "data" / "processed"
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from comun.rutas import PROC, RAIZ  # noqa: E402
+
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from validacion import casos, lift_sin_calibrar, wilson  # noqa: E402
 

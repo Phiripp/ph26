@@ -25,6 +25,7 @@ Uso: uv run scripts/extract/imagenes_predio.py [--max-ha 100] [--margen-m 120] [
 import argparse
 import json
 import math
+import sys
 from pathlib import Path
 
 import geopandas as gpd
@@ -36,8 +37,9 @@ from rasterio.warp import transform, transform_bounds
 from rasterio.windows import from_bounds
 from shapely.geometry import box, mapping
 
-RAIZ = Path(__file__).resolve().parents[2]
-DATA = RAIZ / "data"
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from comun.rutas import DATA  # noqa: E402
+
 SALIDA = DATA / "processed" / "imagenes"
 STAC = "https://earth-search.aws.element84.com/v1"
 ZOOM = 4

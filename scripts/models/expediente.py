@@ -51,11 +51,12 @@ import numpy as np  # noqa: E402
 import pandas as pd  # noqa: E402
 from jinja2 import Environment, FileSystemLoader, select_autoescape  # noqa: E402
 
-RAIZ = Path(__file__).resolve().parents[2]
-PROC = RAIZ / "data" / "processed"
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+from comun.rutas import PROC, RAIZ, mostrar  # noqa: E402
 from detector_riego import DIAS_MIN, UMBRAL_HUMEDAD, UMBRAL_VERDOR  # noqa: E402  (umbrales de M3, calibrados en M7)
 from explicacion import explicacion  # noqa: E402
+
 PLANTILLAS = Path(__file__).resolve().parent / "plantillas"
 CRS_M = 32719
 STAC = "https://earth-search.aws.element84.com/v1"
@@ -698,7 +699,7 @@ def generar(predio_id: int | None = None, rol: str | None = None, temporada: str
 
     reg = Path(args.salida) / "registro.csv"
     pdf = (out / "expediente.pdf").resolve()
-    ruta_pdf = str(pdf.relative_to(RAIZ)) if pdf.is_relative_to(RAIZ) else str(pdf)
+    ruta_pdf = str(mostrar(pdf))
     con_imagenes = fondo is not None or bool(imagenes)
     creado = datetime.now().astimezone().isoformat(timespec="seconds")
     fila = pd.DataFrame([{"id": eid, "predio_id": pid, "rol": f"{comuna}:{pg.rol.iloc[0]}", "temporada": t, "confianza": r.confianza,

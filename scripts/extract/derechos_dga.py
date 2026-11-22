@@ -18,6 +18,10 @@ Normalización (ver docs/spec-v2.md#convenciones-de-datos):
   (columna del mes si las 12 están completas; si no, caudal promedio). Para comparar con el consumo del mes (M5).
 - sumable = consuntivo, no eventual y con cifra. Solo los sumables cuentan como derecho del predio.
 
+Corrida nacional: una zona de data/regiones.json trae el numeral romano de la región (`dga`): se baja
+Derechos_Concedidos_<I..XVI>_Region.xls, se conservan todas sus comunas (la capa de predios de CIREN no calza con
+la división administrativa en los bordes) y el bbox de la región reemplaza a REGION al validar las coordenadas.
+
 Uso: uv run scripts/extract/derechos_dga.py [--refrescar]
 """
 
@@ -38,10 +42,12 @@ from pyproj import Transformer
 # dga.mop.gob.cl envía una cadena GlobalSign que el bundle de Python no valida; el almacén del sistema sí.
 truststore.inject_into_ssl()
 
-RAIZ = Path(__file__).resolve().parents[2]
-DATA = RAIZ / "data"
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from comun.rutas import DATA, ZONAS  # noqa: E402
+
 PAGINA = "https://dga.mop.gob.cl/derechos-de-agua/derechos-registrados/"
-ARCHIVO = "Derechos_Concedidos_V_Region.xls"
+ARCHIVO = "Derechos_Concedidos_{romano}_Region.xls"
+ROMANO_VALPARAISO = "V"
 UA = {"User-Agent": "Mozilla/5.0 (caudal-hackathon/0.1)"}
 
 MESES = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio",
@@ -80,12 +86,12 @@ def numero(serie: pd.Series) -> pd.Series:
     return pd.to_numeric(s, errors="coerce")
 
 
-def descargar(destino: Path) -> None:
+def descargar(archivo: str, destino: Path) -> None:
     with urllib.request.urlopen(urllib.request.Request(PAGINA, headers=UA), timeout=60) as r:
         html = r.read().decode("utf-8", "replace")
-    enlaces = re.findall(rf'href="([^"]+/{re.escape(ARCHIVO)})"', html)
+    enlaces = re.findall(rf'href="([^"]+/{re.escape(archivo)})"', html)
     if not enlaces:
-        sys.exit(f"No se encontró {ARCHIVO} en {PAGINA}")
+        sys.exit(f"No se encontró {archivo} en {PAGINA}")
     url = enlaces[0]
     print(f"Descargando {url}")
     destino.parent.mkdir(parents=True, exist_ok=True)
@@ -93,7 +99,7 @@ def descargar(destino: Path) -> None:
         destino.write_bytes(r.read())
 
 
-def leer(xls: Path, comunas: dict[str, str]) -> pd.DataFrame:
+def leer(xls: Path, comunas: dict[str, str], zona_unica: str | None = None) -> pd.DataFrame:
     df = pd.read_excel(xls, header=6, engine="calamine", dtype=str)
     df.columns = [re.sub(r"\s+", " ", str(c)).strip() for c in df.columns]
     faltan = {"Código de Expediente", "N° Solicitud", "Comuna", "Nombre Solicitante", "Unidad de Caudal",
@@ -103,8 +109,11 @@ def leer(xls: Path, comunas: dict[str, str]) -> pd.DataFrame:
         sys.exit(f"El Excel cambió de formato; faltan columnas: {sorted(faltan)}")
     df = df.apply(lambda s: s.str.strip())
     df["comuna_n"] = df["Comuna"].fillna("").map(lambda s: sin_tildes(s).upper())
-    df = df[df["comuna_n"].isin(comunas)].copy()
-    df["zona"] = df["comuna_n"].map(comunas)
+    if zona_unica:  # región completa: el Excel ya es de la región
+        df["zona"] = zona_unica
+    else:
+        df = df[df["comuna_n"].isin(comunas)].copy()
+        df["zona"] = df["comuna_n"].map(comunas)
     return df
 
 
@@ -159,7 +168,7 @@ def caudales(df: pd.DataFrame) -> pd.DataFrame:
     }, index=df.index)
 
 
-def puntos(df: pd.DataFrame) -> pd.DataFrame:
+def puntos(df: pd.DataFrame, region: tuple = REGION) -> pd.DataFrame:
     norte = numero(df["UTM Norte Captación (m)"])
     este = numero(df["UTM Este Captación (m)"])
     huso = pd.to_numeric(df["Huso"], errors="coerce")
@@ -172,7 +181,7 @@ def puntos(df: pd.DataFrame) -> pd.DataFrame:
     huso_decl = huso.fillna(19).astype(int)
     tiene = (norte > 1_000_000) & (este > 100_000)
 
-    dentro = lambda x, y: (x >= REGION[0]) & (x <= REGION[2]) & (y >= REGION[1]) & (y <= REGION[3])
+    dentro = lambda x, y: (x >= region[0]) & (x <= region[2]) & (y >= region[1]) & (y <= region[3])
     transformers = {}
 
     def convertir(idx, h):
@@ -251,13 +260,18 @@ def main() -> None:
     ap.add_argument("--refrescar", action="store_true", help="vuelve a descargar el Excel aunque exista")
     args = ap.parse_args()
 
-    xls = DATA / "raw" / "dga" / ARCHIVO
+    zonas = json.loads(ZONAS.read_text(encoding="utf-8"))["zonas"]
+    regional = [z for z, d in zonas.items() if "dga" in d]
+    if len(regional) > 1:
+        sys.exit("derechos_dga.py procesa una región por ejecución (una zona con `dga` en CAUDAL_ZONAS)")
+    romano = zonas[regional[0]]["dga"] if regional else ROMANO_VALPARAISO
+    archivo = ARCHIVO.format(romano=romano)
+    xls = DATA / "raw" / "dga" / archivo
     if args.refrescar or not xls.exists():
-        descargar(xls)
-    zonas = json.loads((DATA / "zonas.json").read_text(encoding="utf-8"))["zonas"]
-    comunas = {c: z for z, d in zonas.items() for c in d["comunas"]}
+        descargar(archivo, xls)
+    comunas = {sin_tildes(c).upper(): z for z, d in zonas.items() for c in d["comunas"]}
 
-    df = leer(xls, comunas)
+    df = leer(xls, comunas, regional[0] if regional else None)
     ejercicio = df["Ejercicio del Derecho"].fillna("")
     tipo = df["Tipo Derecho"].fillna("")
     # Un mismo expediente y solicitud puede tener varias filas con caudales distintos: son derechos
@@ -286,7 +300,8 @@ def main() -> None:
     if base["derecho_id"].duplicated().any():
         sys.exit(f"derecho_id duplicado: {base.loc[base['derecho_id'].duplicated(), 'derecho_id'].head().tolist()}")
 
-    out = pd.concat([base, caudales(df), puntos(df)], axis=1)
+    region = tuple(zonas[regional[0]]["bbox"]) if regional else REGION
+    out = pd.concat([base, caudales(df), puntos(df, region)], axis=1)
     # Caudal negativo: cesiones, reducciones o errores de carga (hay uno de -41.666 l/s). La magnitud no es
     # confiable, así que se marcan y quedan fuera de la suma en vez de descontarse.
     out["caudal_negativo"] = out["m3_anual"] < 0

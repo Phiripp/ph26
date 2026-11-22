@@ -57,8 +57,9 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-RAIZ = Path(__file__).resolve().parents[2]
-PROC = RAIZ / "data" / "processed"
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from comun.rutas import PROC, RAIZ  # noqa: E402
+
 NIVELES = ["baja", "media", "alta"]
 # Umbrales por defecto, calibrados en M7 (docs/calibracion.md). Los importan el expediente, la explicación y la API.
 UMBRAL_VERDOR, UMBRAL_HUMEDAD, DIAS_MIN, FRAC_MIN = 2.5, 1.5, 10, 0.7

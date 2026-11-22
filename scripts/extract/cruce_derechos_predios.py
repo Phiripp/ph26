@@ -41,8 +41,9 @@ from pathlib import Path
 import geopandas as gpd
 import pandas as pd
 
-RAIZ = Path(__file__).resolve().parents[2]
-DATA = RAIZ / "data"
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from comun.rutas import DATA  # noqa: E402
+
 CRS_METROS = "EPSG:32719"
 RADIO_M = 500
 CERCA_M = 100  # hasta aquí, la cercanía vale confianza media; más lejos, baja

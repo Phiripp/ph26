@@ -23,16 +23,16 @@ Uso: uv run scripts/extract/restriccion_dga.py
 
 import json
 import sys
-import urllib.parse
-import urllib.request
 from pathlib import Path
 
 import geopandas as gpd
 import pandas as pd
 from shapely.geometry import MultiPolygon, Polygon
 
-RAIZ = Path(__file__).resolve().parents[2]
-DATA = RAIZ / "data"
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from comun.arcgis import paginar  # noqa: E402
+from comun.rutas import DATA, ZONAS  # noqa: E402
+
 URL = ("https://rest-sit.mop.gob.cl/arcgis/rest/services/DGA/"
        "Areas_de_Restriccion_y_Zonas_de_Prohibicion/MapServer/0/query")
 CAMPOS = ["OBJECTID", "COD_SHAC", "NOM_ACUIF", "SHAC", "TIPO_LIMIT", "RES_DGA", "F_RES_DGA", "F_PUB_DO",
@@ -69,27 +69,14 @@ def esri_a_shapely(anillos: list) -> MultiPolygon | Polygon | None:
 
 
 def bajar_bbox(bbox: list[float]) -> gpd.GeoDataFrame:
-    filas, offset = [], 0
-    while True:
-        params = {"geometry": ",".join(map(str, bbox)), "geometryType": "esriGeometryEnvelope", "inSR": "4326",
-                  "spatialRel": "esriSpatialRelIntersects", "outFields": ",".join(CAMPOS), "outSR": "4326",
-                  "returnGeometry": "true", "f": "json", "resultOffset": offset, "resultRecordCount": PAGINA,
-                  "orderByFields": "OBJECTID"}
-        req = urllib.request.Request(URL, data=urllib.parse.urlencode(params).encode(),
-                                     headers={"User-Agent": "caudal-hackathon/0.1"})
-        with urllib.request.urlopen(req, timeout=180) as r:
-            cuerpo = json.load(r)
-        if "error" in cuerpo:
-            sys.exit(f"El servidor de la DGA devolvió un error: {cuerpo['error']}")
-        feats = cuerpo.get("features", [])
-        if not feats:
-            return gpd.GeoDataFrame(filas, geometry="geometry", crs="EPSG:4326")
-        for f in feats:
-            geom = esri_a_shapely(f.get("geometry", {}).get("rings") or [])
-            filas.append({**f["attributes"], "geometry": geom})
-        offset += len(feats)
-        if len(feats) < PAGINA and not cuerpo.get("exceededTransferLimit"):
-            return gpd.GeoDataFrame(filas, geometry="geometry", crs="EPSG:4326")
+    params = {"geometry": ",".join(map(str, bbox)), "geometryType": "esriGeometryEnvelope", "inSR": "4326",
+              "spatialRel": "esriSpatialRelIntersects", "outFields": ",".join(CAMPOS), "outSR": "4326",
+              "returnGeometry": "true", "f": "json"}
+    filas = []
+    for cuerpo in paginar(URL, params, PAGINA, orden="OBJECTID"):
+        for f in cuerpo["features"]:
+            filas.append({**f["attributes"], "geometry": esri_a_shapely(f.get("geometry", {}).get("rings") or [])})
+    return gpd.GeoDataFrame(filas, geometry="geometry", crs="EPSG:4326")
 
 
 def fecha(ms) -> pd.Timestamp:
@@ -99,7 +86,7 @@ def fecha(ms) -> pd.Timestamp:
 def main() -> None:
     if not (DATA / "processed" / "predio.parquet").exists():
         sys.exit("Falta data/processed/predio.parquet: corre antes predios_ciren.py")
-    zonas = json.loads((DATA / "zonas.json").read_text(encoding="utf-8"))["zonas"]
+    zonas = json.loads(ZONAS.read_text(encoding="utf-8"))["zonas"]
     partes = []
     for z, info in zonas.items():
         g = bajar_bbox(info["bbox"]).assign(zona=z)

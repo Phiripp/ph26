@@ -62,9 +62,10 @@ from xml.sax.saxutils import escape
 
 import pandas as pd
 
-RAIZ = Path(__file__).resolve().parents[2]
-PROC = RAIZ / "data" / "processed"
-CACHE_OSRM = RAIZ / "data" / "raw" / "osrm"
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from comun.rutas import DATA, PROC  # noqa: E402
+
+CACHE_OSRM = DATA / "raw" / "osrm"
 OSRM = "https://router.project-osrm.org"
 MAX_TABLA = 100  # límite de puntos por /table en el servidor público
 
@@ -366,7 +367,7 @@ def predios_con_punto(ids, zona: str):
 def puntajes_demo(zona: str) -> pd.DataFrame:
     """Positivos limpios de fiscalización + predios de casos_validacion.geojson, puntaje 1."""
     f = pd.read_parquet(PROC / "fiscalizacion.parquet", columns=["expediente", "predio_id", "zona", "etiqueta", "set_validacion"])
-    casos = json.loads((RAIZ / "data" / "casos_validacion.geojson").read_text())
+    casos = json.loads((DATA / "casos_validacion.geojson").read_text())
     exp_casos = {ft["properties"]["expediente"] for ft in casos["features"] if ft["properties"]["zona"] == zona}
     sel = f[(f["zona"] == zona) & (((f["etiqueta"] == "positivo") & (f["set_validacion"] == "limpio"))
                                    | f["expediente"].isin(exp_casos))]

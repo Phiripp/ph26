@@ -1,0 +1,733 @@
+{
+  "_fuente": "Generado por scripts/cloud/chile/regiones.py (tabla de docs/spec-chile.md). No se edita a mano.",
+  "crs_bbox": "EPSG:4326",
+  "periodo": {
+    "inicio": "2025-03-01",
+    "fin": "2026-03-31"
+  },
+  "temporada": {
+    "inicio": "2025-12-01",
+    "fin": "2026-03-31"
+  },
+  "zonas": {
+    "R15": {
+      "nombre": "Arica y Parinacota",
+      "uso": "Corrida nacional 2025-26",
+      "numero": 15,
+      "comunas": [
+        "ARICA",
+        "CAMARONES",
+        "GENERAL LAGOS",
+        "PUTRE"
+      ],
+      "bbox": [
+        -70.3974,
+        -19.2468,
+        -68.8927,
+        -17.4804
+      ],
+      "ciren_predios": 0,
+      "conaf": {
+        "capa": 1,
+        "campo_uso": "uso_17",
+        "campos_historia": [
+          "uso_12"
+        ]
+      },
+      "fruticola": 55,
+      "dga": "XV",
+      "aplicabilidad": "norte_desertico",
+      "prioridad": 3
+    },
+    "R01": {
+      "nombre": "Tarapacá",
+      "uso": "Corrida nacional 2025-26",
+      "numero": 1,
+      "comunas": [
+        "ALTO HOSPICIO",
+        "CAMINA",
+        "COLCHANE",
+        "HUARA",
+        "IQUIQUE",
+        "PICA",
+        "POZO ALMONTE"
+      ],
+      "bbox": [
+        -70.3053,
+        -21.6466,
+        -68.3849,
+        -18.9185
+      ],
+      "ciren_predios": 1,
+      "conaf": {
+        "capa": 2,
+        "campo_uso": "uso_17",
+        "campos_historia": [
+          "uso_13"
+        ]
+      },
+      "fruticola": 56,
+      "dga": "I",
+      "aplicabilidad": "norte_desertico",
+      "prioridad": 3
+    },
+    "R03": {
+      "nombre": "Atacama",
+      "uso": "Corrida nacional 2025-26",
+      "numero": 3,
+      "comunas": [
+        "ALTO DEL CARMEN",
+        "CALDERA",
+        "CHANARAL",
+        "COPIAPO",
+        "DIEGO DE ALMAGRO",
+        "FREIRINA",
+        "HUASCO",
+        "LA HIGUERA",
+        "TIERRA AMARILLA",
+        "VALLENAR"
+      ],
+      "bbox": [
+        -71.6112,
+        -29.6403,
+        -68.242,
+        -25.2733
+      ],
+      "ciren_predios": 2,
+      "conaf": {
+        "capa": 3,
+        "campo_uso": "uso_17",
+        "campos_historia": [
+          "uso_15"
+        ]
+      },
+      "fruticola": 57,
+      "dga": "III",
+      "aplicabilidad": "norte_desertico",
+      "prioridad": 2
+    },
+    "R04": {
+      "nombre": "Coquimbo",
+      "uso": "Corrida nacional 2025-26",
+      "numero": 4,
+      "comunas": [
+        "ANDACOLLO",
+        "CANELA",
+        "COMBARBALA",
+        "COQUIMBO",
+        "ILLAPEL",
+        "LA HIGUERA",
+        "LA LIGUA",
+        "LA SERENA",
+        "LOS VILOS",
+        "MONTE PATRIA",
+        "OVALLE",
+        "PAIHUANO",
+        "PAPUDO",
+        "PUNITAQUI",
+        "RIO HURTADO",
+        "SALAMANCA",
+        "VICUNA"
+      ],
+      "bbox": [
+        -71.7383,
+        -32.5831,
+        -69.7877,
+        -29.0207
+      ],
+      "ciren_predios": 3,
+      "conaf": {
+        "capa": 4,
+        "campo_uso": "uso_19",
+        "campos_historia": [
+          "uso_01",
+          "uso_13",
+          "uso_16",
+          "uso_17"
+        ]
+      },
+      "fruticola": 58,
+      "dga": "IV",
+      "aplicabilidad": "mediterraneo_seco",
+      "prioridad": 1
+    },
+    "R05": {
+      "nombre": "Valparaíso",
+      "uso": "Corrida nacional 2025-26",
+      "numero": 5,
+      "comunas": [
+        "ALGARROBO",
+        "CABILDO",
+        "CALLE LARGA",
+        "CARTAGENA",
+        "CASABLANCA",
+        "CATEMU",
+        "CONCON",
+        "CURACAVI",
+        "EL QUISCO",
+        "EL TABO",
+        "HIJUELAS",
+        "LA CALERA",
+        "LA CRUZ",
+        "LA LIGUA",
+        "LIMACHE",
+        "LLAILLAY",
+        "LOS ANDES",
+        "NOGALES",
+        "OLMUE",
+        "PANQUEHUE",
+        "PAPUDO",
+        "PETORCA",
+        "PUCHUNCAVI",
+        "PUTAENDO",
+        "QUILLOTA",
+        "QUILPUE",
+        "QUINTERO",
+        "RINCONADA",
+        "SAN ANTONIO",
+        "SAN ESTEBAN",
+        "SAN FELIPE",
+        "SANTA MARIA",
+        "SANTO DOMINGO",
+        "VALPARAISO",
+        "VILLA ALEMANA",
+        "VINA DEL MAR",
+        "ZAPALLAR"
+      ],
+      "bbox": [
+        -71.8623,
+        -33.9742,
+        -69.9686,
+        -32.002
+      ],
+      "ciren_predios": 4,
+      "conaf": {
+        "capa": 5,
+        "campo_uso": "uso_19",
+        "campos_historia": [
+          "uso_01",
+          "uso_13",
+          "uso_16",
+          "uso_17"
+        ]
+      },
+      "fruticola": 59,
+      "dga": "V",
+      "aplicabilidad": "calibrado",
+      "prioridad": 1
+    },
+    "R13": {
+      "nombre": "Metropolitana",
+      "uso": "Corrida nacional 2025-26",
+      "numero": 13,
+      "comunas": [
+        "ALHUE",
+        "BUIN",
+        "CALERA DE TANGO",
+        "CARTAGENA",
+        "CERRILLOS",
+        "CERRO NAVIA",
+        "COLINA",
+        "CONCHALI",
+        "CURACAVI",
+        "EL MONTE",
+        "HUECHURABA",
+        "ISLA DE MAIPO",
+        "LA FLORIDA",
+        "LA PINTANA",
+        "LA REINA",
+        "LAMPA",
+        "LAS CONDES",
+        "LITUECHE",
+        "LO BARNECHEA",
+        "LOS ANDES",
+        "MAIPU",
+        "MARIA PINTO",
+        "MELIPILLA",
+        "PADRE HURTADO",
+        "PAINE",
+        "PENAFLOR",
+        "PENALOLEN",
+        "PIRQUE",
+        "PUDAHUEL",
+        "PUENTE ALTO",
+        "QUILICURA",
+        "QUILPUE",
+        "RENCA",
+        "SAN ANTONIO",
+        "SAN BERNARDO",
+        "SAN JOSE DE MAIPO",
+        "SAN PEDRO",
+        "SANTIAGO",
+        "TALAGANTE",
+        "TILTIL",
+        "VITACURA"
+      ],
+      "bbox": [
+        -71.7442,
+        -34.309,
+        -69.7482,
+        -32.8087
+      ],
+      "ciren_predios": 5,
+      "conaf": {
+        "capa": 6,
+        "campo_uso": "uso_19",
+        "campos_historia": [
+          "uso_01",
+          "uso_13",
+          "uso_16",
+          "uso_17"
+        ]
+      },
+      "fruticola": 60,
+      "dga": "XIII",
+      "aplicabilidad": "mediterraneo_seco",
+      "prioridad": 1
+    },
+    "R06": {
+      "nombre": "O'Higgins",
+      "uso": "Corrida nacional 2025-26",
+      "numero": 6,
+      "comunas": [
+        "CHEPICA",
+        "CHIMBARONGO",
+        "CODEGUA",
+        "COINCO",
+        "COLTAUCO",
+        "DONIHUE",
+        "GRANEROS",
+        "HUALANE",
+        "LA ESTRELLA",
+        "LAS CABRAS",
+        "LITUECHE",
+        "LOLOL",
+        "MACHALI",
+        "MALLOA",
+        "MARCHIHUE",
+        "MOSTAZAL",
+        "NANCAGUA",
+        "NAVIDAD",
+        "OLIVAR",
+        "PALMILLA",
+        "PAREDONES",
+        "PERALILLO",
+        "PEUMO",
+        "PICHIDEGUA",
+        "PICHILEMU",
+        "PLACILLA",
+        "PUMANQUE",
+        "QUINTA DE TILCOCO",
+        "RANCAGUA",
+        "RAUCO",
+        "RENGO",
+        "REQUINOA",
+        "SAN FERNANDO",
+        "SAN PEDRO",
+        "SAN VICENTE",
+        "SANTA CRUZ",
+        "TENO",
+        "VICHUQUEN"
+      ],
+      "bbox": [
+        -72.079,
+        -35.0201,
+        -69.9874,
+        -33.833
+      ],
+      "ciren_predios": 6,
+      "conaf": {
+        "capa": 7,
+        "campo_uso": "uso_19",
+        "campos_historia": [
+          "uso_01",
+          "uso_13",
+          "uso_16",
+          "uso_17"
+        ]
+      },
+      "fruticola": 61,
+      "dga": "VI",
+      "aplicabilidad": "mediterraneo_seco",
+      "prioridad": 1
+    },
+    "R07": {
+      "nombre": "Maule",
+      "uso": "Corrida nacional 2025-26",
+      "numero": 7,
+      "comunas": [
+        "CAUQUENES",
+        "CHANCO",
+        "CHEPICA",
+        "CHIMBARONGO",
+        "COBQUECURA",
+        "COLBUN",
+        "CONSTITUCION",
+        "CUREPTO",
+        "CURICO",
+        "EMPEDRADO",
+        "HUALANE",
+        "LICANTEN",
+        "LINARES",
+        "LONGAVI",
+        "MAULE",
+        "MOLINA",
+        "NINHUE",
+        "NIQUEN",
+        "PAREDONES",
+        "PARRAL",
+        "PELARCO",
+        "PELLUHUE",
+        "PENCAHUE",
+        "QUIRIHUE",
+        "RAUCO",
+        "RETIRO",
+        "RIO CLARO",
+        "ROMERAL",
+        "SAGRADA FAMILIA",
+        "SAN CLEMENTE",
+        "SAN FABIAN",
+        "SAN JAVIER",
+        "SAN RAFAEL",
+        "TALCA",
+        "TENO",
+        "VICHUQUEN",
+        "VILLA ALEGRE",
+        "YERBAS BUENAS"
+      ],
+      "bbox": [
+        -72.8078,
+        -36.8064,
+        -70.2896,
+        -34.6666
+      ],
+      "ciren_predios": 7,
+      "conaf": {
+        "capa": 16,
+        "campo_uso": "uso_21",
+        "campos_historia": [
+          "uso_01",
+          "uso_13",
+          "uso_16",
+          "uso_17",
+          "uso_19"
+        ]
+      },
+      "fruticola": 62,
+      "dga": "VII",
+      "aplicabilidad": "mediterraneo_seco",
+      "prioridad": 1
+    },
+    "R16": {
+      "nombre": "Ñuble",
+      "uso": "Corrida nacional 2025-26",
+      "numero": 16,
+      "comunas": [
+        "BULNES",
+        "CHILLAN",
+        "CHILLAN VIEJO",
+        "COBQUECURA",
+        "COELEMU",
+        "COIHUECO",
+        "EL CARMEN",
+        "NINHUE",
+        "NIQUEN",
+        "PEMUCO",
+        "PINTO",
+        "PORTEZUELO",
+        "QUILLON",
+        "QUIRIHUE",
+        "RANQUIL",
+        "SAN CARLOS",
+        "SAN FABIAN",
+        "SAN IGNACIO",
+        "SAN NICOLAS",
+        "TREHUACO",
+        "YUNGAY"
+      ],
+      "bbox": [
+        -72.9086,
+        -37.2142,
+        -70.9842,
+        -35.9873
+      ],
+      "ciren_predios": 8,
+      "conaf": {
+        "capa": 21,
+        "campo_uso": "uso_21",
+        "campos_historia": [
+          "uso_01",
+          "uso_13",
+          "uso_16",
+          "uso_17",
+          "uso_19"
+        ]
+      },
+      "fruticola": 63,
+      "dga": "XVI",
+      "aplicabilidad": "sur_humedo",
+      "prioridad": 2
+    },
+    "R08": {
+      "nombre": "Biobío",
+      "uso": "Corrida nacional 2025-26",
+      "numero": 8,
+      "comunas": [
+        "ALTO BIOBIO",
+        "ANTUCO",
+        "ARAUCO",
+        "CABRERO",
+        "CANETE",
+        "CHIGUAYANTE",
+        "CONCEPCION",
+        "CONTULMO",
+        "CORONEL",
+        "CURANILAHUE",
+        "FLORIDA",
+        "HUALPEN",
+        "HUALQUI",
+        "LAJA",
+        "LEBU",
+        "LOS ALAMOS",
+        "LOS ANGELES",
+        "LOTA",
+        "MULCHEN",
+        "NACIMIENTO",
+        "NEGRETE",
+        "PENCO",
+        "QUILACO",
+        "QUILLECO",
+        "SAN PEDRO DE LA PAZ",
+        "SAN ROSENDO",
+        "SANTA BARBARA",
+        "SANTA JUANA",
+        "TALCAHUANO",
+        "TIRUA",
+        "TOME",
+        "TUCAPEL",
+        "YUMBEL"
+      ],
+      "bbox": [
+        -73.9841,
+        -38.5104,
+        -70.9602,
+        -36.3715
+      ],
+      "ciren_predios": 9,
+      "conaf": {
+        "capa": 17,
+        "campo_uso": "uso_21",
+        "campos_historia": [
+          "uso_01",
+          "uso_13",
+          "uso_16",
+          "uso_17",
+          "uso_19"
+        ]
+      },
+      "fruticola": 64,
+      "dga": "VIII",
+      "aplicabilidad": "sur_humedo",
+      "prioridad": 2
+    },
+    "R09": {
+      "nombre": "Araucanía",
+      "uso": "Corrida nacional 2025-26",
+      "numero": 9,
+      "comunas": [
+        "ALTO BIOBIO",
+        "ANGOL",
+        "CANETE",
+        "CARAHUE",
+        "CHOLCHOL",
+        "COLLIPULLI",
+        "CONTULMO",
+        "CUNCO",
+        "CURACAUTIN",
+        "CURARREHUE",
+        "ERCILLA",
+        "FREIRE",
+        "GALVARINO",
+        "GORBEA",
+        "LANCO",
+        "LAUTARO",
+        "LONCOCHE",
+        "LONQUIMAY",
+        "LOS ALAMOS",
+        "LOS SAUCES",
+        "LUMACO",
+        "MARIQUINA",
+        "MELIPEUCO",
+        "NACIMIENTO",
+        "NUEVA IMPERIAL",
+        "PADRE LAS CASAS",
+        "PANGUIPULLI",
+        "PERQUENCO",
+        "PITRUFQUEN",
+        "PUCON",
+        "PUREN",
+        "RENAICO",
+        "SAAVEDRA",
+        "TEMUCO",
+        "TEODORO SCHMIDT",
+        "TIRUA",
+        "TOLTEN",
+        "TRAIGUEN",
+        "VICTORIA",
+        "VILCUN",
+        "VILLARRICA"
+      ],
+      "bbox": [
+        -73.5421,
+        -39.655,
+        -70.8036,
+        -37.5213
+      ],
+      "ciren_predios": 10,
+      "conaf": {
+        "capa": 18,
+        "campo_uso": "uso_21",
+        "campos_historia": [
+          "uso_01",
+          "uso_13",
+          "uso_16",
+          "uso_17",
+          "uso_19"
+        ]
+      },
+      "fruticola": 65,
+      "dga": "IX",
+      "aplicabilidad": "sur_humedo",
+      "prioridad": 3
+    },
+    "R14": {
+      "nombre": "Los Ríos",
+      "uso": "Corrida nacional 2025-26",
+      "numero": 14,
+      "comunas": [
+        "CORRAL",
+        "FUTRONO",
+        "LA UNION",
+        "LAGO RANCO",
+        "LANCO",
+        "LONCOCHE",
+        "LOS LAGOS",
+        "MAFIL",
+        "MARIQUINA",
+        "PAILLACO",
+        "PANGUIPULLI",
+        "RIO BUENO",
+        "TOLTEN",
+        "VALDIVIA",
+        "VILLARRICA"
+      ],
+      "bbox": [
+        -73.7488,
+        -40.6989,
+        -71.5696,
+        -39.2573
+      ],
+      "ciren_predios": 11,
+      "conaf": {
+        "capa": 20,
+        "campo_uso": "uso_21",
+        "campos_historia": [
+          "uso_01",
+          "uso_13",
+          "uso_16",
+          "uso_17",
+          "uso_19"
+        ]
+      },
+      "fruticola": 66,
+      "dga": "XIV",
+      "aplicabilidad": "sur_humedo",
+      "prioridad": 3
+    },
+    "R10": {
+      "nombre": "Los Lagos",
+      "uso": "Corrida nacional 2025-26",
+      "numero": 10,
+      "comunas": [
+        "ANCUD",
+        "CALBUCO",
+        "CASTRO",
+        "CHAITEN",
+        "CHONCHI",
+        "COCHAMO",
+        "CURACO DE VELEZ",
+        "DALCAHUE",
+        "FRESIA",
+        "FRUTILLAR",
+        "FUTALEUFU",
+        "HUALAIHUE",
+        "LLANQUIHUE",
+        "LOS MUERMOS",
+        "MAULLIN",
+        "OSORNO",
+        "PALENA",
+        "PUERTO MONTT",
+        "PUERTO OCTAY",
+        "PUERTO VARAS",
+        "PUQUELDON",
+        "PURRANQUE",
+        "PUYEHUE",
+        "QUEILEN",
+        "QUELLON",
+        "QUEMCHI",
+        "QUINCHAO",
+        "RIO NEGRO",
+        "SAN JUAN DE LA COSTA",
+        "SAN PABLO"
+      ],
+      "bbox": [
+        -74.861,
+        -44.0851,
+        -71.5566,
+        -40.2181
+      ],
+      "ciren_predios": 12,
+      "conaf": {
+        "capa": 19,
+        "campo_uso": "uso_21",
+        "campos_historia": [
+          "uso_01",
+          "uso_13",
+          "uso_16",
+          "uso_17",
+          "uso_19"
+        ]
+      },
+      "fruticola": 67,
+      "dga": "X",
+      "aplicabilidad": "sur_humedo",
+      "prioridad": 3
+    },
+    "R11": {
+      "nombre": "Aysén",
+      "uso": "Corrida nacional 2025-26",
+      "numero": 11,
+      "comunas": [
+        "AYSEN",
+        "CHILE CHICO",
+        "CISNES",
+        "COCHRANE",
+        "COYHAIQUE",
+        "LAGO VERDE",
+        "RIO IBANEZ"
+      ],
+      "bbox": [
+        -72.9642,
+        -47.3934,
+        -71.2251,
+        -44.2324
+      ],
+      "ciren_predios": 13,
+      "conaf": null,
+      "fruticola": 68,
+      "dga": "XI",
+      "aplicabilidad": "sur_humedo",
+      "prioridad": 3
+    }
+  }
+}

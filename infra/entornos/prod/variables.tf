@@ -22,10 +22,10 @@ variable "cuenta_servicio_web" {
   default     = "170658673954-compute@developer.gserviceaccount.com"
 }
 
-variable "imagen" {
-  description = "Imagen pública de los jobs. No hay build: el código se descarga del bucket al arrancar."
+variable "version_imagen" {
+  description = "Etiqueta de la imagen de los jobs en Artifact Registry: el commit corto que imprime infra/imagen/construir.sh."
   type        = string
-  default     = "mirror.gcr.io/library/python:3.12-slim"
+  default     = "6ad3e09947ba"
 }
 
 variable "corrida" {
@@ -67,4 +67,10 @@ variable "cuota_memoria_bytes" {
   description = "Cuota de memoria de Cloud Run pedida, en bytes (429496729600 = 400 GiB)."
   type        = number
   default     = 429496729600
+}
+
+variable "cuenta_servicio_build" {
+  description = "Cuenta de servicio con la que corre Cloud Build (en proyectos nuevos, la de Compute por defecto). Recibe escritura en el repositorio de imágenes."
+  type        = string
+  default     = "170658673954-compute@developer.gserviceaccount.com"
 }

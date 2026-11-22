@@ -35,8 +35,9 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-RAIZ = Path(__file__).resolve().parents[2]
-DATA = RAIZ / "data"
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from comun.rutas import DATA, RAIZ, mostrar  # noqa: E402
+
 RAW = DATA / "raw" / "clima"
 KM_POR_GRADO = 111.32
 MIN_DIAS_ESTACION = 1000
@@ -252,7 +253,7 @@ def main() -> int:
 
     salida = DATA / "processed" / "clima.parquet"
     clima.to_parquet(salida, index=False)
-    print(f"\n{salida.relative_to(RAIZ)}: {len(clima)} filas ({clima['fuente'].value_counts().to_dict()})")
+    print(f"\n{mostrar(salida)}: {len(clima)} filas ({clima['fuente'].value_counts().to_dict()})")
     return 0
 
 

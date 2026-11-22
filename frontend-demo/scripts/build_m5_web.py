@@ -27,11 +27,18 @@ de validación (puntaje_validacion.parquet), y las paradas de la ruta. El resto 
 
 Necesita data/processed/predio.parquet (no va a git): `uv run scripts/extract/predios_ciren.py` desde la raíz.
 
+Modo región (corrida nacional, docs/spec-chile.md): `--region R05 --salida <web/corrida/R05>` exporta lo mismo para
+una región, desde la carpeta de trabajo de la etapa region (CAUDAL_DATA): puntaje.parquet, predio.parquet,
+predio_cultivo.parquet y anomalias_predio.parquet de esa región. Solo van las bandas alta y media (el resto queda en
+el conteo de resumen.json): scores.lite.json (con `aplicabilidad`), predios.geojson y series/. No toca data/zonas.
+
 Uso (desde la raíz del repo o desde frontend-demo/):
   uv run frontend-demo/scripts/build_m5_web.py
+  uv run frontend-demo/scripts/build_m5_web.py --region R05 --salida /datos/web/20261121/R05
   python3 frontend-demo/scripts/build_zonas_web.py --check     verifica lo exportado
 """
 
+import argparse
 import json
 import math
 import shutil
@@ -47,9 +54,11 @@ HERE = Path(__file__).resolve().parent
 WEB = HERE.parent
 ZONAS = WEB / "data" / "zonas"
 RAIZ = WEB.parent
-PROC = RAIZ / "data" / "processed"
+sys.path.insert(0, str(RAIZ / "scripts"))
 sys.path.insert(0, str(RAIZ / "scripts" / "models"))
 sys.path.insert(0, str(HERE))
+
+from comun.rutas import PROC  # noqa: E402  (CAUDAL_DATA; sin la variable, data/processed del repo)
 
 from build_zonas_web import PREDIOS_POR_BLOQUE, bloque_de  # noqa: E402  (mismo hash que js/zona-data.js)
 
@@ -241,12 +250,17 @@ def scores_lite(z: str, sel: dict[int, str], u: pd.DataFrame, pv: pd.DataFrame, 
 # ---------------------------------------------------------------- series
 
 def anomalias(ids_val: set[int], ids_eleg: set[int]) -> pd.DataFrame:
-    from detector_riego import en_ventana
     cols = ["predio_id", "zona", "fecha", "temporada", "ndvi", "ndmi", "estado", "z_verdor", "z_humedad",
             "ref_ndvi_mediana", "ref_ndmi_mediana"]
     av = pd.read_parquet(PROC / "anomalias_predio_validacion.parquet", columns=cols)
     ae = pd.read_parquet(PROC / "anomalias_predio_elegibles_2025-26.parquet", columns=cols)
     a = pd.concat([av[av.predio_id.isin(ids_val)], ae[ae.predio_id.isin(ids_eleg - ids_val)]], ignore_index=True)
+    return con_senal(a)
+
+
+def con_senal(a: pd.DataFrame) -> pd.DataFrame:
+    """Agrega ventana seca y señal por fecha (umbrales de M3) a las anomalías de M2."""
+    from detector_riego import en_ventana
     a = en_ventana(a)
     a["en_ventana_seca"] = a.ventana_id.notna() & (a.dias_sin_lluvia >= DIAS_SECOS_MIN)
     a["senal"] = (a.en_ventana_seca & (a.estado == "ok") & (a.z_verdor >= UMBRAL_VERDOR)
@@ -411,7 +425,7 @@ def fiscalizados_500m(ids: pd.Series) -> set[int]:
     return set(int(x) for x in ids[~sin])
 
 
-# ---------------------------------------------------------------- main
+# ---------------------------------------------------------------- resumen de ruta y demo
 
 def resumen_ruta(r: dict) -> dict:
     return {
@@ -442,7 +456,60 @@ def demo_resumen(casos: list[dict], z_data: dict) -> dict | None:
                                          .get("ventanas_secas") or []) if (ZONAS / z / "clima.json").exists() else []}}
 
 
+# ---------------------------------------------------------------- modo región (corrida nacional)
+
+def main_region(zona: str, salida: Path) -> int:
+    u = pd.read_parquet(PROC / "puntaje.parquet")
+    u = u[(u.zona == zona) & (u.temporada == TEMPORADA)]
+    sel = {int(p): "banda" for p in u.loc[u.banda.isin(["alta", "media"]), "predio_id"]}
+    counts = {b: int((u.banda == b).sum()) for b in ("alta", "media", "baja", "sin_alerta")}
+    log(f"{zona}: {len(sel)} predios de banda alta o media de {len(u)}")
+    ids = sorted(sel)
+    geo = geometrias(set(sel))
+    cult = pd.read_parquet(PROC / "predio_cultivo.parquet")
+    fisc = set(int(p) for p in u.loc[u.fiscalizado_dga, "predio_id"])
+
+    pg = predios_geojson(zona, sel, geo, u, cult, {})
+    aplic = u.set_index("predio_id")["aplicabilidad"]
+    for f in pg["features"]:
+        f["properties"]["aplicabilidad"] = aplic.get(f["properties"]["predio_id"])
+    pg["fuente"] = "CIREN (predio.parquet), simplificado a 5 m; derechos y exceso: puntaje.parquet (M5), corrida nacional"
+    sl = scores_lite(zona, sel, u, pd.DataFrame(columns=u.columns), fisc)
+    sl["metodo"] += f" Región {zona}: percentil y ranking por región."
+    sl["fuente"] = "modelo/<corrida>/region=" + zona + "/puntaje.parquet"
+    for pid, p in sl["predios"].items():
+        p["aplicabilidad"] = aplic.get(int(pid))
+    an = pd.read_parquet(PROC / "anomalias_predio.parquet", columns=[
+        "predio_id", "zona", "fecha", "temporada", "ndvi", "ndmi", "estado", "z_verdor", "z_humedad",
+        "ref_ndvi_mediana", "ref_ndmi_mediana"])
+    a = con_senal(an[an.predio_id.isin(sel)])
+    index, bloques = series_zona(a, ids, set())
+    index["fuente"] = "Sentinel-2 L2A, anomalías M2 de la región (anomalias_predio.parquet), temporada 2025-26"
+    index["predios_7_temporadas"] = []
+
+    kb = {"predios": dump(pg, salida / "predios.geojson"), "scores": dump(sl, salida / "scores.lite.json")}
+    if (salida / "series").is_dir():
+        shutil.rmtree(salida / "series")
+    kb["series_index"] = dump(index, salida / "series" / "index.json")
+    kb["series_bloques"] = sum(dump(b, salida / "series" / f"b{n:02d}.json") for n, b in sorted(bloques.items()))
+    dump({"zona": zona, "temporada": TEMPORADA, "generado": HOY, "predios": len(u), "exportados": len(sel),
+          "counts": counts, "aplicabilidad": u["aplicabilidad"].iloc[0] if len(u) else None},
+         salida / "conteo.json")
+    log(f"{zona}: " + " · ".join(f"{k} {v:.0f} KB" for k, v in kb.items()) + f" · {len(bloques)} bloques")
+    return 0
+
+
+# ---------------------------------------------------------------- main
+
 def main() -> int:
+    ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
+    ap.add_argument("--region", help="modo región (corrida nacional): código de la región, p. ej. R05")
+    ap.add_argument("--salida", type=Path, help="carpeta de salida del modo región (web/<corrida>/<región>)")
+    args = ap.parse_args()
+    if args.region:
+        if not args.salida:
+            sys.exit("--region necesita --salida")
+        return main_region(args.region, args.salida)
     d = leer()
     u, pv = d["u"], d["pv"]
     sel = seleccion(d)

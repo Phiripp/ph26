@@ -5,7 +5,10 @@
 import { apiUrl, MODO_DEMO } from './config.js';
 import { esc } from './zona-data.js';
 
-const CONNECT_MS = 20000; // spec F3: sin expediente en este tiempo, se usa el respaldo
+// Sin expediente en este tiempo, se usa el respaldo. El spec (F3) dice 20 s; para la demo va en 5 s, para que la
+// pantalla nunca se quede esperando: el del candidato sale del servidor en ~2 s, y uno nuevo (15 a 24 s) pasa
+// al respaldo o a "Reintentar".
+const CONNECT_MS = 5000;
 const BACKUP_DIR = 'data/respaldo/expedientes';
 const PDF_TYPE = 'application/pdf';
 const VIEW_PARAMS = '#toolbar=0&navpanes=0&view=FitH';
@@ -51,7 +54,7 @@ function requestLive(predioId, { onPaso, signal }) {
     const done = (fn, value) => { clearTimeout(timer); es.close(); fn(value); };
     const fail = (msg) => done(reject, new Error(msg));
     const parse = (e) => { try { return JSON.parse(e.data); } catch { return null; } };
-    timer = setTimeout(() => fail('el servidor no respondió en 20 s'), CONNECT_MS);
+    timer = setTimeout(() => fail(`el servidor no respondió en ${CONNECT_MS / 1000} s`), CONNECT_MS);
     es.addEventListener('paso', (e) => { const d = parse(e); if (d?.texto) onPaso(d.texto); });
     es.addEventListener('listo', (e) => { const d = parse(e); if (d?.url_pdf) done(resolve, d); else fail('respuesta sin PDF'); });
     es.addEventListener('falla', (e) => fail(parse(e)?.detail || 'la generación falló'));

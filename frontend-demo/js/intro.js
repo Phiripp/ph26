@@ -34,16 +34,18 @@ export function showTitle(opts = {}) {
   return showTitleImpl(opts);
 }
 
-// ---- timeline (seconds from the first visible frame of the globe) ----
+// ---- timeline (seconds from the first visible frame of the globe, at SPEED 1) ----
+// SPEED plays the whole scan faster without retiming every key: 1.45 turns the 6.2 s below into ~4.3 s.
+const SPEED = 1.45;
 const T = {
   fly: 0.6,                 // camera flight starts
   flyMs: 5200,              // ... and lasts (lands at ~5.8 s)
   satIn: [0, 0.5],          // satellite fades in while entering from the north
-  satOut: [6.0, 6.7],       // ... and out while leaving south
+  satOut: [5.6, 6.2],       // ... and out while leaving south (the title does not wait for it to cross the screen)
   beamOn: [0.7, 1.3],
-  beamOff: [5.6, 6.2],
+  beamOff: [5.3, 5.8],
   tagOn: [0.9, 4.4],        // "SENTINEL-2 · 786 KM"
-  end: 6.8,                 // hand-off: chrome, markers, title
+  end: 6.2,                 // hand-off: chrome, markers, title (right after the camera lands at 5.8)
 };
 // ground-track latitude of the satellite over time [t, lat]: slows down (in degrees) as the
 // camera descends so its on-screen speed stays roughly even, then speeds out to the south
@@ -298,14 +300,14 @@ export function initIntro({
 
   function frame(now) {
     if (phase !== 'playing') return;
-    const t = (now - t0) / 1000;
+    const t = (now - t0) / 1000 * SPEED;
     frameN++;
 
     if (!flying && t >= T.fly) {
       flying = true;
       try {
         m.once('moveend', () => { landed = true; });
-        m.flyTo({ ...home, duration: T.flyMs, curve: 1.25, essential: true, easing: (x) => (x < 0.5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2) });
+        m.flyTo({ ...home, duration: T.flyMs / SPEED, curve: 1.25, essential: true, easing: (x) => (x < 0.5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2) });
       } catch (e) { console.warn('[intro] flyTo:', e); landed = true; }
     }
 

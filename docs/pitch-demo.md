@@ -28,7 +28,7 @@ Seguimos las dos guías de Y Combinator para presentar una empresa: [How to Pitc
 
 | Regla de YC | Cómo la aplicamos |
 | --- | --- |
-| La primera frase dice qué haces, en palabras simples. Demorarlo "siempre es un error" | El guion parte con "Soy Tomás, y esto es Caudales" y la slide dice "Quién riega sin derechos de agua". Qué hacemos cierra el problema, a los 25 segundos |
+| La primera frase dice qué haces, en palabras simples. Demorarlo "siempre es un error" | El guion parte con "Soy Tomás, y esto es Caudales" y la slide dice "Buscamos el agua que le falta a la gente". Qué hacemos cierra el problema, a los 25 segundos |
 | Sin jerga, siglas ni lenguaje de marketing. Que suene "más tonto de lo que crees que debería" | No se nombran satélites, índices ni métodos. "DGA" se dice completo la primera vez |
 | El oyente retiene 3 o 4 ideas. Decirlas y repetirlas al final | Cuatro ideas (abajo); el cierre las repite |
 | El problema, corto | 22 segundos, con dos cifras |
@@ -57,7 +57,7 @@ Toda la demo ocurre en una sola zona (Aconcagua bajo, comuna de Hijuelas) para n
 
 | Tiempo | Segundos | Tramo | Qué se ve |
 | --- | --- | --- | --- |
-| 0:00–0:05 | 5 | Intro | Slide 1: CAUDALES y "Quién riega sin derechos de agua" |
+| 0:00–0:05 | 5 | Intro | Slide 1: CAUDALES y "Buscamos el agua que le falta a la gente" |
 | 0:05–0:27 | 22 | El problema | Slide 2: "50 litros al día". Al terminar se cambia al producto |
 | 0:27–0:43 | 16 | Demo: la zona | Vuelo a Aconcagua bajo; panel "De 3.639 predios, 425 tienen señal alta…" |
 | 0:43–1:18 | 35 | Demo: el caso real | Ficha del caso FO-0504-95: multa, "al menos 2,0 años antes" y el agua estimada |
@@ -76,7 +76,7 @@ El tono es hablado. No se nombran satélites, índices ni métodos (Sentinel-2, 
 "Soy Tomás, y esto es Caudales."
 
 **0:05 El problema.**
-"En Petorca hay gente que ha vivido con 50 litros de agua al día, traídos en camión. En dos años, el Estado contrató 5.700 millones en esos camiones. Al lado hay paltos verdes en pleno verano, regados sin derechos. Hoy eso se pilla solo si un vecino denuncia. Nosotros lo miramos desde el satélite."
+"En Petorca hay gente que ha vivido con 50 litros de agua al día, traídos en camión. En dos años, el Estado gastó 5.700 millones en esos camiones. Al lado hay paltos verdes en pleno verano, regados sin derechos. Hoy eso se pilla solo si un vecino denuncia. Nosotros lo miramos desde el satélite."
 
 **0:27 Demo: la zona.**
 "Este es el valle del Aconcagua. En verano el cerro está seco: un predio que sigue verde es porque alguien lo riega. Si riega más de lo que sus derechos permiten, queda en alerta. En esta zona son 425."
@@ -105,6 +105,7 @@ Cuidados al decirlo:
 - **Las cifras cambian de escala y hay que decirlo.** La pantalla de la zona dice 3.639 predios y 425 en alerta; el 501 es de las dos zonas juntas y sin fiscalizar. Por eso el guion dice "en esta zona" y "entre las dos zonas".
 - **El expediente del candidato ya está generado.** La pantalla dice "Generado el…, el servidor lo reutiliza". Por eso el guion no dice "se está generando ahora". Si el jurado pide verlo generarse, se pide el de otro predio: tarda unos 5 segundos y la pantalla muestra los pasos.
 - **La multa en pantalla dice 1.983,9 UTM, unos $144 millones** al valor de la UTM de `impacto.json`. La DGA informó "más de 127 millones" en su momento. El guion dice "más de 140" para calzar con la pantalla.
+- **Los 5.700 millones son contratos adjudicados**, según el Consejo para la Transparencia. El guion dice "gastó"; la slide solo dice "en camiones aljibe · 2023 y 2024". Si el jurado pregunta, la respuesta exacta es "contratados".
 - **Desde la quinta fila solo se ve el tercio superior.** Cada cifra se dice en voz alta; ninguna se deja a la pantalla.
 - **Si falta tiempo**, se salta "Y en cada uno, dónde mirar" y, si hace falta, la ruta entera.
 
@@ -113,7 +114,7 @@ Cuidados al decirlo:
 | Frase | Valor y cálculo | Fuente | Advertencia |
 | --- | --- | --- | --- |
 | 40 mil personas con 50 litros al día | 40.000 personas en la provincia de Petorca | [Radio JGM, U. de Chile, 04-05-2020](https://radiojgm.uchile.cl/de-50-a-100-litros-de-agua-el-suministro-que-el-minsal-no-pudo-cumplir/) | Es un dato de 2020: decir "han tenido que vivir". En 2021 la Corte Suprema subió la dotación a 100 litros |
-| 5.700 millones en camiones aljibe | $5.710 millones en contratos de la Delegación Presidencial Provincial de Petorca, 2023 y 2024 sumados | [Consejo para la Transparencia, 05-10-2026](https://www.consejotransparencia.cl/fiscalizacion-cplt-municipios-y-delegaciones-contrataron-mas-de-30-mil-millones-en-camiones-aljibe-en-2023-y-2024-pero-a-cuantas-familias-llego-el-agua-potable/) | Son montos contratados e informados por la delegación, no pagos: decir "contrató", no "gastó". Leímos el comunicado; el informe completo no abrió |
+| 5.700 millones en camiones aljibe | $5.710 millones en contratos de la Delegación Presidencial Provincial de Petorca, 2023 y 2024 sumados | [Consejo para la Transparencia, 05-10-2026](https://www.consejotransparencia.cl/fiscalizacion-cplt-municipios-y-delegaciones-contrataron-mas-de-30-mil-millones-en-camiones-aljibe-en-2023-y-2024-pero-a-cuantas-familias-llego-el-agua-potable/) | El guion dice "gastó" porque es lo natural al hablar (decisión del 22-11). El dato exacto son montos contratados e informados por la delegación, no pagos: si preguntan, decirlo así. Leímos el comunicado; el informe completo no abrió |
 | Multa de más de 140 millones | 1.983,9 UTM × $72.450 = $143,7 millones | Planilla de la DGA; UTM de `impacto.json` (`supuestos.utm_clp`) | Es lo que muestra la ficha del caso. La nota de prensa de la DGA dijo "más de 127 millones", con la UTM de entonces |
 | Fiscalizó en 2021; alerta alta desde 2019, dos años antes | Temporada 2019-20; inspección el 23-11-2021 (1,98 años); resolución de multa el 29-11-2023 | `impacto.md`, `/api/casos/FO-0504-95` | La serie parte en 2019-20: es una cota inferior. La multa se resolvió en 2023: decir "fiscalizó en 2021 y lo multó", no "multó en 2021" |
 | Diecinueve hectáreas, sin derechos inscritos, sin un canal cerca, nunca fiscalizado | 18,8 ha, 89 % palto, sin derechos a 500 m, canal a 1,2 km, sin fiscalización a 500 m desde 2018 | `puntaje.parquet`, predio `5301984` | No mostrar rol ni dueño |
@@ -148,6 +149,7 @@ Datos de reserva para las preguntas:
 | Comparación con la DGA | Una sola mención, como capacidad: "14 años". El 33 % queda para las preguntas | Abrir con "la DGA acierta 1 de cada 3" | No tenemos datos para decir que acertamos más (7 de 15, intervalo ancho) y la DGA es el cliente. La capacidad muestra que falta una herramienta; no nos presenta como una mejora de algo que ya existe |
 | Equivalencias de volumen | Solo personas, con la dotación de 100 litros al día, y pegada al caso real | Latas de Monster y Torres Costanera | Las comparaciones con latas y edificios le restan seriedad a un problema de gente sin agua. Decidido el 22-11 tras la revisión con espectadores |
 | Apertura | "Soy Tomás, y esto es Caudales" y el problema en 20 segundos | Un tramo aparte para decir qué hacemos | Los tres espectadores pidieron ver el producto antes. Qué hacemos queda en la última frase del problema: "Nosotros lo miramos desde el satélite" |
+| Frase de la portada | "Buscamos el agua que le falta a la gente" | "Quién riega sin derechos de agua" | La anterior sonaba a acusación. El foco va en las personas, y calza con el cierre ("el agua que falta no se ve") |
 | Cómo se muestra el candidato | Por ID interno, sin rol ni dueño, con la palabra "candidato" | No mostrar ningún predio no multado | El expediente y la ruta necesitan un predio concreto. El equipo debe confirmar esta decisión (ver abajo) |
 
 **Por confirmar con el equipo:** la convención era mostrar a los candidatos solo agregados. La demo en vivo necesita un predio concreto que no ha sido multado, y la ruta ya muestra ubicaciones. La propuesta es mostrarlo sin rol ni dueño y decir en voz alta que Caudales prioriza y no acusa. Si el equipo no está de acuerdo, el expediente en vivo se genera para el caso FO-0504-95 y el paso "candidato de hoy" muestra solo el ranking agregado.

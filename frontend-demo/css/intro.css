@@ -190,7 +190,7 @@
 /* narrow screens: Chile occupies the centre column, so the title goes to the
    top, smaller, with a top-down scrim */
 @media (max-width:699px){
-  .intro-title{align-items:flex-start;--it-size:clamp(38px,12.5vw,70px)} /* leaves room for the map zoom control on the right */
+  .intro-title{align-items:flex-start;--it-size:clamp(34px,11.6vw,70px)} /* eight letters: fits a 360 px phone with the side gutter */
   .intro-title .it-wrap{margin-top:calc(env(safe-area-inset-top,0px) + 112px)}
   .intro-title .it-block{max-width:100%}
   .intro-title::before{background:linear-gradient(180deg,rgba(5,8,11,.72) 0%,rgba(5,8,11,.45) 38%,rgba(5,8,11,0) 62%)}

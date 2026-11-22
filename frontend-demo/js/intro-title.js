@@ -21,7 +21,7 @@
 
 /** Title copy — edit here. */
 export const TITLE_CONFIG = {
-  name: 'CAUDAL',                                   // project name
+  name: 'CAUDALES',                                  // project name
   kicker: '',                                       // optional mono line above the name ('' = none)
   tagline: '',                                      // optional line under the name ('' = none)
   sub: '',                                          // optional mono line under the tagline ('' = none)

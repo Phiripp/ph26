@@ -86,8 +86,8 @@ function m3AntesText(v) {
   const o = typeof v === 'object' ? v : { central: +v };
   const lo = o.min ?? o.m3_exceso_min, hi = o.max ?? o.m3_exceso_max ?? o.central ?? o.m3_exceso_central;
   const mil = x => fmtNum(x / 1000, x >= 100000 ? 0 : 1);
-  if (lo != null && hi != null && +hi > 0) return `Entre la primera alerta y la inspección, Caudal estima ${mil(+lo)} a ${mil(+hi)} mil m³ extraídos sobre el derecho.`;
-  if (hi != null && +hi > 0) return `Entre la primera alerta y la inspección, Caudal estima unos ${mil(+hi)} mil m³ extraídos sobre el derecho (estimación central).`;
+  if (lo != null && hi != null && +hi > 0) return `Entre la primera alerta y la inspección, Caudales estima ${mil(+lo)} a ${mil(+hi)} mil m³ extraídos sobre el derecho.`;
+  if (hi != null && +hi > 0) return `Entre la primera alerta y la inspección, Caudales estima unos ${mil(+hi)} mil m³ extraídos sobre el derecho (estimación central).`;
   return '';
 }
 
@@ -108,21 +108,21 @@ function adelantoHTML(caso, rows) {
     // the series starts in 2019-20: an alert in the first season is a lower bound ("al menos")
     const censurado = caso.censurado ?? (rows?.length ? pa === rows[0].temporada : pa === '2019-20');
     const m3 = m3AntesText(caso.m3_antes_inspeccion);
-    return `<p class="cs-adel">Caudal: alerta alta desde <b>${nb(pa)}</b> · Inspección DGA: <b>${nb(fmtDateNum(insp))}</b> · ${censurado ? 'al menos ' : ''}<b>${fmtNum(anos, 1)} años</b> antes${m3 ? `<small>${esc(m3)}</small>` : ''}</p>`;
+    return `<p class="cs-adel">Caudales: alerta alta desde <b>${nb(pa)}</b> · Inspección DGA: <b>${nb(fmtDateNum(insp))}</b> · ${censurado ? 'al menos ' : ''}<b>${fmtNum(anos, 1)} años</b> antes${m3 ? `<small>${esc(m3)}</small>` : ''}</p>`;
   }
   const prev = (rows || []).filter(r => seasonStart(r.temporada) < String(insp).slice(0, 10));
   if (!prev.length || prev.some(r => r.banda === 'alta')) return '';
   const best = prev.reduce((a, r) => ((BAND_RANK[r.banda] ?? 0) > (BAND_RANK[a.banda] ?? 0) ? r : a), prev[0]);
   const max = BAND_TXT[best.banda] ? ` Lo más alto antes de la inspección fue banda ${BAND_TXT[best.banda]} en ${nb(best.temporada)}.` : '';
   const span = prev.length > 1 ? `temporadas ${nb(prev[0].temporada)} a ${nb(prev[prev.length - 1].temporada)}` : `temporada ${nb(prev[0].temporada)}`;
-  return `<p class="cs-adel is-no">Caudal no tenía este predio en alerta alta antes de la inspección (${span}).${max} Este caso no cuenta como detección anticipada.</p>`;
+  return `<p class="cs-adel is-no">Caudales no tenía este predio en alerta alta antes de la inspección (${span}).${max} Este caso no cuenta como detección anticipada.</p>`;
 }
 
 function timelineHTML(caso, rows) {
   if (!rows) return '';
   return `<figure class="cs-tl">
-      <figcaption>Banda de Caudal por temporada</figcaption>
-      <svg data-timeline viewBox="0 0 380 64" role="img" aria-label="Banda de prioridad de Caudal por temporada para el predio del caso ${esc(caso.expediente)}, con la fecha de inspección DGA"></svg>
+      <figcaption>Banda de Caudales por temporada</figcaption>
+      <svg data-timeline viewBox="0 0 380 64" role="img" aria-label="Banda de prioridad de Caudales por temporada para el predio del caso ${esc(caso.expediente)}, con la fecha de inspección DGA"></svg>
       <div class="pn-legend">${historialLegendHTML(rows)}</div>
     </figure>`;
 }
@@ -188,12 +188,12 @@ export function renderCaso(el, caso, zonaData, { onPredio, onExpediente, onBack 
       ${f ? '<button type="button" class="btn primary" data-act="predio">Ver predio</button>' : ''}
       ${f && onExpediente ? '<button type="button" class="btn" data-act="exp">Expediente</button>' : ''}
     </div>
-    <p class="pn-foot">${esc(caso.tipo_infraccion || 'Extracción no autorizada de aguas')}${caso.resolucion ? ` · Res. ${esc(caso.resolucion)}` : ''}. Fuente: planilla de fiscalización DGA. <span data-utm>${Number.isFinite(utmClp) ? "Multa en pesos con UTM a $" + fmtNum(utmClp, 0) + " (" + UTM_FUENTE + ")." : ""}</span> Banda por temporada: puntaje de Caudal (M5).</p>`;
+    <p class="pn-foot">${esc(caso.tipo_infraccion || 'Extracción no autorizada de aguas')}${caso.resolucion ? ` · Res. ${esc(caso.resolucion)}` : ''}. Fuente: planilla de fiscalización DGA. <span data-utm>${Number.isFinite(utmClp) ? "Multa en pesos con UTM a $" + fmtNum(utmClp, 0) + " (" + UTM_FUENTE + ")." : ""}</span> Banda por temporada: puntaje de Caudales (M5).</p>`;
 
   mountSeriesChart(el.querySelector('svg[data-series]'), data, caso.predio_id, { W: 560, H: 230, compact: true, marks, highlight: st?.win });
   // Lo que Caudal veía con los datos previos a la inspección (misma explicación de la ficha y del PDF)
   mountExplicacion(el.querySelector('[data-why]'), `/api/casos/${encodeURIComponent(caso.expediente)}`,
-    { titulo: x => `Qué veía Caudal antes de la inspección (temporada ${x.temporada})`, datoAl: false });
+    { titulo: x => `Qué veía Caudales antes de la inspección (temporada ${x.temporada})`, datoAl: false });
   const mountTl = r => mountTimeline(el.querySelector('svg[data-timeline]'), r, { fecha: caso.fecha_inspeccion });
   if (rows) mountTl(rows);
   // Late data, filled in place while this case is still on screen: historial.json and the UTM value of impacto.json.
@@ -242,7 +242,7 @@ export function renderCasosList(el, zonaData, { onSelect, selected } = {}) {
     <ul class="pn-list">${casos.map(c => {
       const b = c.predio_id ? zonaData.byId.get(c.predio_id)?.properties.banda : null;
       return `<li><button type="button" class="pn-row pn-r-caso${c.expediente === selected ? ' is-sel' : ''}" data-exp="${esc(c.expediente)}" title="${esc(c.expediente)}">
-        <span class="pn-row-top"><b class="pn-id">${esc(expShort(c.expediente))}</b><span class="pn-row-c">${esc(fmtComuna(c.comuna))} · ${esc(fmtDateNum(c.fecha_inspeccion))}</span>${b && b !== 'sin_dato' ? `<span class="pn-pill pn-${b}" title="Banda actual de Caudal para el predio (temporada 2025-26)">${esc(b === 'sin_alerta' ? 'Sin ind.' : b)}</span>` : ''}<span class="pn-row-meta">${fmtNum(c.multa_utm, 0)} UTM</span></span>
+        <span class="pn-row-top"><b class="pn-id">${esc(expShort(c.expediente))}</b><span class="pn-row-c">${esc(fmtComuna(c.comuna))} · ${esc(fmtDateNum(c.fecha_inspeccion))}</span>${b && b !== 'sin_dato' ? `<span class="pn-pill pn-${b}" title="Banda actual de Caudales para el predio (temporada 2025-26)">${esc(b === 'sin_alerta' ? 'Sin ind.' : b)}</span>` : ''}<span class="pn-row-meta">${fmtNum(c.multa_utm, 0)} UTM</span></span>
       </button></li>`;
     }).join('')}</ul>
     <p class="pn-foot">Casos ya sancionados: sirven para comprobar si la señal satelital aparecía antes de la inspección.</p>`;

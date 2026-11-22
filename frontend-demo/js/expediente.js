@@ -69,13 +69,13 @@ export function renderExpediente(el, feature, data, { onBack } = {}) {
     <header class="pn-fh">
       <p class="pn-kicker">Borrador de expediente · formato guía DGA</p>
       <h3 class="pn-title">Expediente ${esc(label)}</h3>
-      <p class="pn-sub">Caudal ordena los antecedentes. La presentación la hace una persona.</p>
+      <p class="pn-sub">Caudales ordena los antecedentes. La presentación la hace una persona.</p>
     </header>
     <section class="pn-pdf" data-part="pdf"></section>
     <p class="pn-kicker pn-exp-k">Texto del borrador, para copiar</p>
     <ol class="pn-exp">
       <li class="pn-sec"><h4>1 · Denunciante</h4>
-        <p class="pn-hint">Lo completa la persona con Clave Única. Caudal no guarda ni sugiere estos datos.</p>
+        <p class="pn-hint">Lo completa la persona con Clave Única. Caudales no guarda ni sugiere estos datos.</p>
         <div class="pn-fields">${fields.map(([k, l]) => `<label><span>${l}</span><input type="text" name="${k}" autocomplete="off" placeholder="—"></label>`).join('')}</div>
       </li>
       <li class="pn-sec"><h4>2 · Ubicación</h4>
@@ -95,7 +95,7 @@ export function renderExpediente(el, feature, data, { onBack } = {}) {
         <textarea class="pn-ta" name="hechos" rows="12">${esc(draft)}</textarea>
       </li>
       <li class="pn-sec"><h4>4 · Afectación del denunciante</h4>
-        <p class="pn-hint">Caudal no puede escribir esto. Describe cómo te afecta: pozo o APR con menos agua, cultivo propio sin riego, fechas y lugares concretos.</p>
+        <p class="pn-hint">Caudales no puede escribir esto. Describe cómo te afecta: pozo o APR con menos agua, cultivo propio sin riego, fechas y lugares concretos.</p>
         <textarea class="pn-ta" name="afectacion" rows="4" placeholder="Escríbelo con tus palabras…"></textarea>
       </li>
       <li class="pn-sec"><h4>5 · Adjuntos</h4>
@@ -106,13 +106,13 @@ export function renderExpediente(el, feature, data, { onBack } = {}) {
       <button type="button" class="btn" data-act="copy">Copiar texto</button>
       <span class="pn-status" role="status" aria-live="polite"></span>
     </div>
-    <p class="pn-legal">Se presenta en la Oficina Virtual DGA (SNIA) con Clave Única. Caudal no presenta nada.</p>`;
+    <p class="pn-legal">Se presenta en la Oficina Virtual DGA (SNIA) con Clave Única. Caudales no presenta nada.</p>`;
 
   const val = n => el.querySelector(`[name="${n}"]`)?.value.trim() || '';
   const text = () => {
     const L = [];
     L.push(`BORRADOR DE EXPEDIENTE — ${label} — ${comuna}${zonaNombre(data) ? ` (zona ${zonaNombre(data)})` : ''}`);
-    L.push('Preparado con Caudal. Se presenta en la Oficina Virtual DGA (SNIA) con Clave Única. Caudal no presenta nada.', '');
+    L.push('Preparado con Caudales. Se presenta en la Oficina Virtual DGA (SNIA) con Clave Única. Caudales no presenta nada.', '');
     L.push('1. DENUNCIANTE');
     for (const [k, l] of fields) L.push(`${l}: ${val(k) || '[completar]'}`);
     L.push('', '2. UBICACIÓN', `Rol: ${p.rol || '—'}`, `Predio (CIREN): ${p.id}`, `Comuna: ${comuna}`, 'Región: Valparaíso', `Coordenadas (centroide): ${fmtCoord(lon, lat)} (${lat}, ${lon})`, `Área: ${fmtNum(p.area_ha, 2)} ha`);

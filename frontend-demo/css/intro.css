@@ -1,5 +1,5 @@
 /* ==========================================================================
-   intro.css — satellite intro overlay + animated landing title (PLACEHOLDER)
+   intro.css — satellite intro overlay + animated landing title
    Load AFTER css/styles.css (uses its tokens: --void --water --ink --dim
    --f-display --f-body --f-mono --ease --gutter, and the .wrap container).
 
@@ -77,7 +77,7 @@
 .intro-nav-hidden{opacity:0!important;pointer-events:none!important;transition:opacity .7s var(--ease,ease)}
 
 /* --------------------------------------------------------------------------
-   2. Animated title (js/intro-title.js) — PLACEHOLDER copy, final design TBD
+   2. Animated title (js/intro-title.js)
    Base styles = END state, so prefers-reduced-motion simply drops animations.
    -------------------------------------------------------------------------- */
 .intro-title{

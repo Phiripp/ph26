@@ -73,7 +73,7 @@ Si cambian los datos de una zona hay que regenerar los archivos livianos (sin re
 python3 scripts/build_zonas_web.py --check
 ```
 
-`scripts/build_zonas_scores.py` lo corre al final. Sin esos archivos la página cae a `series.json` y `scores.json` completos.
+Los archivos los escribe `scripts/build_m5_web.py` desde `data/processed/` (ver [data/zonas/README.md](data/zonas/README.md)).
 
 Para medir (usa el Chrome instalado; `playwright-core` puede vivir en cualquier carpeta):
 
@@ -161,7 +161,7 @@ densidad 1 y vuelve a densidad completa al aterrizar, y la capa del satélite se
 1. Mapa de Chile: satélite y relieve sobre Chile, resto del mundo oscuro. Marcadores de las dos zonas (Z1, Z2), los 10 casos sancionados por la DGA y Aculeo; con zoom ≥ 8 aparecen los puntos de fiscalización DGA (rojo = con infracción, gris = sin infracción).
 2. Aculeo (gancho): terreno 3D con imágenes reales 2018–2024; el usuario mueve el año y ve cómo cambia el agua.
 3. Zona (Z1 o Z2): terreno 3D con los predios por banda y los casos destacados. Panel con tres pestañas:
-   - Predios: ranking por banda → ficha (derecho del rol en la DGA, banda provisional, serie NDVI/NDMI con ventanas secas, línea de inspección si es un caso) → expediente con los campos de la guía de denuncias de la DGA.
+   - Predios: ranking por banda → ficha (derecho del rol en la DGA, banda del índice de sospecha M5, serie NDVI/NDMI con ventanas secas, línea de inspección si es un caso) → expediente PDF con los campos de la guía de denuncias de la DGA, generado por `caudal-api`.
    - Casos: los casos de la zona → ficha del caso (expediente, comuna, fecha de inspección, decisión, multa en UTM, cómo se veía la señal antes de la inspección, imágenes antes/después).
    - Ruta: ruta de inspección del día (Google Maps / GPX).
 
@@ -198,34 +198,19 @@ scripts/perf/measure.cjs  medición de rendimiento
 
 ## Datos
 
-Todo sale de `data/` del repo del equipo (ver `data/README.md`), convertido a JSON por los scripts de `scripts/`:
+Todo sale de `data/processed/` del repo (ver [data/README.md](../data/README.md)). `scripts/build_m5_web.py` lo convierte a los JSON que carga la página; la tabla de archivos y sus campos está en [data/zonas/README.md](data/zonas/README.md).
 
-```
-data/zonas/index.json              zonas Z1/Z2: comunas, bbox de la escena, casos
-data/zonas/casos.json              los 10 casos de validación (+ recortes en assets/casos/)
-data/zonas/fiscalizaciones.geojson expedientes de fiscalización DGA en Z1/Z2 (sin nombres)
-data/zonas/{z1,z2}/predios.geojson predios CIREN de muestra + predios de los casos, con derechos
-data/zonas/resumen.json            conteos y ruta por zona + serie del caso demo (lo que usa la portada)
-data/zonas/{z1,z2}/scores.json     banda, índice y rango de consumo (provisional), con historial por temporada
-data/zonas/{z1,z2}/scores.lite.json  lo mismo sin historial: es el que carga la página
-data/zonas/{z1,z2}/series.json     NDVI/NDMI mensual por predio + referencia de secano CONAF (fuente completa)
-data/zonas/{z1,z2}/series/         las mismas series por bloques de ~50 predios: es lo que carga la página
-data/zonas/{z1,z2}/clima.json      lluvia, ET0 y ventanas secas (N = 10 días)
-data/zonas/{z1,z2}/ruta.json, .gpx ruta de inspección
-assets/zonas/{z1,z2}/              EOX Sentinel-2 cloudless 2018–2024 + DEM
-```
-
-Reales:
-- Predios: catastro CIREN (muestra del equipo + predios de los casos).
-- Derechos de agua por rol: DGA (cruce del equipo, temporada 2025-26, con su confianza).
-- Casos de validación y fiscalizaciones: expedientes públicos de la DGA. Los 10 casos están resueltos con multa y se muestran como "caso sancionado por la DGA".
-- Clima y ventanas secas: estaciones DMC + Open-Meteo corregido.
-- Series NDVI/NDMI: Sentinel-2 L2A (Element84 Earth Search). No se usa `serie_predio` del equipo (bug D15, offset restado dos veces).
-- Ruta: orden con OR-Tools, trazado con OSRM.
+- Predios: catastro CIREN. La página lleva los polígonos de las bandas alta y media, los casos y las paradas de la ruta; el resto va como conteo.
+- Banda, puntaje, confianza y rangos de consumo y exceso: índice de sospecha M5 (`puntaje.parquet`).
+- Series NDVI y NDMI con el secano de referencia: Sentinel-2 L2A (Element84 Earth Search), anomalías de M2.
+- Derechos de agua por rol: registro de la DGA, con la confianza del cruce.
+- Casos y fiscalizaciones: expedientes públicos de la DGA. Los 10 casos están resueltos con multa y se muestran como "caso sancionado por la DGA".
+- Clima y ventanas secas: estaciones DMC y Open-Meteo corregido.
+- Ruta: orden con OR-Tools y trazado con OSRM, guardados; la página no llama a OSRM.
+- Expediente PDF: lo genera `caudal-api` al pedirlo ([api/README.md](../api/README.md)). Si no responde, se abre el de `data/respaldo/expedientes/`, con su fecha.
 - Imágenes: Sentinel-2 cloudless (EOX). Relieve: AWS Terrain Tiles.
 
-Provisional (marcado en la interfaz):
-- Banda, índice y rango de consumo de cada predio: regla FAO-56 del spec sobre los derechos reales, hasta que llegue el modelo M5 del equipo.
+Qué se calcula al momento y qué viene calculado: [docs/en-vivo-y-precalculado.md](../docs/en-vivo-y-precalculado.md).
 
 Principio: el sistema prioriza, no acusa. Solo IDs y rol, nunca nombres de dueños; siempre rangos de m³, nunca una cifra única; ningún predio sin resolver se llama "infractor".
 

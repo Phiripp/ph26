@@ -4,7 +4,7 @@
 > Solo los casos con multa se llaman "sancionados".
 
 Generado por `scripts/build_m5_web.py` desde `data/processed/` (ver [docs/spec-demo.md](../../../docs/spec-demo.md),
-"Datos: exportación de M5 al frontend"). Reemplaza los puntajes provisionales de `build_zonas_scores.py`.
+"Datos: exportación de M5 al frontend"). Todas las cifras salen de los modelos del repo (M3 a M10).
 `scripts/build_zonas_web.py --check` verifica lo exportado (sin red ni dependencias).
 
 ```bash

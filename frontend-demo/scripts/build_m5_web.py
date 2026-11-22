@@ -4,7 +4,7 @@
 # ///
 """Caudal · exporta M5 (y M3, M8, M9, M10) al frontend estático (docs/spec-demo.md, "Datos: exportación de M5").
 
-Reemplaza los puntajes provisionales de build_zonas_scores.py. Lee data/processed/ y escribe los archivos que la
+Lee data/processed/ y escribe los archivos que la
 página ya carga (js/zona-data.js), con los mismos nombres:
 
   data/zonas/resumen.json            por zona: total de predios analizados, conteo por banda, resumen de la ruta;
@@ -70,8 +70,7 @@ MAX_POI = 8
 UMBRAL_VERDOR, UMBRAL_HUMEDAD, DIAS_SECOS_MIN = 2.5, 1.5, 10
 # F6 (docs/spec-demo.md): todas las cifras y equivalencias salen de data/processed/impacto.json (M9:
 # lift_alta_sin_calibrar, equivalencias, torres_costanera_ano, capacidad). Aquí solo se elige el predio
-# del pitch: data/demo.json → "candidato" si existe; si no, el de docs/spec-demo.md.
-CANDIDATO_PITCH_DEFAULT = 5301984
+# del pitch: data/demo.json → "candidato". El identificador no va en el código.
 
 
 def candidato_pitch() -> int:
@@ -85,7 +84,7 @@ def candidato_pitch() -> int:
                 return int(v)
         except (OSError, ValueError, AttributeError):
             pass
-    return CANDIDATO_PITCH_DEFAULT
+    sys.exit("falta el candidato del pitch: data/demo.json → \"candidato\"")
 
 HOY = date.today().isoformat()
 
@@ -550,7 +549,7 @@ def main() -> int:
         kb["poi"] = dump(poi_zona(poi, set(s)), zd / "poi.json")
         for ext in ("json", "gpx", "geojson"):
             shutil.copyfile(PROC / f"ruta_{z}.{ext}", zd / f"ruta.{ext}")
-        for viejo in ("scores.json", "series.json"):  # provisionales de build_zonas_scores.py
+        for viejo in ("scores.json", "series.json"):  # archivos de una exportación anterior, ya sin uso
             (zd / viejo).unlink(missing_ok=True)
         uz = u[u.zona == z.upper()]
         counts = {b: int((uz.banda == b).sum()) for b in ("alta", "media", "baja", "sin_alerta")} | {"sin_dato": 0}

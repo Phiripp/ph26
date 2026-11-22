@@ -1,7 +1,6 @@
 // intro-title.js — animated landing title shown on the LEFT of the stage, over the map.
 //
-// PLACEHOLDER: the project name, kicker and tagline below are temporary copy.
-// Change them in TITLE_CONFIG (or pass `config` to showTitle) — nothing else needs touching.
+// The project name, kicker and tagline live in TITLE_CONFIG (or pass `config` to showTitle).
 //
 // Behaviour:
 //   - Builds a non-interactive block (pointer-events: none) inside header.stage.
@@ -20,9 +19,9 @@
 //     leaving landing mode (data-mode !== "landing"). Programmatic camera moves
 //     (flyTo/easeTo without originalEvent) do NOT hide it.
 
-/** PLACEHOLDER copy — edit here. */
+/** Title copy — edit here. */
 export const TITLE_CONFIG = {
-  name: 'CAUDAL',                                   // PLACEHOLDER project name
+  name: 'CAUDAL',                                   // project name
   kicker: '',                                       // optional mono line above the name ('' = none)
   tagline: '',                                      // optional line under the name ('' = none)
   sub: '',                                          // optional mono line under the tagline ('' = none)

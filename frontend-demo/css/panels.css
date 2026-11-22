@@ -171,8 +171,7 @@ button.pn-stop:focus-visible{outline:2px solid var(--water);outline-offset:-2px}
 }
 @media (prefers-reduced-motion:reduce){.pn-prog i,.pn-ord{transition:none}}
 
-/* zonas: provisional tag, case tag, case link, inspection mark */
-.pn-prov{font:normal 500 9.5px/1 var(--f-mono);letter-spacing:.08em;text-transform:uppercase;color:var(--loss);border:1px dashed rgba(255,169,64,.55);padding:3px 5px}
+/* zonas: case tag, case link, inspection mark */
 .pn-caso{display:inline-flex;align-items:center;font:600 9.5px/1 var(--f-mono);letter-spacing:.08em;text-transform:uppercase;color:var(--void);background:var(--ink);padding:3px 5px;white-space:nowrap}
 .pn-caselink{all:unset;box-sizing:border-box;display:flex;align-items:center;gap:8px;width:100%;margin:0 0 12px;padding:8px 10px;border:1px solid rgba(232,238,241,.35);background:rgba(232,238,241,.05);cursor:pointer;font:12px var(--f-mono);color:var(--dim)}
 .pn-caselink b{color:var(--ink);font-weight:600}

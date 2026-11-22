@@ -1,6 +1,5 @@
 // Caudal · ranking list + ficha de predio. "El sistema prioriza, no acusa."
 import { BAND_LABEL, BAND_SHORT, CONF_LABEL, fmtNum, fmtMil, fmtRange, fmtDate, fmtComuna, expShort, dryWindowStats, seriesFailed, SERIES_FAILED_TEXT, esc } from './zona-data.js';
-import { mountPorQue } from './porque.js';
 import { mountSeriesChart, chartLegendHTML } from './chart.js';
 
 const pill = b => `<span class="pn-pill pn-${b}">${esc(BAND_SHORT[b] || b)}</span>`;
@@ -202,7 +201,6 @@ export function renderFicha(el, feature, data, { onExpediente, onBack, onCaso } 
       <p class="pn-sub">${sub.map(esc).join(' · ')}</p>
     </header>
     ${caso ? `<button type="button" class="pn-caselink" data-act="caso"><span class="pn-caso">Caso</span><b>${esc(caso.expediente)}</b><span>sancionado por la DGA · ${fmtNum(caso.multa_utm, 1)} UTM</span><i aria-hidden="true">→</i></button>` : ''}
-    <section class="pn-why" data-part="why" hidden></section>
     <dl class="pn-kpis">
       <div><dt>Consumo estimado ${esc(temporada)}</dt><dd class="pn-water">${p.m3_estimado_min == null ? '—' : `${fmtMil(p.m3_estimado_min)}–${fmtMil(p.m3_estimado_max)} <small>mil m³</small>`}</dd></div>
       <div><dt>Derecho del rol · DGA</dt>${derechoHTML(p)}</div>
@@ -217,7 +215,6 @@ export function renderFicha(el, feature, data, { onExpediente, onBack, onCaso } 
       <button type="button" class="btn primary" data-act="exp"${flagged ? '' : ' disabled'}>Preparar expediente</button>
     </div>`;
   mountSeriesChart(el.querySelector('svg[data-series]'), data, p.id, { W: 560, H: 230, compact: true, marks, highlight: st?.win });
-  if (flagged) mountPorQue(el.querySelector('[data-part="why"]'), `/api/predios/${encodeURIComponent(p.id)}`);
   el.onclick = e => {
     const a = e.target.closest('[data-act]')?.dataset.act;
     if (a === 'back') onBack?.();

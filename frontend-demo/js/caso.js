@@ -1,7 +1,6 @@
 // Caudal · panel de caso de validación (casos resueltos por la DGA, con multa).
 // Un caso sancionado sí se puede nombrar como tal; los predios sin resolver nunca.
 import { fmtNum, fmtDate, fmtDateNum, fmtComuna, expShort, dryWindowStats, seriesFailed, SERIES_FAILED_TEXT, esc } from './zona-data.js';
-import { mountPorQue } from './porque.js';
 import { mountSeriesChart, mountTimeline, chartLegendHTML, historialLegendHTML, seasonStart } from './chart.js';
 
 /**
@@ -167,7 +166,6 @@ export function renderCaso(el, caso, zonaData, { onPredio, onExpediente, onBack 
       <div class="pn-legend">${chartLegendHTML({ mark: true })}</div>
     </figure>
     <p class="pn-note">${esc(text)}</p>
-    <section class="pn-why" data-part="why" hidden></section>
     ${imgs.length ? `
     <section class="pn-imgs" data-mode="rgb">
       <div class="pn-imgs-h"><span>Sentinel-2 · recorte del predio</span>
@@ -190,7 +188,6 @@ export function renderCaso(el, caso, zonaData, { onPredio, onExpediente, onBack 
     </div>
     <p class="pn-foot">${esc(caso.tipo_infraccion || 'Extracción no autorizada de aguas')}${caso.resolucion ? ` · Res. ${esc(caso.resolucion)}` : ''}. Fuente: planilla de fiscalización DGA. <span data-utm>${Number.isFinite(utmClp) ? "Multa en pesos con UTM a $" + fmtNum(utmClp, 0) + " (" + UTM_FUENTE + ")." : ""}</span> Banda por temporada: puntaje de Caudal (M5).</p>`;
 
-  mountPorQue(el.querySelector('[data-part="why"]'), `/api/casos/${encodeURIComponent(caso.expediente)}`, { titulo: 'Por qué estaba en alerta antes de la inspección', previa: true });
   mountSeriesChart(el.querySelector('svg[data-series]'), data, caso.predio_id, { W: 560, H: 230, compact: true, marks, highlight: st?.win });
   const mountTl = r => mountTimeline(el.querySelector('svg[data-timeline]'), r, { fecha: caso.fecha_inspeccion });
   if (rows) mountTl(rows);

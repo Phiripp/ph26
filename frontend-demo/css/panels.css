@@ -118,20 +118,6 @@
 .pn-adj{margin:0;padding-left:18px;font-size:12.5px;display:flex;flex-direction:column;gap:3px}
 .pn-legal{margin:14px 0 0;padding:10px 12px;border:1px solid rgba(69,214,238,.35);background:rgba(69,214,238,.06);font:11.5px/1.5 var(--f-mono);color:var(--ink)}
 
-/* por qué está en alerta: one line per reason, source on hover */
-.pn-why{margin:0 0 14px;padding:11px 12px 10px;border:1px solid var(--rule);background:var(--deck)}
-.pn-why[hidden]{display:none}
-.pn-why-h{margin:0 0 8px;font:500 11px var(--f-mono);letter-spacing:.1em;text-transform:uppercase;color:var(--water)}
-.pn-why-l{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:7px}
-.pn-why-l li{display:grid;grid-template-columns:92px 1fr;gap:10px;font-size:12.5px;line-height:1.4;cursor:help}
-.pn-why-l b{font:500 11px/1.5 var(--f-mono);letter-spacing:.04em;text-transform:uppercase;color:var(--ink)}
-.pn-why-l span{color:var(--ink)}
-.pn-why-conf{margin:10px 0 0;padding-top:9px;border-top:1px solid var(--rule);font-size:12px;line-height:1.45;color:var(--dim)}
-.pn-why-conf b{color:var(--ink);font-weight:600}
-.pn-why-lim{margin:6px 0 0;font-size:11.5px;line-height:1.45;color:var(--dim)}
-.pn-why-foot{margin:8px 0 0;font:10.5px var(--f-mono);letter-spacing:.04em;color:var(--dim);opacity:.85}
-.pn-note+.pn-why{margin-top:14px}
-
 /* expediente PDF en vivo */
 .pn-pdf{border:1px solid rgba(69,214,238,.35);background:rgba(69,214,238,.05);padding:12px;margin-bottom:14px}
 .pn-pdf-h{margin:0 0 8px;font:500 11px var(--f-mono);letter-spacing:.1em;text-transform:uppercase;display:flex;align-items:center;gap:8px}

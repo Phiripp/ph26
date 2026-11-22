@@ -1308,10 +1308,8 @@ export async function initValle({
       startPin.el.style.transform = on ? `translate(calc(${g.x.toFixed(1)}px - 50%), ${(g.y - 5).toFixed(1)}px)` : OFF;
       if (on) {
         const w = startPin.el.offsetWidth || 200, h = startPin.el.offsetHeight || 30;
-        // keep the "INICIO · …" caption on screen (the diamond stays on its point)
-        const x0 = g.x - w / 2, sx = clamp(x0, 4, Math.max(4, maxX - w)) - x0;
-        if (startPin.cap) startPin.cap.style.transform = sx ? `translateX(${sx.toFixed(1)}px)` : '';
-        tags.push({ x: x0 + sx, y: g.y - 5, w, h, pin: true });
+        // the "INICIO · …" caption stays fixed under its diamond (sliding it to stay on screen looked loose)
+        tags.push({ x: g.x - w / 2, y: g.y - 5, w, h, pin: true });
       }
     }
     // declutter: the selected / hovered case is placed first and always keeps its tag; any other tag that

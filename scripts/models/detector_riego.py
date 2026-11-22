@@ -91,11 +91,18 @@ def en_ventana(a: pd.DataFrame) -> pd.DataFrame:
     return a.merge(d, on=["celda_id", "fecha"], how="left")
 
 
+VENTANAS = ("seca", "todas", "lluvia")
+
+
 def marcar_senal(a: pd.DataFrame, umbral_verdor: float = UMBRAL_VERDOR, umbral_humedad: float = UMBRAL_HUMEDAD,
-                 dias_min: int = DIAS_MIN) -> pd.DataFrame:
+                 dias_min: int = DIAS_MIN, ventana: str = "seca") -> pd.DataFrame:
     """Marca cada fecha (salida de en_ventana): en_ventana (ventana seca con la racha mínima), valida (además
-    despejada y con referencia) y senal (además sobre los dos umbrales). Es la regla del docstring."""
-    a["en_ventana"] = a.ventana_id.notna() & (a.dias_sin_lluvia >= dias_min)
+    despejada y con referencia) y senal (además sobre los dos umbrales). Es la regla del docstring.
+
+    `ventana` existe para medir cuánto aporta la condición de sequía (ablacion_ventana.py): "seca" es la regla
+    del modelo; "todas" acepta cualquier fecha; "lluvia" solo las fechas con dato de clima que no cumplen la regla."""
+    seca = a.ventana_id.notna() & (a.dias_sin_lluvia >= dias_min)
+    a["en_ventana"] = {"seca": seca, "todas": True, "lluvia": a.dias_sin_lluvia.notna() & ~seca}[ventana]
     a["valida"] = a.en_ventana & (a.estado == "ok")
     a["senal"] = a.valida & (a.z_verdor >= umbral_verdor) & (a.z_humedad >= umbral_humedad)
     return a
@@ -132,6 +139,8 @@ def main() -> int:
     ap.add_argument("--umbral-verdor", type=float, default=UMBRAL_VERDOR)
     ap.add_argument("--umbral-humedad", type=float, default=UMBRAL_HUMEDAD)
     ap.add_argument("--dias-min", type=int, default=DIAS_MIN, help="días sin lluvia mínimos en la fecha de la imagen")
+    ap.add_argument("--ventana", choices=VENTANAS, default="seca",
+                    help="qué fechas cuentan: seca (regla del modelo), todas o lluvia (solo para medir, ver ablacion_ventana.py)")
     ap.add_argument("--frac-min", type=float, default=FRAC_MIN, help="fracción de fechas con señal para senal_riego")
     ap.add_argument("--min-fechas-baja", type=int, default=3)
     ap.add_argument("--min-fechas-media", type=int, default=6)
@@ -142,7 +151,7 @@ def main() -> int:
     sin_celda = a.celda_id.isna().sum()
     if sin_celda:
         print(f"aviso: {sin_celda} filas sin celda de clima (quedan fuera de ventana)")
-    a = marcar_senal(a, args.umbral_verdor, args.umbral_humedad, args.dias_min)
+    a = marcar_senal(a, args.umbral_verdor, args.umbral_humedad, args.dias_min, args.ventana)
     a["nublado_v"] = a.en_ventana & (a.estado == "nublado")
     a["sinref_v"] = a.en_ventana & (a.estado == "sin_referencia")
     a["sin_clima"] = a.dias_sin_lluvia.isna()

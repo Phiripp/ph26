@@ -14,7 +14,7 @@ Today this is found almost only when a neighbor files a complaint. The water aut
 
 Caudal checks 7,911 farms in two areas of the Valparaíso region, Petorca and lower Aconcagua.
 
-1. **It spots irrigation.** If it has not rained for 10 days and a farm is still greener and wetter than the dry hill next to it, someone is watering it.
+1. **It spots irrigation.** In summer, when the hills are dry, a farm that stays green and moist is being watered.
 2. **It compares with water rights.** It estimates how much water the crop needs and compares it with the rights registered for that farm. If the farm uses more than its rights allow, it goes on alert.
 3. **It tells the inspector where to go.** A ranking, a one-day driving route, and the points to check inside each farm.
 4. **It prepares the complaint.** One click builds a PDF with the fields of the DGA's official complaint form. A person reviews it, signs it and files it.

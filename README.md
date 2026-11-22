@@ -21,7 +21,7 @@ Live: <https://caudal-web-170658673954.southamerica-west1.run.app> · Full descr
 
 ## What it does
 
-1. **Spots irrigation.** If it has not rained for 10 days and a farm is still greener and wetter than the dry hill next to it, someone is watering it.
+1. **Spots irrigation.** In summer, when the hills are dry, a farm that stays green and moist is being watered.
 2. **Compares with water rights.** It estimates the water the crop needs and compares it with the rights registered for that farm.
 3. **Ranks 7,911 farms** in Petorca and lower Aconcagua, and plans a one-day inspection route.
 4. **Builds the complaint file.** A PDF with the fields of the DGA's official complaint form, generated on the server.
@@ -36,7 +36,7 @@ Every alert says why it exists, where each number comes from and what Caudal doe
 ## What is live and what is precomputed
 
 - **Precomputed, in batch:** satellite series, irrigation signal, water use, score, route. Scripts in `scripts/`, results in `data/processed/`.
-- **Live:** the API queries those files on each request, writes the "why is this farm on alert" text, and builds the complaint PDF when asked (about 20 seconds for a new one; the demo ones are built with the image and the page shows their date).
+- **Live:** the API queries those files on each request, writes the "why is this farm on alert" text, and builds the complaint PDF when asked (about 5 seconds for a new one; the demo ones are built with the image and the page shows their date).
 
 Nothing on the page is typed in by hand. More in [docs/en-vivo-y-precalculado.md](docs/en-vivo-y-precalculado.md).
 

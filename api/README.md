@@ -107,7 +107,7 @@ curl -X POST localhost:8000/api/expediente -H 'content-type: application/json' -
 
 - `reutilizado: true` significa que ya existía un expediente con los mismos insumos. Muestra `creado`; no lo presentes como recién generado. Con `"regenerar": true` se fuerza uno nuevo.
 - **Rol.** El PDF lleva el rol solo si el predio tiene un caso sancionado por la DGA, que es un dato público. Para el resto identifica el predio por su polígono de CIREN y deja el rol para quien presenta la denuncia (`con_rol: false`). Se fuerza con `"rol": true` o `"rol": false` (`&rol=false` en la ruta de eventos); la página manda `rol=false` en modo demo (`?demo=1`).
-- Uno nuevo tarda cerca de 20 segundos; casi todo es bajar las imágenes. Si las fuentes de imágenes no responden, sale sin imágenes (`con_imagenes: false`).
+- Uno nuevo tarda cerca de 5 segundos (mediana de 4 s en la imagen, antes 13 a 16 s): las imágenes se piden todas a la vez, cada fuente en su hilo. Si una fuente no responde en 15 segundos, el expediente sale sin esa imagen (`con_imagenes: false` si no hay ninguna). Earth Search no se reintenta: un error pasajero deja el expediente sin las imágenes de antes y después.
 - Tope: 180 segundos (`CAUDAL_TOPE_S`; el servicio de Cloud Run corta a los 300). Pasado el tope responde 503; la generación termina en segundo plano y la siguiente solicitud la encuentra hecha.
 - Los expedientes del candidato y del caso de `data/demo.json` se generan al construir la imagen, así que en producción abren al instante.
 

@@ -39,9 +39,11 @@ Uso:
 
 import argparse
 import hashlib
+import json
 import subprocess
 import sys
 import time
+from concurrent.futures import Future, ThreadPoolExecutor
 from datetime import datetime
 from pathlib import Path
 
@@ -82,6 +84,7 @@ TIPO_POI = {"captacion": "Captación (expediente DGA)", "zona_riego": "Zona con 
             "pozo_derecho": "Pozo con derecho", "bocatoma": "Bocatoma", "cauce": "Cauce natural", "canal": "Canal"}
 ESTADO_DER = {"sin_derechos_cerca": "ninguno a 500 m", "derechos_cerca_de_otro_rol": "solo en otros roles", "con_derechos": "con derechos"}
 TIEMPO_RED_S = 15  # espera máxima por solicitud a Earth Search y Esri: si no responden, el expediente sale sin imágenes
+WAYBACK_CACHE_S = 900  # la lista de versiones de Wayback se guarda este tiempo en el proceso (Esri publica una cada varias semanas)
 
 
 class ErrorExpediente(Exception):
@@ -197,6 +200,31 @@ def ventanas(pid: int, fechas: pd.Series) -> pd.DataFrame:
 
 
 # ---------- figuras ----------
+def en_hilo(fn, *a) -> Future:
+    """Corre fn(*a) en un hilo aparte, sin esperarlo: el resultado (o la excepción) se recoge con .result().
+    La espera en red no bloquea a las otras fuentes; las figuras se siguen dibujando en el hilo principal (pyplot)."""
+    ex = ThreadPoolExecutor(1)
+    f = ex.submit(fn, *a)
+    ex.shutdown(wait=False)  # no espera: el hilo termina solo al acabar fn
+    return f
+
+
+def buscar_escenas(ids) -> dict:
+    """Items de Earth Search de esas escenas, por id, en una sola solicitud. {} si no responde."""
+    ids = sorted({x for x in ids if x})
+    if not ids:
+        return {}
+    try:
+        from pystac_client import ItemSearch
+        from pystac_client.stac_api_io import StacApiIO
+        io = StacApiIO(timeout=TIEMPO_RED_S, max_retries=None)  # sin los 5 reintentos por defecto: un servidor mudo costaba 90 s
+        return {i.id: i for i in ItemSearch(f"{STAC}/search", stac_io=io, collections=["sentinel-2-l2a"], ids=ids,
+                                            max_items=len(ids)).items()}  # max_items: no pide la página siguiente, vacía
+    except Exception as e:
+        print(f"  aviso: sin acceso a Earth Search ({e}); el expediente sale sin imágenes", file=sys.stderr)
+        return {}
+
+
 def chip_s2(escena_id: str, bounds, items: dict) -> np.ndarray | None:
     """Recorte en color natural (TCI, 10 m) de la escena, en EPSG:32719. None si no hay red o la escena no está."""
     import rasterio
@@ -223,14 +251,23 @@ def _http(url: str, timeout=TIEMPO_RED_S) -> bytes:
         return r.read()
 
 
+_cfg_wayback: tuple[float, dict] | None = None  # (hora, config)
+
+
+def config_wayback() -> dict:
+    """Versiones de Wayback (un JSON de 100 kB). Se baja una vez cada WAYBACK_CACHE_S, no en cada expediente."""
+    global _cfg_wayback
+    if _cfg_wayback is None or time.monotonic() - _cfg_wayback[0] > WAYBACK_CACHE_S:
+        _cfg_wayback = (time.monotonic(), json.loads(_http(WAYBACK_CONFIG)))
+    return _cfg_wayback[1]
+
+
 def fondo_wayback(bounds, ancho_px=1100) -> tuple[np.ndarray | None, dict]:
     """Foto aérea de Esri World Imagery Wayback (versión más reciente), reproyectada a la grilla UTM 19S de `bounds`.
 
     Es solo mapa base (decisión del repo: Sentinel-2 para el análisis). Wayback redirige cada tile a la versión en que
     ese sector cambió por última vez; la fecha de captura sale de la capa de metadatos de esa versión."""
-    import json
     import math
-    from concurrent.futures import ThreadPoolExecutor
     from io import BytesIO
 
     import rasterio
@@ -238,7 +275,7 @@ def fondo_wayback(bounds, ancho_px=1100) -> tuple[np.ndarray | None, dict]:
     from rasterio.transform import Affine, from_bounds
     from rasterio.warp import Resampling, reproject, transform_bounds
 
-    cfg = json.loads(_http(WAYBACK_CONFIG))
+    cfg = config_wayback()
     rel, meta = max(cfg.items(), key=lambda kv: kv[1]["itemTitle"])  # "World Imagery (Wayback AAAA-MM-DD)"
     info = {"version": meta["itemTitle"].split("Wayback ")[-1].rstrip(")")}
     lon0, lat0, lon1, lat1 = transform_bounds(CRS_M, 4326, *bounds)
@@ -250,6 +287,12 @@ def fondo_wayback(bounds, ancho_px=1100) -> tuple[np.ndarray | None, dict]:
         ty = lambda lat: int((1 - math.asinh(math.tan(math.radians(lat))) / math.pi) / 2 * n)  # noqa: E731
         xs, ys = range(tx(lon0), tx(lon1) + 1), range(ty(lat1), ty(lat0) + 1)
         url = meta["itemURL"].replace("{level}", str(z))
+        # fecha de captura y proveedor en el centro del recuadro (capa de metadatos de la resolución del zoom): se pide
+        # mientras bajan los tiles y se recoge al final
+        capa = min(13, max(0, 5 + 18 - z))
+        f_meta = en_hilo(_http, f"{meta.get('metadataLayerUrl')}/{capa}/query?geometry={(lon0 + lon1) / 2},{(lat0 + lat1) / 2}"
+                                "&geometryType=esriGeometryPoint&inSR=4326&spatialRel=esriSpatialRelIntersects"
+                                "&outFields=SRC_DATE,SRC_RES,NICE_DESC&returnGeometry=false&f=json")
 
         def tile(xy):
             x, y = xy
@@ -258,7 +301,7 @@ def fondo_wayback(bounds, ancho_px=1100) -> tuple[np.ndarray | None, dict]:
             except Exception:
                 return xy, None
 
-        with ThreadPoolExecutor(8) as ex:
+        with ThreadPoolExecutor(min(64, len(xs) * len(ys))) as ex:  # un hilo por tile: cada uno es una conexión nueva y un 301
             res = dict(ex.map(tile, [(x, y) for y in ys for x in xs]))
         if sum(v is None for v in res.values()) > 0.2 * len(res):  # sin cobertura a este zoom: probar uno menos
             continue
@@ -273,12 +316,8 @@ def fondo_wayback(bounds, ancho_px=1100) -> tuple[np.ndarray | None, dict]:
         for b in range(3):
             reproject(mos[..., b], dst[b], src_transform=src_t, src_crs="EPSG:3857",
                       dst_transform=from_bounds(*bounds, ancho_px, alto_px), dst_crs=f"EPSG:{CRS_M}", resampling=Resampling.bilinear)
-        try:  # fecha de captura y proveedor en el centro del recuadro (capa de metadatos de la resolución del zoom)
-            capa = min(13, max(0, 5 + 18 - z))
-            q = (f"{meta['metadataLayerUrl']}/{capa}/query?geometry={(lon0 + lon1) / 2},{(lat0 + lat1) / 2}"
-                 "&geometryType=esriGeometryPoint&inSR=4326&spatialRel=esriSpatialRelIntersects"
-                 "&outFields=SRC_DATE,SRC_RES,NICE_DESC&returnGeometry=false&f=json")
-            a = json.loads(_http(q))["features"][0]["attributes"]
+        try:
+            a = json.loads(f_meta.result())["features"][0]["attributes"]
             info.update(captura=pd.to_datetime(str(a["SRC_DATE"]), format="%Y%m%d").strftime("%d-%m-%Y"),
                         proveedor=a.get("NICE_DESC") or "", resolucion=a.get("SRC_RES"))
         except Exception:
@@ -595,19 +634,23 @@ def generar(predio_id: int | None = None, rol: str | None = None, temporada: str
             e = ok[ok.temporada == tt]
             if len(e):
                 pares.append((tt, e.iloc[0]))
-    items = {}
+    # Las fuentes se piden a la vez, cada una en su hilo: Esri Wayback, Earth Search y, cuando esta responde, un recorte por
+    # imagen de antes y después (se recogen al dibujarlos). Si una fuente no responde, no retrasa a las otras.
+    f_wb, f_chips = None, []
     if not args.sin_imagenes:
         avisar("Buscando las imágenes satelitales del predio")
-        try:
-            from pystac_client import Client
-            ids = sorted({x for x in [escena_croquis] + [e.escena_id for _, e in pares] if x})
-            items = {i.id: i for i in Client.open(STAC, timeout=TIEMPO_RED_S).search(collections=["sentinel-2-l2a"], ids=ids).items()}
-        except Exception as e:
-            print(f"  aviso: sin acceso a Earth Search ({e}); el expediente sale sin imágenes", file=sys.stderr)
+        if args.fondo == "wayback":
+            f_wb = en_hilo(fondo_wayback, bounds)
+        f_items = en_hilo(buscar_escenas, [escena_croquis] + [e.escena_id for _, e in pares])
+
+        def recorte(escena_id):
+            return chip_s2(escena_id, bounds, f_items.result())
+
+        f_chips = [en_hilo(recorte, e.escena_id) for _, e in pares]
     fondo, fondo_txt = None, None
-    if not args.sin_imagenes and args.fondo == "wayback":
+    if f_wb is not None:
         try:
-            fondo, wb = fondo_wayback(bounds)
+            fondo, wb = f_wb.result()
         except Exception as e:
             print(f"  aviso: sin Esri Wayback ({e}); el croquis usa Sentinel-2", file=sys.stderr)
         if fondo is not None:
@@ -616,7 +659,7 @@ def generar(predio_id: int | None = None, rol: str | None = None, temporada: str
             fondo_txt = (f"Esri World Imagery Wayback, versión {wb['version']}{cap}{prov}. "
                          f"Fuentes: Esri{', ' + wb['proveedor'] if wb.get('proveedor') else ''}, Earthstar Geographics y la comunidad de usuarios de GIS.")
     if fondo is None and not args.sin_imagenes and args.fondo != "ninguno" and escena_croquis:
-        fondo = chip_s2(escena_croquis, bounds, items)
+        fondo = recorte(escena_croquis)
         if fondo is not None:
             fondo_txt = f"Sentinel-2 color natural, escena {escena_croquis}."
 
@@ -627,8 +670,8 @@ def generar(predio_id: int | None = None, rol: str | None = None, temporada: str
     fig_croquis(geom, bounds, fondo, poi.to_crs(CRS_M), cauces, out / "croquis.jpg")
     fig_serie(anom.sort_values("fecha"), out / "serie.png")
     imagenes = []
-    for tt, e in pares:
-        ch = chip_s2(e.escena_id, bounds, items)
+    for (tt, e), f_chip in zip(pares, f_chips):
+        ch = f_chip.result()
         if ch is not None:
             nombre = f"imagen_{tt}.png"
             fig_chip(geom, bounds, ch, out / nombre)

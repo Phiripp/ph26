@@ -123,6 +123,21 @@ def buscar_escenas(catalogo: Client, tile: str, inicio: str, fin: str, nubes_max
     return deduplicar(items)
 
 
+def periodo_tile(zonas: dict, regiones, inicio: str, fin: str) -> tuple[str, str]:
+    """Temporada seca, salvo que alguna región del tile pida un período propio (`periodo_satelite`): entonces la unión.
+
+    Un tile que toca Valparaíso trae el año completo también para los polígonos vecinos que caen en él; la etapa region
+    recorta la serie a la temporada antes de los modelos, así que el ranking de esas regiones no cambia.
+    """
+    hoy = pd.Timestamp.today().strftime("%Y-%m-%d")
+    propios = [zonas[r]["periodo_satelite"] for r in regiones if zonas[r].get("periodo_satelite")]
+    if not propios:
+        return inicio, fin
+    inicios = [p["inicio"] for p in propios] + [inicio]
+    fines = [hoy if p["fin"] == "hoy" else p["fin"] for p in propios] + [fin]
+    return min(inicios), max(fines)
+
+
 def repartir(costos: dict[str, float], orden: list[str], n: int) -> list[list[str]]:
     """Reparto codicioso: los tiles, en `orden`, van a la parte con menos costo acumulado.
 
@@ -183,7 +198,8 @@ def main() -> int:
         celdas = celdas_ocupadas(g.to_crs(crs_item(item)).geometry, grilla_de_item(item))
         if not celdas:
             continue
-        escenas = buscar_escenas(catalogo, t, inicio, fin, args.nubes_max)
+        ini_t, fin_t = periodo_tile(zonas, g["region"].unique(), inicio, fin)
+        escenas = buscar_escenas(catalogo, t, ini_t, fin_t, args.nubes_max)
         prioridad = min(zonas[r]["prioridad"] for r in g["region"].unique())
         g.to_parquet(plan / "poligonos_tile" / f"{t}.parquet", index=False)
         por_tile[t] = {"escenas": escenas, "celdas": len(celdas), "prioridad": prioridad}

@@ -39,7 +39,6 @@ Uso: uv run scripts/models/agua_potable.py
          --top 40 --max-paradas 5 --salida data/processed/ruta_agua_z2
 """
 
-import json
 import sys
 from pathlib import Path
 

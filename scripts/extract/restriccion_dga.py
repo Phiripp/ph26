@@ -39,6 +39,7 @@ CAMPOS = ["OBJECTID", "COD_SHAC", "NOM_ACUIF", "SHAC", "TIPO_LIMIT", "RES_DGA", 
           "TIPOESTUDI", "REGION", "FECHA_ACTUALIZACION"]
 CRS_METROS = "EPSG:32719"
 PAGINA = 50
+TOLERANCIA_GRADOS = 0.0005
 TIPOS = {"Zona de Prohibicion": "prohibicion", "Area de Restriccion": "restriccion", "Abierto": "abierto"}
 
 
@@ -71,7 +72,10 @@ def esri_a_shapely(anillos: list) -> MultiPolygon | Polygon | None:
 def bajar_bbox(bbox: list[float]) -> gpd.GeoDataFrame:
     params = {"geometry": ",".join(map(str, bbox)), "geometryType": "esriGeometryEnvelope", "inSR": "4326",
               "spatialRel": "esriSpatialRelIntersects", "outFields": ",".join(CAMPOS), "outSR": "4326",
-              "returnGeometry": "true", "f": "json"}
+              "returnGeometry": "true", "f": "json",
+              # Simplificación en el servidor (~50 m): los SHAC del norte traen cientos de miles de vértices y el cruce
+              # con los predios tardaba más de 15 min por región. Para asignar el SHAC dominante basta con esta precisión.
+              "maxAllowableOffset": TOLERANCIA_GRADOS, "geometryPrecision": 6}
     filas = []
     for cuerpo in paginar(URL, params, PAGINA, orden="OBJECTID"):
         for f in cuerpo["features"]:

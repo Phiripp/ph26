@@ -10,6 +10,7 @@ En Cloud Run: api/Dockerfile (lo despliega scripts/cloud/api/desplegar.sh).
 Variables de entorno:
   CAUDAL_ORIGENES     orígenes permitidos por CORS, separados por coma (la URL de caudal-web). localhost siempre puede.
   CAUDAL_EXPEDIENTES  carpeta de los expedientes nuevos (por defecto data/processed/expedientes).
+  CAUDAL_TOPE_S       tope en segundos de una generación de expediente (por defecto 180).
   CAUDAL_RAIZ         raíz del repo o de la imagen (por defecto, la carpeta que contiene api/).
 """
 

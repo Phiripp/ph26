@@ -36,7 +36,7 @@ export const API_BASE = localOverride() || (isLocal(location.hostname) ? LOCAL_A
  */
 export const apiUrl = (ruta) => API_BASE + ruta;
 
-const API_TIMEOUT_MS = 5000;
+const API_TIMEOUT_MS = 15000; // 15 s: con los datos de todo Chile las consultas pueden tardar más que con dos zonas
 const BACKUP_BASE = 'data/respaldo';
 
 async function fetchJson(url, ms) {
@@ -52,7 +52,7 @@ async function fetchJson(url, ms) {
 }
 
 /**
- * Pide un recurso de lectura a la API; si no responde en 5 s o da error, lee el archivo equivalente del
+ * Pide un recurso de lectura a la API; si no responde en 15 s o da error, lee el archivo equivalente del
  * respaldo estático ("/api/zonas/Z2/ranking" -> "data/respaldo/zonas/Z2/ranking.json").
  * @param {string} ruta ruta de la API, con la barra inicial
  * @returns {Promise<{ data: any, respaldo: boolean }>} `respaldo` dice si salió del archivo estático

@@ -12,7 +12,8 @@
 3. Escribe plan/poligonos_tile/<tile>.parquet: poligono_id, tipo (predio o secano), region y geometría de cada polígono
    que toca el tile. El mismo predio puede venir en dos regiones (98 mslink repetidos entre capas de CIREN): queda uno.
 4. Calcula las celdas ocupadas de cada tile (comun/celdas.py, las mismas que lee serie_sentinel2.py) y reparte los
-   tiles en N partes con un reparto codicioso por costo: escenas del tile x celdas ocupadas. Los tiles se reparten
+   tiles en N partes con un reparto codicioso por costo (escenas del tile x celdas ocupadas) de trozos de tile: las
+   escenas de cada tile se cortan en trozos contiguos y cada parte toca pocos tiles. Los trozos se reparten
    por prioridad de región (primero el centro), así las primeras escenas que terminan son las de prioridad 1.
 5. Escribe plan/partes/<k>.jsonl con los ítems STAC serializados (las tareas no vuelven a consultar STAC),
    plan/regiones_tiles.json (los tiles de cada región, para el control de completitud de la etapa region) y
@@ -25,6 +26,7 @@ Uso: uv run scripts/cloud/chile/plan.py [--partes 40] [--nubes-max 40] [--rehace
 """
 
 import argparse
+import math
 import json
 import sys
 import tempfile
@@ -138,18 +140,30 @@ def periodo_tile(zonas: dict, regiones, inicio: str, fin: str) -> tuple[str, str
     return min(inicios), max(fines)
 
 
-def repartir(unidades: list[tuple[str, object, float]], n: int) -> list[list[tuple[str, object]]]:
-    """Reparto codicioso por escena: cada (tile, escena, costo), en orden, va a la parte con menos costo acumulado.
+def repartir(tiles: list[tuple[str, list, int]], n: int, min_escenas: int = 5) -> list[list[tuple[str, object]]]:
+    """Reparte por trozos de tile: cada (tile, escenas, celdas), en orden de prioridad, va a las partes en trozos.
 
-    Se reparte por escena y no por tile completo: con pocos tiles (una sola región) un tile por parte deja tareas vacías
-    y otras con el doble de trabajo. El costo de una escena son las celdas ocupadas de su tile. Cada parte agrupa sus
-    escenas por tile y arma la máscara de cada tile una vez (unos segundos).
+    El costo de un tile es escenas x celdas ocupadas. Sus escenas (en orden de fecha) se cortan en k = max(1,
+    ceil(costo / (0.7 x objetivo))) trozos contiguos, con objetivo = costo total / n y al menos `min_escenas` escenas por
+    trozo. Los trozos se asignan, más grandes primero dentro de cada prioridad, a la parte con menos carga. Así cada
+    parte toca pocos tiles: la máscara de un tile pesado (decenas de miles de polígonos) cuesta minutos y se arma una
+    vez por tile y por parte. Repartir escena por escena esparcía cada tile por todas las partes y rehacía esa máscara
+    en cada tarea.
     """
+    objetivo = sum(len(es) * c for _, es, c in tiles) / n
+    trozos = []  # (orden de tile, costo, tile, escenas)
+    for i, (tile, escenas, celdas) in enumerate(tiles):
+        if not escenas:
+            continue
+        k = max(1, min(math.ceil(len(escenas) * celdas / (0.7 * objetivo)), len(escenas) // min_escenas)) if objetivo else 1
+        corte = np.array_split(np.arange(len(escenas)), k)
+        trozos += [(i, len(ix) * celdas, tile, [escenas[j] for j in ix]) for ix in corte]
     partes: list[list[tuple[str, object]]] = [[] for _ in range(n)]
     carga = np.zeros(n)
-    for tile, item, costo in unidades:
+    # Los tiles ya vienen por prioridad; dentro de cada tile, el trozo más grande primero.
+    for _, costo, tile, escenas in sorted(trozos, key=lambda t: (t[0], -t[1])):
         k = int(carga.argmin())
-        partes[k].append((tile, item))
+        partes[k] += [(tile, it) for it in escenas]
         carga[k] += costo
     return partes
 
@@ -213,7 +227,7 @@ def main() -> int:
 
     # Escenas en orden de prioridad del tile (las del centro terminan antes en todas las partes) y, dentro, por fecha.
     orden = sorted(por_tile, key=lambda t: (por_tile[t]["prioridad"], -por_tile[t]["celdas"], t))
-    unidades = [(t, it, por_tile[t]["celdas"]) for t in orden for it in por_tile[t]["escenas"]]
+    unidades = [(t, por_tile[t]["escenas"], por_tile[t]["celdas"]) for t in orden]
     partes = repartir(unidades, args.partes)
 
     (plan / "partes").mkdir(parents=True, exist_ok=True)
@@ -228,8 +242,10 @@ def main() -> int:
     esc.to_parquet(plan / "escenas.parquet", index=False)  # al final: es la marca de plan terminado
 
     carga = [sum(por_tile[t]["celdas"] for t, _ in lista) for lista in partes]
+    ntiles = [len({t for t, _ in lista}) for lista in partes]
     print(f"\n{len(esc)} escenas en {len(por_tile)} tiles, {args.partes} partes; costo por parte: "
-          f"mín {min(carga):,.0f}, máx {max(carga):,.0f}, media {np.mean(carga):,.0f}")
+          f"mín {min(carga):,.0f}, máx {max(carga):,.0f}, media {np.mean(carga):,.0f}; "
+          f"tiles por parte: mín {min(ntiles)}, máx {max(ntiles)}")
     print(esc.groupby("prioridad").agg(tiles=("tile", "nunique"), escenas=("escena_id", "size")).to_string())
     return 0
 

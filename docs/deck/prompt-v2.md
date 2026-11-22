@@ -2,7 +2,7 @@
 
 Nov 22, 2026 · @Tomas
 
-Prompt para la herramienta que diseña las slides. Parte del prompt original de Gabi y agrega lo decidido el 22-11: el nombre Caudales, la frase de la portada, la apertura de 49 segundos, con el tramo de solución que sugiere la organización, y las slides de reserva como cifras. Los textos y las cifras son los mismos de [index.html](index.html), que sirve de referencia visual (se abre en el navegador). El guion hablado está en [../pitch-demo.md](../pitch-demo.md).
+Prompt para la herramienta que diseña las slides. Parte del prompt original de Gabi y agrega lo decidido el 22-11: el nombre Caudales, la frase de la portada, la apertura de 47 segundos, con el tramo de solución que sugiere la organización, y las slides de reserva como cifras. Los textos y las cifras son los mismos de [index.html](index.html), que sirve de referencia visual (se abre en el navegador). El guion hablado está en [../pitch-demo.md](../pitch-demo.md).
 
 Pegar desde aquí:
 
@@ -17,7 +17,7 @@ le importa a quien mira. Nada de mercado, modelo de negocio, clientes ni pedidos
 ## Formato del evento
 - 3:00 con corte duro, 2:00 de preguntas del jurado, 1:30 de deliberación y cambio de equipo.
 - Habla una persona (Tomás); otra maneja el computador.
-- El deck solo cubre la apertura (0:00–0:49) y el cierre (2:33–2:46). Entre medio se muestra
+- El deck solo cubre la apertura (0:00–0:47) y el cierre (2:31–2:44). Entre medio se muestra
   el producto en vivo, sin slides. La última slide de apertura y la de cierre tienen que verse
   de la misma familia que el producto, para que el cambio de pantalla no se note.
 
@@ -87,16 +87,16 @@ Lenguaje gráfico:
    Tercio inferior, tenue: bloque de dato "$5.700 millones", etiqueta "EN CAMIONES ALJIBE · 2023 Y 2024"
    Fuente en mono chica: "RADIO JGM, U. DE CHILE (2020) · CONSEJO PARA LA TRANSPARENCIA (2026)"
 
-3. LA SOLUCIÓN (0:26–0:49). Es el tramo que pide la organización: qué es, qué tan ambicioso y
+3. LA SOLUCIÓN (0:26–0:47). Es el tramo que pide la organización: qué es, qué tan ambicioso y
    cuánto se avanzó.
    Grande: "7.911 predios" · secundario: "mirados desde el satélite y cruzados con sus derechos de agua."
    Tercio inferior, tenue: tres bloques de dato chicos en una fila.
      "160 mil"     · etiqueta: MEDICIONES DE SATÉLITE · contexto: MÁS EL CLIMA Y EL REGISTRO PÚBLICO
-     "36 horas"    · etiqueta: DE CERO A PRODUCTO · contexto: CORRIENDO EN CAUDALES.DEV
+     "7 veranos"   · etiqueta: IMÁGENES DESDE 2019 · contexto: PARA VER QUIÉN YA REGABA ANTES
      "14 regiones" · etiqueta: DATOS BASE YA DESCARGADOS · contexto: PARA PROBARLO EN EL RESTO DE CHILE
    (Después de esta slide se cambia al producto en vivo.)
 
-4. CIERRE (2:33–2:46). Se queda en pantalla durante las preguntas.
+4. CIERRE (2:31–2:44). Se queda en pantalla durante las preguntas.
    Tercio superior: tres bloques de dato en una fila, con el número enorme.
      "2 años"  · etiqueta: ANTES QUE LA INSPECCIÓN, AL MENOS · contexto: CASO REAL EN HIJUELAS
      "2,6×"    · etiqueta: MÁS INFRACCIONES QUE SIN LA LISTA · contexto: 19 CASOS DE LA DGA
@@ -138,6 +138,7 @@ Contraste: el texto debe cumplir WCAG AA sobre #05080b sin usar blanco puro.
 | $5.700 millones | Consejo para la Transparencia: contratos de la Delegación Presidencial Provincial de Petorca, 2023 y 2024 |
 | 2 años, al menos | Caso FO-0504-95: alerta alta desde 2019-20, inspección el 23-11-2021 (`docs/impacto.md`) |
 | 7.911 predios, 160 mil mediciones | `puntaje.parquet`; 167.266 imágenes despejadas de verano por predio (`docs/ablacion-ventana.md`) |
+| 7 veranos | Series de 2019-20 a 2025-26 en los predios de la validación (`data/README.md`); el ranking usa 2025-26 |
 | 14 regiones | Datos base de la corrida nacional (`docs/spec-chile.md`); las series satelitales solo están para Valparaíso |
 | 2,6× y 6 de 19 | `docs/validacion.md`, con los umbrales fijados antes de calibrar |
 | 501 y 158 de 467 | `data/processed/impacto.json` (`candidatos`, escenario conservador) |

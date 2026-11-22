@@ -22,7 +22,10 @@ Sentinel-2 de Earth Search, con escena y fecha. Sin red, usar --sin-imagenes.
 
 Salida: data/processed/expedientes/<id>/ con expediente.pdf, expediente.html y las figuras, más una fila en
 data/processed/expedientes/registro.csv (id, predio_id, rol, temporada, confianza, versión, hash de insumos, ruta, fecha,
-con_imagenes).
+con_imagenes, sin_rol).
+
+Con --sin-rol el PDF identifica el predio por su número de polígono de CIREN y deja el rol para que lo complete quien
+presenta la denuncia. Es la versión que se muestra en pantalla de un predio que la DGA no ha sancionado.
 
 El resumen incluye el bloque "Por qué este predio está en alerta" de explicacion.py: el mismo texto de la ficha web.
 La API (api/expedientes.py) llama a `generar` y usa `huella_insumos` para devolver un expediente ya generado con los
@@ -55,7 +58,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from comun.rutas import PROC, RAIZ, mostrar  # noqa: E402
 from detector_riego import DIAS_MIN, UMBRAL_HUMEDAD, UMBRAL_VERDOR  # noqa: E402  (umbrales de M3, calibrados en M7)
-from explicacion import explicacion  # noqa: E402
+from explicacion import explicacion, m3  # noqa: E402
 
 PLANTILLAS = Path(__file__).resolve().parent / "plantillas"
 CRS_M = 32719
@@ -94,11 +97,8 @@ def num(x, dec=0) -> str:
 
 
 def redondo(x) -> str:
-    """m³ a 2 cifras significativas: un rango no merece más precisión."""
-    if x is None or np.isnan(x) or x == 0:
-        return num(x)
-    p = 10 ** max(int(np.floor(np.log10(abs(x)))) - 1, 0)
-    return num(round(x / p) * p)
+    """m³ redondeados como en la ficha web (explicacion.m3): 2 cifras significativas, 3 si la primera es 1."""
+    return m3(x)
 
 
 def fecha(d) -> str:
@@ -519,20 +519,23 @@ def main() -> int:
     ap.add_argument("--fondo", choices=["wayback", "sentinel2", "ninguno"], default="wayback",
                     help="foto base del croquis: Esri World Imagery Wayback (por defecto), Sentinel-2 o sin fondo")
     ap.add_argument("--sin-imagenes", action="store_true", help="no bajar imágenes (croquis sin fondo, sin anexo A3)")
+    ap.add_argument("--sin-rol", action="store_true", help="no mostrar el rol: el predio va por su polígono de CIREN")
     ap.add_argument("--salida", default=str(PROC / "expedientes"))
     args = ap.parse_args()
     try:
-        e = generar(args.predio_id, args.rol, args.temporada, args.fondo, args.sin_imagenes, args.salida)
+        e = generar(args.predio_id, args.rol, args.temporada, args.fondo, args.sin_imagenes, args.salida,
+                    sin_rol=args.sin_rol)
     except ErrorExpediente as err:
         sys.exit(str(err))
-    print(f"{e['id']}: {e['rol']}, temporada {e['temporada']}, confianza {e['confianza_senal']}, "
+    print(f"{e['id']}: {e['rol'] or 'predio ' + str(e['predio_id'])}, temporada {e['temporada']}, confianza {e['confianza_senal']}, "
           f"M5 {('banda ' + e['banda'] + ' ' + num(e['puntaje'])) if e['banda'] else 'sin puntaje'}, {e['n_poi']} POI, "
           f"{'con' if e['con_imagenes'] else 'sin'} imagen -> {e['pdf']} ({e['segundos']:.1f} s)")
     return 0
 
 
 def generar(predio_id: int | None = None, rol: str | None = None, temporada: str | None = None, fondo: str = "wayback",
-            sin_imagenes: bool = False, salida: str | Path = PROC / "expedientes", avisar=lambda paso: None) -> dict:
+            sin_imagenes: bool = False, salida: str | Path = PROC / "expedientes", avisar=lambda paso: None,
+            sin_rol: bool = False) -> dict:
     """Genera el expediente y devuelve su ficha (id, pdf, huella de insumos, si lleva imágenes). `avisar(texto)` se
     llama al empezar cada paso: la API lo usa para mostrar el avance real."""
     args = argparse.Namespace(predio_id=predio_id, rol=rol, temporada=temporada, fondo=fondo, sin_imagenes=sin_imagenes,
@@ -646,7 +649,7 @@ def generar(predio_id: int | None = None, rol: str | None = None, temporada: str
     utm = cen.iloc[0]
     comuna = str(pg.comuna.iloc[0]).upper()
     ctx = {
-        "p": {"predio_id": pid, "rol": pg.rol.iloc[0], "comuna_t": titulo(comuna), "provincia": PROVINCIA.get(comuna, "s/d"),
+        "p": {"predio_id": pid, "rol": None if sin_rol else pg.rol.iloc[0], "comuna_t": titulo(comuna), "provincia": PROVINCIA.get(comuna, "s/d"),
               "area_ha_txt": num(geom.area / 1e4, 1), "sector": "Por completar (no está en las fuentes usadas)",
               "lat_txt": f"{cen_ll.y:.5f}", "lon_txt": f"{cen_ll.x:.5f}", "utm_e": num(utm.x), "utm_n": num(utm.y)},
         "e": {"id": eid, "version": VERSION, "fecha_txt": f"{datetime.now():%d-%m-%Y %H:%M}", "hash": ""},
@@ -702,14 +705,15 @@ def generar(predio_id: int | None = None, rol: str | None = None, temporada: str
     ruta_pdf = str(mostrar(pdf))
     con_imagenes = fondo is not None or bool(imagenes)
     creado = datetime.now().astimezone().isoformat(timespec="seconds")
-    fila = pd.DataFrame([{"id": eid, "predio_id": pid, "rol": f"{comuna}:{pg.rol.iloc[0]}", "temporada": t, "confianza": r.confianza,
+    rol_txt = None if sin_rol else f"{comuna}:{pg.rol.iloc[0]}"
+    fila = pd.DataFrame([{"id": eid, "predio_id": pid, "rol": rol_txt, "temporada": t, "confianza": r.confianza,
                           "banda_m5": m5.banda if m5 is not None else "", "puntaje_m5": m5.puntaje if m5 is not None else None,
                           "version": VERSION, "hash_insumos": huella, "ruta_pdf": ruta_pdf,
-                          "fecha_creacion": creado, "con_imagenes": con_imagenes}])
+                          "fecha_creacion": creado, "con_imagenes": con_imagenes, "sin_rol": sin_rol}])
     if reg.exists():  # se reescribe entero: si cambian las columnas, las filas antiguas quedan vacías en las nuevas
         fila = pd.concat([pd.read_csv(reg), fila], ignore_index=True)
     fila.to_csv(reg, index=False)
-    return {"id": eid, "predio_id": pid, "rol": f"{comuna}:{pg.rol.iloc[0]}", "temporada": t, "confianza_senal": r.confianza,
+    return {"id": eid, "predio_id": pid, "rol": rol_txt, "sin_rol": sin_rol, "temporada": t, "confianza_senal": r.confianza,
             "banda": m5.banda if m5 is not None else None, "puntaje": float(m5.puntaje) if m5 is not None else None,
             "confianza": m5.confianza if m5 is not None else None, "n_poi": len(poi), "con_imagenes": con_imagenes,
             "hash_insumos": huella, "pdf": out / "expediente.pdf", "creado": creado, "segundos": time.time() - t0}

@@ -2,7 +2,7 @@
 
 Nov 22, 2026 · @Tomas
 
-Prompt para la herramienta que diseña las slides. Parte del prompt original de Gabi y agrega lo decidido el 22-11: el nombre Caudales, la frase de la portada, la apertura de 48 segundos, con el tramo de solución que sugiere la organización, y las slides de reserva como cifras. Los textos y las cifras son los mismos de [index.html](index.html), que sirve de referencia visual (se abre en el navegador). El guion hablado está en [../pitch-demo.md](../pitch-demo.md).
+Prompt para la herramienta que diseña las slides. Parte del prompt original de Gabi y agrega lo decidido el 22-11: el nombre Caudales, la frase de la portada, la apertura de 49 segundos, con el tramo de solución que sugiere la organización, y las slides de reserva como cifras. Los textos y las cifras son los mismos de [index.html](index.html), que sirve de referencia visual (se abre en el navegador). El guion hablado está en [../pitch-demo.md](../pitch-demo.md).
 
 Pegar desde aquí:
 
@@ -17,7 +17,7 @@ le importa a quien mira. Nada de mercado, modelo de negocio, clientes ni pedidos
 ## Formato del evento
 - 3:00 con corte duro, 2:00 de preguntas del jurado, 1:30 de deliberación y cambio de equipo.
 - Habla una persona (Tomás); otra maneja el computador.
-- El deck solo cubre la apertura (0:00–0:48) y el cierre (2:33–2:46). Entre medio se muestra
+- El deck solo cubre la apertura (0:00–0:49) y el cierre (2:33–2:46). Entre medio se muestra
   el producto en vivo, sin slides. La última slide de apertura y la de cierre tienen que verse
   de la misma familia que el producto, para que el cambio de pantalla no se note.
 
@@ -87,7 +87,7 @@ Lenguaje gráfico:
    Tercio inferior, tenue: bloque de dato "$5.700 millones", etiqueta "EN CAMIONES ALJIBE · 2023 Y 2024"
    Fuente en mono chica: "RADIO JGM, U. DE CHILE (2020) · CONSEJO PARA LA TRANSPARENCIA (2026)"
 
-3. LA SOLUCIÓN (0:26–0:48). Es el tramo que pide la organización: qué es, qué tan ambicioso y
+3. LA SOLUCIÓN (0:26–0:49). Es el tramo que pide la organización: qué es, qué tan ambicioso y
    cuánto se avanzó.
    Grande: "7.911 predios" · secundario: "mirados desde el satélite y cruzados con sus derechos de agua."
    Tercio inferior, tenue: tres bloques de dato chicos en una fila.

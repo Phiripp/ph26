@@ -54,16 +54,16 @@ Cuatro ideas que el jurado debe recordar:
 
 ## Guion
 
-Toda la demo ocurre en una sola zona (Aconcagua bajo, comuna de Hijuelas) para no gastar tiempo en vuelos entre zonas. El producto está en pantalla desde el 0:48 hasta el 2:33 (1:45); el recorrido de las cuatro pantallas dura 1:29. La apertura y el cierre van con el deck ([deck/index.html](deck/index.html), 4 slides y 4 de reserva): se abre en el navegador, con las flechas se avanza y con F se pone en pantalla completa.
+Toda la demo ocurre en una sola zona (Aconcagua bajo, comuna de Hijuelas) para no gastar tiempo en vuelos entre zonas. El producto está en pantalla desde el 0:49 hasta el 2:33 (1:44); el recorrido de las cuatro pantallas dura 1:29. La apertura y el cierre van con el deck ([deck/index.html](deck/index.html), 4 slides y 4 de reserva): se abre en el navegador, con las flechas se avanza y con F se pone en pantalla completa.
 
 | Tiempo | Segundos | Tramo | Qué se ve |
 | --- | --- | --- | --- |
 | 0:00–0:05 | 5 | Intro | Slide 1: CAUDALES y "El agua está repartida. No todos respetan su parte." |
 | 0:05–0:26 | 21 | El problema | Slide 2: "50 litros al día" |
-| 0:26–0:48 | 22 | La solución | Slide 3: "7.911 predios", 160 mil mediciones, 36 horas, 14 regiones. Al terminar se cambia al producto |
-| 0:48–1:03 | 15 | Demo: la zona | Vuelo a Aconcagua bajo; panel "De 3.639 predios, 425 tienen señal alta…" |
-| 1:03–1:36 | 33 | Demo: el caso real | Ficha del caso FO-0504-95: multa, "al menos 2,0 años antes" y el agua estimada |
-| 1:36–2:06 | 30 | Demo: un candidato de hoy | Ficha del candidato; se abre el expediente PDF |
+| 0:26–0:49 | 23 | La solución | Slide 3: "7.911 predios", 160 mil mediciones, 36 horas, 14 regiones. Al terminar se cambia al producto |
+| 0:49–1:04 | 15 | Demo: la zona | Vuelo a Aconcagua bajo; panel "De 3.639 predios, 425 tienen señal alta…" |
+| 1:04–1:37 | 33 | Demo: el caso real | Ficha del caso FO-0504-95: multa, "al menos 2,0 años antes" y el agua estimada |
+| 1:37–2:06 | 29 | Demo: un candidato de hoy | Ficha del candidato; se abre el expediente PDF |
 | 2:06–2:17 | 11 | Demo: la ruta de mañana | Pestaña Ruta: "5 predios · 4 horas · 71 km" |
 | 2:17–2:33 | 16 | Qué tan bien funciona | Sigue la pestaña Ruta: no se cambia de pantalla |
 | 2:33–2:46 | 13 | Cierre | Slide 4: 2 años, 2,6× y 501; caudales.dev y equipo. Se queda durante las preguntas |
@@ -85,39 +85,39 @@ El tono es hablado. No se nombran satélites, índices ni métodos (Sentinel-2, 
 "En Petorca hay gente que ha vivido con 50 litros de agua al día, traída en camión. En dos años, el Estado gastó 5.700 millones en llevarla. Y ahí mismo hay paltos verdes en pleno verano, con más agua de la que les toca. Hoy eso se pilla solo si un vecino denuncia."
 
 **0:26 La solución.**
-"Caudales mira cada predio desde el satélite: casi 8 mil predios, más de 160 mil mediciones. Las cruza con el clima y con el registro público de derechos de agua, y le dice al fiscalizador a dónde ir primero. Lo armamos en 36 horas, y ya bajamos los datos base para probarlo en el resto de Chile."
+"Caudales lo ve desde el satélite. Revisa casi 8 mil predios, con más de 160 mil mediciones. Las cruza con el clima y con el registro público de derechos de agua. Y le dice al inspector a dónde ir primero. Lo armamos en 36 horas, y ya tenemos los datos para probarlo en el resto de Chile."
 
-**0:48 Demo: la zona.**
+**0:49 Demo: la zona.**
 "Este es el valle del Aconcagua, vecino de Petorca. En verano el cerro está seco: lo que sigue verde, alguien lo riega. Si usa más agua de la que tiene por derecho, queda en alerta. Aquí son 425."
 
-**1:03 Demo: el caso real.**
-"Miren este predio de paltos, en Hijuelas. La Dirección General de Aguas lo fiscalizó en 2021 y lo multó con más de 140 millones de pesos por sacar agua sin derechos. Caudales lo tenía en alerta desde 2019: al menos dos años antes de que llegara un inspector. En ese tiempo, según nuestra estimación, sacó más de 100 mil metros cúbicos sin derecho. Lo que consumen 1.500 personas en esos dos años."
+**1:04 Demo: el caso real.**
+"Miren este predio de paltos, en Hijuelas. La Dirección General de Aguas lo fiscalizó y lo multó con más de 140 millones de pesos, por sacar agua sin derechos. Caudales ya lo tenía en alerta al menos dos años antes de que llegara un inspector. En ese tiempo, según nuestra estimación, se llevó más de 100 mil metros cúbicos de más: lo mismo que consumen 1.500 personas."
 
-**1:36 Demo: un candidato de hoy.**
-"Ahora vamos al verano pasado, en la misma comuna. Diecinueve hectáreas de paltos, verdes todo el verano. Sin derechos de agua inscritos, sin un canal cerca, y nadie lo ha fiscalizado. El mismo patrón, hoy. Ojo: Caudales no acusa, prioriza; la infracción la confirma un inspector en terreno. Por eso, con un clic, sale con el expediente ya escrito, en el formato oficial de denuncias."
+**1:37 Demo: un candidato de hoy.**
+"Ahora vamos a la temporada pasada, en la misma comuna. Diecinueve hectáreas de paltos, verdes todo el verano. Sin derechos de agua inscritos, sin un canal cerca, y nadie lo ha fiscalizado. El mismo patrón, hoy. Ojo: Caudales no acusa, prioriza; la infracción la confirma un inspector en terreno. Por eso, con un clic, sale con el expediente ya escrito, en el formato oficial de denuncias."
 
 **2:06 Demo: la ruta de mañana.**
 "Y esto es lo que importa: a dónde ir primero. Cinco predios en una mañana, 71 kilómetros, y en cada uno, dónde mirar."
 
 **2:17 Qué tan bien funciona.**
-"¿Funciona? Lo probamos con los casos que la DGA ya multó: con esta lista se encuentran más del doble de infracciones que sin ella. Y hoy, entre las dos zonas, hay 501 predios en alerta que nadie ha visitado."
+"Y funciona. Lo probamos con los casos que la DGA ya multó: con esta lista se encuentran más del doble de infracciones que sin ella. Hoy, entre las dos zonas, hay 501 predios en alerta que nadie ha visitado."
 
 **2:33 Cierre.**
 "El agua que falta no se ve. El verde en pleno verano, sí. Todo esto con datos públicos, que estaban ahí, dispersos: faltaba cruzarlos. Somos Nicolás, Felipe, Gabriela y Tomás. Gracias."
 
-El texto tiene 385 palabras (Intro: 7 · El problema: 53 · La solución: 57 · la zona: 38 · el caso real: 72 · un candidato de hoy: 65 · la ruta de mañana: 23 · Qué tan bien funciona: 39 · Cierre: 31). A 150 palabras por minuto son 2:34 hablando; el resto son los clics, los vuelos y las pausas.
+El texto tiene 381 palabras (Intro: 7 · El problema: 53 · La solución: 57 · la zona: 38 · el caso real: 67 · un candidato de hoy: 66 · la ruta de mañana: 23 · Qué tan bien funciona: 39 · Cierre: 31). A 150 palabras por minuto son 2:32 hablando; el resto son los clics, los vuelos y las pausas.
 
 Cuidados al decirlo:
 
 - **El momento que tiene que quedar es "al menos dos años antes".** Después de esa frase van 2 segundos de silencio, con la ficha del caso en pantalla. Hay que decir "al menos": la serie parte en 2019, así que es el tope de los datos y no el día en que empezó el riego.
-- **El agua del caso real** es la que Caudales estima sobre el derecho entre la primera alerta y la inspección: 106 a 138 mil m³ (lo dice la ficha). Se dice "más de 100 mil" y "según nuestra estimación".
+- **El agua del caso real** es la que Caudales estima sobre el derecho entre la primera alerta y la inspección: 106 a 138 mil m³ (lo dice la ficha). Se dice "más de 100 mil metros cúbicos de más" y "según nuestra estimación". Las 1.500 personas son las que consumen ese volumen en los mismos dos años.
 - **Las cifras cambian de escala y hay que decirlo.** La pantalla de la zona dice 3.639 predios y 425 en alerta; el 501 es de las dos zonas juntas y sin fiscalizar. Por eso el guion dice "en esta zona" y "entre las dos zonas".
 - **El expediente del candidato ya está generado.** La pantalla dice "Generado el…, el servidor lo reutiliza". Por eso el guion no dice "se está generando ahora". Si el jurado pide verlo generarse, se pide el de otro predio: tarda unos 5 segundos y la pantalla muestra los pasos.
 - **La multa en pantalla dice 1.983,9 UTM, unos $144 millones** al valor de la UTM de `impacto.json`. La DGA informó "más de 127 millones" en su momento. El guion dice "más de 140" para calzar con la pantalla.
 - **Los 5.700 millones son contratos adjudicados**, según el Consejo para la Transparencia. El guion dice "gastó"; la slide solo dice "en camiones aljibe · 2023 y 2024". Si el jurado pregunta, la respuesta exacta es "contratados".
 - **Desde la quinta fila solo se ve el tercio superior.** Cada cifra se dice en voz alta; ninguna se deja a la pantalla.
 - **Si falta tiempo**, se salta "y en cada uno, dónde mirar" y, si hace falta, la ruta entera.
-- **Sin palabras repetidas en frases seguidas.** El texto se revisó para que suene hablado: "camión" va una sola vez, "dos años" no se repite tres veces en el caso, y "mañana" no aparece con dos sentidos en la ruta. Al ensayar, si una frase se traba, se cambia la frase y no la entonación.
+- **Escrito para el oído.** Reglas que se aplicaron al texto (guía de oradores de TEDx y Toastmasters): una idea por oración; ninguna oración de más de 22 palabras; la misma palabra no aparece en dos oraciones seguidas, salvo las que son el tema (agua, alerta, derechos); una sola palabra para cada cosa (siempre "inspector", nunca "fiscalizador"); afirmaciones en vez de preguntas; no se describe lo que ya se ve en pantalla. Dos repeticiones son a propósito: "a dónde ir primero" aparece en la solución y vuelve en la ruta, y "verde en pleno verano" abre el problema y cierra la presentación.
 
 ## Cifras del guion y su respaldo
 
@@ -126,7 +126,7 @@ Cuidados al decirlo:
 | 40 mil personas con 50 litros al día | 40.000 personas en la provincia de Petorca | [Radio JGM, U. de Chile, 04-05-2020](https://radiojgm.uchile.cl/de-50-a-100-litros-de-agua-el-suministro-que-el-minsal-no-pudo-cumplir/) | Es un dato de 2020: decir "han tenido que vivir". En 2021 la Corte Suprema subió la dotación a 100 litros |
 | 5.700 millones en camiones aljibe | $5.710 millones en contratos de la Delegación Presidencial Provincial de Petorca, 2023 y 2024 sumados | [Consejo para la Transparencia, 05-10-2026](https://www.consejotransparencia.cl/fiscalizacion-cplt-municipios-y-delegaciones-contrataron-mas-de-30-mil-millones-en-camiones-aljibe-en-2023-y-2024-pero-a-cuantas-familias-llego-el-agua-potable/) | El guion dice "gastó" porque es lo natural al hablar (decisión del 22-11). El dato exacto son montos contratados e informados por la delegación, no pagos: si preguntan, decirlo así. Leímos el comunicado; el informe completo no abrió |
 | Multa de más de 140 millones | 1.983,9 UTM × $72.450 = $143,7 millones | Planilla de la DGA; UTM de `impacto.json` (`supuestos.utm_clp`) | Es lo que muestra la ficha del caso. La nota de prensa de la DGA dijo "más de 127 millones", con la UTM de entonces |
-| Fiscalizó en 2021; alerta alta desde 2019, dos años antes | Temporada 2019-20; inspección el 23-11-2021 (1,98 años); resolución de multa el 29-11-2023 | `impacto.md`, `/api/casos/FO-0504-95` | La serie parte en 2019-20: es una cota inferior. La multa se resolvió en 2023: decir "fiscalizó en 2021 y lo multó", no "multó en 2021" |
+| Lo fiscalizó y lo multó; en alerta al menos dos años antes | Temporada 2019-20; inspección el 23-11-2021 (1,98 años); resolución de multa el 29-11-2023 | `impacto.md`, `/api/casos/FO-0504-95` | La serie parte en 2019-20: es una cota inferior. La multa se resolvió en 2023: decir "fiscalizó en 2021 y lo multó", no "multó en 2021" |
 | Diecinueve hectáreas, sin derechos inscritos, sin un canal cerca, nunca fiscalizado | 18,8 ha, 89 % palto, sin derechos a 500 m, canal a 1,2 km, sin fiscalización a 500 m desde 2018 | `puntaje.parquet`, predio `5301984` | No mostrar rol ni dueño |
 | Cinco predios, cuatro horas, 71 km | Ruta de Z2 (5 paradas, 08:30 a 12:28, 71,3 km) | `ruta_z2.json` | Cambia si se regenera la ruta. Con tope de 5 paradas desde el 21-11; antes eran 12 predios, 8 horas y 91 km |
 | Más del doble de infracciones | 2,6 veces (IC 95 %: 1,3–4,4). De 19 infractores confirmados, 6 estaban en alerta alta (32 %); la alerta alta reúne el 12 % de los predios | `validacion.md` | "Más del doble" y no "casi el triple". Si preguntan, la cifra es 2,6. No usar 3,7: se midió con los mismos casos que calibraron los umbrales |

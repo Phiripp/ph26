@@ -44,6 +44,7 @@ const URL_OF = (p) => new URL(p, import.meta.url).href;
 const CHILE_URL = URL_OF('../data/chile.geojson');
 const TILES_INDEX_URL = URL_OF('../tiles/index.json');
 const CASOS_URL = URL_OF('../data/zonas/casos.json');
+const SHOW_CASE_MARKERS = false;
 const FISC_URL = URL_OF('../data/zonas/fiscalizaciones.geojson');
 const ZONAS_INDEX_URL = URL_OF('../data/zonas/index.json');
 const ZONAS_BBOX_URL = URL_OF('../data/zonas/bbox.json');
@@ -584,7 +585,10 @@ const CSS = `
 .cm-caso:focus-visible .cm-dot{box-shadow:0 0 0 2px var(--c),0 0 0 3.5px #05080b,0 0 0 5px #fff}
 .cm-caso .cm-pill b{font:600 11.5px/1.1 'IBM Plex Mono',ui-monospace,monospace;letter-spacing:.01em}
 .cm-caso .cm-pill em{color:#cfd8dc;font-size:11px}
-.cm-zona .cm-pill em{color:#cfd8dc}
+.cm-zona .cm-pill em{color:#cfd8dc;font-size:14px}
+.cm-zona .cm-pill{height:28px;padding:6px 11px 0;gap:9px}
+.cm-zona .cm-pill b{font-size:15px}
+.cm-zona .cm-lead{margin-top:14px}
 /* fiscalization hover tip */
 .maplibregl-popup.cf-pop .maplibregl-popup-content{background:rgba(5,8,11,.92);color:#cfd8dc;padding:5px 8px 4px;border-radius:0;
   border:1px solid rgba(138,151,158,.5);box-shadow:0 4px 14px rgba(0,0,0,.45);font:500 10.5px/1.35 'IBM Plex Mono',ui-monospace,monospace;white-space:nowrap}
@@ -744,9 +748,12 @@ export async function initMap({ container, sites, casos: casosIn, onSelect } = {
       });
     }
   }
-  for (const c of casos) {
-    const id = caseId(c.expediente);
-    items.push({ id, kind: 'caso', lon: c.lon, lat: c.lat, size: CASE_SIZE, color: RED, anchor: false, orig: { ...c, kind: 'caso', id }, pri: 100 });
+  // the cases are not drawn on the map: each zone label carries their count and the Casos tab lists them
+  if (SHOW_CASE_MARKERS) {
+    for (const c of casos) {
+      const id = caseId(c.expediente);
+      items.push({ id, kind: 'caso', lon: c.lon, lat: c.lat, size: CASE_SIZE, color: RED, anchor: false, orig: { ...c, kind: 'caso', id }, pri: 100 });
+    }
   }
   // north -> south order for the entrance stagger
   const data = items.sort((a, b) => b.lat - a.lat).map((d, i) => ({ ...d, _rank: i }));
@@ -1013,8 +1020,7 @@ export async function initMap({ container, sites, casos: casosIn, onSelect } = {
     let label, badge = '', title, sub, tag = '';
     if (d.kind === 'zona') {
       el.classList.add('cm-valle', 'cm-zona');
-      badge = 'ZONA'; tag = 'ZONA';
-      title = `${o.codigo} · ${o.name}`;
+      title = o.name;
       sub = o.casos ? `${o.casos} caso${o.casos === 1 ? '' : 's'}` : 'priorización';
       label = `Zona ${o.codigo}, ${o.name}` + (o.casos ? `: ${o.casos} casos sancionados por la DGA` : '') + '. Abrir la priorización de la zona';
     } else if (d.kind === 'caso') {
@@ -1104,7 +1110,9 @@ export async function initMap({ container, sites, casos: casosIn, onSelect } = {
     if (!m.pw) m.pw = m.el.querySelector('.cm-pill').offsetWidth || 0;
     const w = m.pw || 170, off = m.size * 0.3 + 22, flip = m.el.classList.contains('flip');
     const x0 = flip ? m.po.x - off - w : m.po.x + off;
-    return { x0: x0 - 4, x1: x0 + w + 4, y0: m.po.y - 29 - 3, y1: m.po.y - 7 + 3 };
+    // zone pills are taller (28 px, bottom 4 px above the dot)
+    const top = m.kind === 'zona' ? 32 : 29, bottom = m.kind === 'zona' ? 4 : 7;
+    return { x0: x0 - 4, x1: x0 + w + 4, y0: m.po.y - top - 3, y1: m.po.y - bottom + 3 };
   };
 
   /**

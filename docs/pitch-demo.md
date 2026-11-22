@@ -1,4 +1,4 @@
-# Caudal — Pitch y demo de 3 minutos
+# Caudales — Pitch y demo de 3 minutos
 
 Nov 21, 2026 · @Tomas
 
@@ -28,7 +28,7 @@ Seguimos las dos guías de Y Combinator para presentar una empresa: [How to Pitc
 
 | Regla de YC | Cómo la aplicamos |
 | --- | --- |
-| La primera frase dice qué haces, en palabras simples. Demorarlo "siempre es un error" | El guion parte con "Somos Caudal" y qué hacemos. El problema va después |
+| La primera frase dice qué haces, en palabras simples. Demorarlo "siempre es un error" | El guion parte con "Somos Caudales" y qué hacemos. El problema va después |
 | Sin jerga, siglas ni lenguaje de marketing. Que suene "más tonto de lo que crees que debería" | No se nombran satélites, índices ni métodos. "DGA" se dice completo la primera vez |
 | El oyente retiene 3 o 4 ideas. Decirlas y repetirlas al final | Cuatro ideas (abajo); el cierre las repite |
 | El problema, corto | 25 segundos, con dos cifras |
@@ -42,63 +42,63 @@ Seguimos las dos guías de Y Combinator para presentar una empresa: [How to Pitc
 
 Las dos frases que todo el equipo dice igual:
 
-> **Caudal mira desde el satélite qué predios riegan sin tener derechos de agua, y le dice a la Dirección General de Aguas a cuáles ir primero.** Entrega la ruta del inspector y el expediente de denuncia listo.
+> **Caudales mira desde el satélite qué predios riegan sin tener derechos de agua, y le dice a la Dirección General de Aguas a cuáles ir primero.** Entrega la ruta del inspector y el expediente de denuncia listo.
 
 Cuatro ideas que el jurado debe recordar:
 
 1. **Qué es y para quién.** Le dice al fiscalizador de aguas a dónde ir mañana.
-2. **Funciona con un caso real.** Caudal tenía en alerta, dos años antes de la inspección, un predio que la DGA multó.
-3. **Está medido y no exagera.** Partiendo por los predios que marca Caudal, un inspector encuentra más del doble de infracciones. Todo va en rango.
+2. **Funciona con un caso real.** Caudales tenía en alerta, dos años antes de la inspección, un predio que la DGA multó.
+3. **Está medido y no exagera.** Partiendo por los predios que marca Caudales, un inspector encuentra más del doble de infracciones. Todo va en rango.
 4. **El problema es grande y hoy nadie lo mira.** 501 predios en alerta sin fiscalizar; revisarlos uno por uno tomaría 14 años.
 
 ## Guion
 
-Toda la demo ocurre en una sola zona (Aconcagua bajo, comuna de Hijuelas) para no gastar tiempo en vuelos entre zonas. El producto está en pantalla desde el 0:35 hasta el cierre; el recorrido en vivo dura 1:30.
+Toda la demo ocurre en una sola zona (Aconcagua bajo, comuna de Hijuelas) para no gastar tiempo en vuelos entre zonas. El producto está en pantalla desde el 0:35 hasta el 2:38; el recorrido en vivo dura 1:30. La apertura y el cierre van con el deck ([deck/index.html](deck/index.html), 3 slides y 5 de reserva): se abre en el navegador, con las flechas se avanza y con F se pone en pantalla completa.
 
 | Tiempo | Tramo | Qué se ve |
 | --- | --- | --- |
-| 0:00–0:10 | Qué hacemos | Portada: nombre y mapa de Chile |
-| 0:10–0:35 | El problema | Portada: las dos zonas |
+| 0:00–0:10 | Qué hacemos | Slide 1: CAUDALES y "Quién riega sin derechos de agua" |
+| 0:10–0:35 | El problema | Slide 2: "50 litros al día". Al terminar se cambia al producto |
 | 0:35–0:52 | Demo: cómo funciona | Vuelo a la zona; aparecen los predios por banda |
 | 0:52–1:17 | Demo: el caso real | Ficha del caso FO-0504-95: serie y línea de la inspección |
 | 1:17–1:45 | Demo: un candidato de hoy | Ficha del candidato; se abre el expediente PDF |
 | 1:45–2:05 | Demo: la ruta de mañana | Pestaña Ruta: paradas, horas y botón de navegación |
 | 2:05–2:15 | Qué tan bien funciona | La zona completa, con los predios en alerta |
 | 2:15–2:38 | De qué tamaño es | La zona completa |
-| 2:38–2:55 | Cierre | Portada: nombre, URL y equipo |
+| 2:38–2:55 | Cierre | Slide 3: 2 años, 2,6× y 501; caudales.dev y equipo. Se queda durante las preguntas |
 
 ### Texto
 
 El tono es hablado. No se nombran satélites, índices ni métodos (Sentinel-2, NDVI, FAO-56): van en el material de apoyo y en las respuestas.
 
 **0:00 Qué hacemos.**
-"Somos Caudal. Miramos desde el satélite qué predios riegan sin tener derechos de agua, y le decimos a la Dirección General de Aguas a cuáles ir primero."
+"Somos Caudales. Miramos desde el satélite qué predios riegan sin tener derechos de agua, y le decimos a la Dirección General de Aguas a cuáles ir primero."
 
 **0:10 El problema.**
 "En Petorca hay 40 mil personas que han tenido que vivir con 50 litros de agua al día, que les llega en camión aljibe. Solo en 2023 y 2024, el Estado contrató más de 5.700 millones de pesos en esos camiones. Y ahí mismo hay huertos verdes en pleno verano, regando sin derechos. ¿Cómo se pilla eso hoy? Solo si un vecino denuncia."
 
 **0:35 Demo: cómo funciona.**
-"Esto es Caudal, funcionando. Casi 8 mil predios. En verano, cuando el cerro está seco, un predio que sigue verde es porque alguien lo está regando. Y si riega más de lo que sus derechos le permiten, queda en alerta."
+"Esto es Caudales, funcionando. Casi 8 mil predios. En verano, cuando el cerro está seco, un predio que sigue verde es porque alguien lo está regando. Y si riega más de lo que sus derechos le permiten, queda en alerta."
 
 **0:52 Demo: el caso real.**
-"Esto es Hijuelas. En 2021 la DGA fiscalizó este predio de paltos y lo multó con más de 140 millones de pesos por sacar agua sin derechos. La línea gris es el cerro seco; la celeste, el predio. Caudal lo tenía en alerta alta desde 2019: dos años antes de que llegara un inspector."
+"Esto es Hijuelas. En 2021 la DGA fiscalizó este predio de paltos y lo multó con más de 140 millones de pesos por sacar agua sin derechos. La línea gris es el cerro seco; la celeste, el predio. Caudales lo tenía en alerta alta desde 2019: dos años antes de que llegara un inspector."
 
 **1:17 Demo: un candidato de hoy.**
-"Ahora, el verano pasado, en la misma comuna. Diecinueve hectáreas de paltos, verdes todo el verano. Sin derechos de agua inscritos, sin un canal cerca, nunca fiscalizado. Ojo: Caudal no acusa, prioriza. Y con un clic, el expediente: lo arma el servidor, con el formato oficial de denuncias de la DGA."
+"Ahora, el verano pasado, en la misma comuna. Diecinueve hectáreas de paltos, verdes todo el verano. Sin derechos de agua inscritos, sin un canal cerca, nunca fiscalizado. Ojo: Caudales no acusa, prioriza. Y con un clic, el expediente: lo arma el servidor, con el formato oficial de denuncias de la DGA."
 
 **1:45 Demo: la ruta.**
 "Y esto es lo que importa: a dónde va el inspector mañana. Cinco predios, cuatro horas, 71 kilómetros. Se abre en Google Maps, y en cada predio le dice dónde mirar: el parche regado, el tranque, el pozo."
 
 **2:05 Qué tan bien funciona.**
-"Lo comprobamos con los casos que la DGA ya multó. Un inspector que parte por los predios que marca Caudal encuentra más del doble de infracciones que uno que elige sin esa lista."
+"Lo comprobamos con los casos que la DGA ya multó. Un inspector que parte por los predios que marca Caudales encuentra más del doble de infracciones que uno que elige sin esa lista."
 
 **2:15 De qué tamaño es.**
 "Un solo predio como el que vieron se toma al año el agua de casi 3.000 personas. O 220 millones de latas de Monster. Como ese hay 501 que nadie ha ido a mirar. Juntos son entre 5 y 20 Torres Costanera llenas de agua, todos los años. Revisarlos uno por uno tomaría 14 años."
 
 **2:38 Cierre.**
-"Caudal vio un caso real dos años antes, encuentra más del doble de infracciones y termina en una ruta para mañana. Con datos públicos, para cualquier valle de Chile. Somos Nicolás, Felipe, Gabriela y Tomás. Gracias."
+"Caudales vio un caso real dos años antes. Encuentra 2,6 veces más infracciones. Y hay 501 predios esperando una visita. Todo con datos públicos, que nadie había cruzado predio por predio. Somos Nicolás, Felipe, Gabriela y Tomás. Gracias."
 
-El texto tiene 397 palabras: 2:39 hablando a 150 palabras por minuto. Los 16 segundos que sobran son los clics y los vuelos de la demo.
+El texto tiene 399 palabras: 2:40 hablando a 150 palabras por minuto. Los 15 segundos que sobran son los clics y los vuelos de la demo.
 
 Tres cuidados al decirlo:
 
@@ -122,11 +122,11 @@ Tres cuidados al decirlo:
 | 220 millones de latas de Monster | 105.000 m³ ÷ 473 ml = 222 millones | Lata de 473 ml | — |
 | 501 predios que nadie ha ido a mirar | Banda alta sin fiscalización a 500 m desde 2018 | `impacto.md` | — |
 | Entre 5 y 20 Torres Costanera al año | 2,1 a 9,3 millones de m³ ÷ 450.000 m³ = 4,7 a 20,7 | `impacto.md`; torre de 107.125 m² construidos y 300 m de alto | El volumen de la torre es una estimación nuestra (superficie por unos 4,2 m por piso); ninguna fuente lo publica. Si preguntan, decir "unas" |
-| 14 años | 467 candidatos ÷ 33 fiscalizaciones por extracción al año | `impacto.md` | Es capacidad, no calidad: no decir que Caudal acierta más que la DGA |
+| 14 años | 467 candidatos ÷ 33 fiscalizaciones por extracción al año | `impacto.md` | Es capacidad, no calidad: no decir que Caudales acierta más que la DGA |
 
 Datos de reserva para las preguntas:
 
-- Acierto de la DGA: 33 % (107 fiscalizaciones por extracción, 2022–2025). Caudal en alerta alta: 7 de 15.
+- Acierto de la DGA: 33 % (107 fiscalizaciones por extracción, 2022–2025). Caudales en alerta alta: 7 de 15.
 - Casos esperados entre los 501 candidatos: 39 a 153.
 - Caso de Hijuelas: unos 140.000 m³ sin derecho en los dos años previos a la inspección, el agua de unas 1.900 personas durante esos dos años.
 - Agua potable rural: en las cinco comunas de Petorca hay 60 sistemas de APR, con unas 43 mil personas (13.978 arranques; la DOH estima 3,1 personas por arranque). En las diez comunas de las dos zonas son 90 sistemas, y 59 tienen un predio en alerta alta a 1 km o menos (`apr.parquet`, dato de la DOH al 30-06-2026). Cercanía no es causa: no decir que ese predio le quita el agua a ese APR.
@@ -138,7 +138,8 @@ Datos de reserva para las preguntas:
 
 | Decisión | Elegido | Alternativa | Por qué |
 | --- | --- | --- | --- |
-| Orden del guion | Primero qué hacemos (10 segundos), después el problema | Abrir con el problema de Petorca y decir qué es Caudal a los 22 segundos | Es la regla de YC: quien escucha no debe esperar para saber qué hacemos. El gancho de Petorca se mantiene entero, en segundo lugar |
+| Cierre | Repite los tres números de la slide (2 años, 2,6 veces, 501 predios) y la idea de fondo: datos públicos que nadie había cruzado | "Para cualquier valle de Chile" | La medición del 22-11 indica que el método necesita verano seco; más al sur del Maule no está medido |
+| Orden del guion | Primero qué hacemos (10 segundos), después el problema | Abrir con el problema de Petorca y decir qué es Caudales a los 22 segundos | Es la regla de YC: quien escucha no debe esperar para saber qué hacemos. El gancho de Petorca se mantiene entero, en segundo lugar |
 | Pedido del cierre | Sin pedido: el cierre repite las ideas y nombra al equipo | "Queremos probarlo con la DGA este verano" | No comprometemos al equipo ni a la DGA desde el escenario |
 | Zona de la demo | Z2, Hijuelas | Z1, Cabildo: caso FD-0501-181 y candidato `5344181` (31 ha de palto) | El caso FO-0504-95 es el más sólido (la DGA dijo que lo detectó con satélite y el verdor baja después de la multa). El candidato está en la misma comuna, así que la demo no cambia de zona |
 | Candidato en vivo (D19) | Predio `5301984` | `5344181` (Cabildo), `5345478` (Cabildo, 7 ha de nogal) | Señal en el 100 % de las fechas, sin derechos a 500 m, sin canal a 1 km, sin fiscalización a 500 m, 89 % de la superficie con frutales |
@@ -147,20 +148,20 @@ Datos de reserva para las preguntas:
 | Equivalencias de volumen | Personas, latas de Monster y Torres Costanera | Metros cúbicos y pesos | Nadie imagina un millón de m³. Se presenta en la oficina de Buk, cerca del Costanera Center |
 | Cómo se muestra el candidato | Por ID interno, sin rol ni dueño, con la palabra "candidato" | No mostrar ningún predio no multado | El expediente y la ruta necesitan un predio concreto. El equipo debe confirmar esta decisión (ver abajo) |
 
-**Por confirmar con el equipo:** la convención era mostrar a los candidatos solo agregados. La demo en vivo necesita un predio concreto que no ha sido multado, y la ruta ya muestra ubicaciones. La propuesta es mostrarlo sin rol ni dueño y decir en voz alta que Caudal prioriza y no acusa. Si el equipo no está de acuerdo, el expediente en vivo se genera para el caso FO-0504-95 y el paso "candidato de hoy" muestra solo el ranking agregado.
+**Por confirmar con el equipo:** la convención era mostrar a los candidatos solo agregados. La demo en vivo necesita un predio concreto que no ha sido multado, y la ruta ya muestra ubicaciones. La propuesta es mostrarlo sin rol ni dueño y decir en voz alta que Caudales prioriza y no acusa. Si el equipo no está de acuerdo, el expediente en vivo se genera para el caso FO-0504-95 y el paso "candidato de hoy" muestra solo el ranking agregado.
 
 ## Preguntas probables del jurado
 
 | Pregunta | Respuesta corta |
 | --- | --- |
-| ¿Cuántos falsos positivos tiene? | Entre los fiscalizados en alerta alta, 7 de 15 tuvieron infracción (47 %; la DGA tiene 33 %). Son pocos casos y lo decimos. Por eso Caudal prioriza y entrega rangos; la infracción la constata el inspector |
+| ¿Cuántos falsos positivos tiene? | Entre los fiscalizados en alerta alta, 7 de 15 tuvieron infracción (47 %; la DGA tiene 33 %). Son pocos casos y lo decimos. Por eso Caudales prioriza y entrega rangos; la infracción la constata el inspector |
 | ¿Cómo saben que es agua ilegal y no de un canal? | No lo sabemos con certeza. El agua de canal no está en el registro de derechos. Por eso el escenario conservador excluye a todo predio con un canal a 300 m, y la ficha lo avisa |
 | ¿Qué es en vivo y qué es precalculado? | Las series satelitales, el puntaje y la ruta se precalculan (7.911 predios, en GCP y en los scripts del repo). En vivo: el expediente PDF y las consultas de la API. Detalle en [en-vivo-y-precalculado.md](en-vivo-y-precalculado.md) |
 | ¿Por qué solo en verano? ¿Importa la lluvia? | Lo medimos. El modelo exige diez días sin lluvia, pero en verano casi todas las imágenes ya cumplen esa condición, y quitarla deja el ranking igual (99,4 % de los predios en la misma banda). Lo que importa es la época: cuando el cerro reverdece, en primavera, el contraste se pierde. Por eso usamos diciembre a marzo. Detalle en [ablacion-ventana.md](ablacion-ventana.md) |
 | ¿Qué tan bien detecta riego? | Marca riego en el 83 % de los huertos del catastro frutícola (1.008 de 1.210), que son riego seguro. Eso mide riego, no infracción: la infracción se valida con los casos de la DGA |
-| ¿La DGA no hace esto ya? | En el caso de Hijuelas dijo que usó imágenes, pero su fiscalización parte casi siempre de una denuncia. Caudal lo hace para todos los predios y todas las temporadas |
+| ¿La DGA no hace esto ya? | En el caso de Hijuelas dijo que usó imágenes, pero su fiscalización parte casi siempre de una denuncia. Caudales lo hace para todos los predios y todas las temporadas |
 | ¿El satélite es "mundo físico"? | La entrada son mediciones físicas (reflectancia, lluvia, evapotranspiración) y la salida es una inspección en terreno con ruta y puntos a revisar |
-| ¿Por qué el AUC entre fiscalizados es bajo (0,62)? | La DGA ya fiscaliza predios regados, así que entre ellos el verdor no separa. La pregunta útil es otra: frente a todos los predios, Caudal concentra 2,6 veces más infractores |
+| ¿Por qué el AUC entre fiscalizados es bajo (0,62)? | La DGA ya fiscaliza predios regados, así que entre ellos el verdor no separa. La pregunta útil es otra: frente a todos los predios, Caudales concentra 2,6 veces más infractores |
 | ¿Escala a otros valles? | Sí: Sentinel-2, DGA, CIREN y CONAF cubren todo Chile. Sumar una zona es correr los mismos scripts con otro polígono |
 | ¿Modelo de negocio? | El cliente es la DGA y las juntas de vigilancia, que deben decidir a dónde mandar un inspector. También sirve a APR y comunidades que hoy denuncian sin pruebas |
 | ¿Por qué no se había hecho? | Los datos son públicos, pero están repartidos en varias instituciones y nadie los había cruzado predio por predio. Y el verdor solo no basta: hay que compararlo con el cerro seco y con la lluvia |

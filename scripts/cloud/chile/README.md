@@ -33,6 +33,11 @@ scripts/cloud/chile/progreso.sh
 lista, así que `TAREAS` debe ser su largo). `PARTES` cambia N (el mismo valor en `plan` y en el total de tareas
 satelitales). Cada etapa es idempotente: relanzarla retoma lo que falta.
 
+`plan` no se repite si `plan/escenas.parquet` ya existe: `REHACER_PLAN=1 scripts/cloud/chile/ejecutar.sh plan` lo rehace
+(nunca con tareas `satelite` corriendo, porque reescribe `plan/partes/`). Las regiones con `periodo_satelite` en
+`data/regiones.json` (hoy solo R05, de abril de 2025 a hoy) traen la serie del año completo; el resto, solo la temporada
+seca. Ver [Año completo en Valparaíso](../../../docs/spec-chile.md#año-completo-en-valparaíso).
+
 ## Qué deja cada etapa en el bucket
 
 - `base`: `base/<tabla>/region=RXX.parquet` (`predio`, `referencia_secano`, `cultivo`, `derecho`, `derecho_titulares`,
@@ -42,7 +47,7 @@ satelitales). Cada etapa es idempotente: relanzarla retoma lo que falta.
 - `plan`: `plan/escenas.parquet`, `plan/poligonos_tile/<tile>.parquet`, `plan/partes/<k>.jsonl`,
   `plan/regiones_tiles.json`.
 - `satelite`: `s2/cache/<tile>/<escena_id>_chile_v2.parquet`, uno por escena (vacío si no hubo píxeles válidos).
-- `region`: `modelo/<corrida>/region=RXX/*.parquet` y `web/<corrida>/RXX/{scores.lite.json,predios.geojson,series/,conteo.json}`.
+- `region`: `modelo/<corrida>/region=RXX/*.parquet` (en R05 también `serie_anual.parquet` y `serie_referencia_anual.parquet`; los modelos usan solo la temporada) y `web/<corrida>/RXX/{scores.lite.json,predios.geojson,series/,conteo.json}`.
 - `nacional`: `modelo/<corrida>/puntaje_chile.parquet`, `web/<corrida>/{index,resumen,regresion}.json` y
   `web/ACTUAL`, solo si la comprobación de regresión pasa (90 % de coincidencia de banda con `puntaje.parquet` de
   Z1 y Z2 y los 10 casos de validación en la misma banda).

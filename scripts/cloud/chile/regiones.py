@@ -60,6 +60,10 @@ CONAF_ANIOS = {
 }
 
 
+# Regiones con serie satelital del año completo (docs/spec-chile.md, "Año completo en Valparaíso"). El resto usa solo la
+# temporada seca. "hoy" se resuelve al planificar. El ranking (M3 a M5) sigue usando solo la temporada en todas.
+PERIODO_SATELITE = {"R05": {"inicio": "2025-04-01", "fin": "hoy"}}
+
 def consultar(url: str, params: dict, reintentos: int = 4) -> dict:
     for intento in range(reintentos):
         try:
@@ -118,6 +122,9 @@ def main() -> int:
             "prioridad": prioridad,
         }
         print(f"{zona} {nombre:<20} {len(zonas[zona]['comunas']):>3} comunas  bbox {zonas[zona]['bbox']}")
+
+    for zona, periodo in PERIODO_SATELITE.items():
+        zonas[zona]["periodo_satelite"] = periodo
 
     cfg = {
         "_fuente": "Generado por scripts/cloud/chile/regiones.py (tabla de docs/spec-chile.md). No se edita a mano.",

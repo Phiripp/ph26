@@ -177,6 +177,17 @@ def region(cfg: dict, zona: str, corrida: str, datos: Path, raiz_trabajo: Path, 
     serie, serie_ref = armar_serie(datos, zona, ids_predio, ids_ref, hilos)
     if serie.empty:
         sys.exit(f"{zona}: la serie quedó vacía; revisa s2/cache y plan/poligonos_tile")
+    # El ranking usa solo la temporada seca. Los tiles de Valparaíso traen el año completo (periodo_satelite): esa serie
+    # se guarda aparte (serie_anual.parquet) y no entra a M1–M5.
+    ini, fin = pd.Timestamp(cfg["temporada"]["inicio"]), pd.Timestamp(cfg["temporada"]["fin"])
+    en_temporada = lambda d: d[(d["fecha"] >= ini) & (d["fecha"] <= fin)].reset_index(drop=True)  # noqa: E731
+    if cfg["zonas"][zona].get("periodo_satelite"):
+        modelo.mkdir(parents=True, exist_ok=True)
+        serie.to_parquet(modelo / "serie_anual.parquet", index=False)
+        serie_ref.to_parquet(modelo / "serie_referencia_anual.parquet", index=False)
+        print(f"{zona}: serie anual {len(serie)} filas, {serie['fecha'].min():%Y-%m-%d} a {serie['fecha'].max():%Y-%m-%d}",
+              flush=True)
+    serie, serie_ref = en_temporada(serie), en_temporada(serie_ref)
     serie.to_parquet(proc / "serie_predio.parquet", index=False)
     serie_ref.to_parquet(proc / "serie_referencia.parquet", index=False)
     zonas_json = config_de(cfg, [zona], trabajo / f"regiones_{zona}.json")

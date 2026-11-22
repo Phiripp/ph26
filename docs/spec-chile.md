@@ -113,6 +113,7 @@ gs://ph-26-caudal-chile/
     cache/<tile>/<escena_id>_chile_v2.parquet    una por escena (vacía si no hubo píxeles válidos): la marca de terminado es que exista
   modelo/<corrida>/
     region=R05/{serie,anomalias,senal_riego,consumo_predio,consumo_predio_temporada,predio_derecho,puntaje}.parquet
+    region=R05/serie_anual.parquet, serie_referencia_anual.parquet   solo regiones con periodo_satelite (hoy, R05)
     puntaje_chile.parquet
   web/<corrida>/
     index.json, resumen.json
@@ -295,6 +296,20 @@ La zona no va en el parquet de escena, porque un tile puede cruzar dos regiones.
 
 - Si falta más del 2 %, la tarea de la región espera hasta 30 minutos y luego falla con la lista de escenas faltantes. Para recuperarlas se relanza `satelite` con las mismas partes: el caché salta lo que ya está.
 - Las escenas descartadas (sin píxeles válidos sobre polígonos) dejan igual un parquet vacío. Así "falta" significa siempre "no se procesó".
+
+### Año completo en Valparaíso
+
+Decidido el 22-11: **Valparaíso (R05) extrae la serie Sentinel-2 del año completo**, de abril de 2025 a hoy. Las otras 13 regiones siguen solo con la temporada seca (diciembre a marzo). El objetivo es medir el consumo de todo el año y mostrar en la ficha escenas recientes (la última limpia sobre Z1 y Z2 es del 13-11-2026), sin tocar el ranking.
+
+- **Configuración:** `data/regiones.json` le da a R05 `"periodo_satelite": {"inicio": "2025-04-01", "fin": "hoy"}` (lo agrega `regiones.py`, en `PERIODO_SATELITE`). `plan.py` busca, para cada tile que toca una región con `periodo_satelite`, la unión de ese período con la temporada; `"hoy"` se resuelve al planificar. Los tiles de Valparaíso también cubren partes de la Metropolitana y de O'Higgins: esos polígonos quedan con el año completo en el caché, pero no se usan.
+- **El ranking no cambia:** la etapa `region` recorta la serie a la temporada (`cfg["temporada"]`) antes de M1–M5, en todas las regiones. Los umbrales de M7 y la validación (lift 2,6×) se calcularon con el verano y siguen valiendo.
+- **Salidas nuevas** (solo R05): `modelo/<corrida>/region=R05/serie_anual.parquet` y `serie_referencia_anual.parquet`, con el mismo esquema que `serie.parquet`.
+- **Costo:** unas 3 veces más escenas en los tiles de Valparaíso, unos 12 meses contra 4.
+- **Pendiente para usar la serie anual** (todavía no lo hace ningún script):
+  - **M4, consumo anual con NDVI observado:** hoy de abril a noviembre se extrapola con el Kc del verano. Con la serie anual, cada mes usaría su propio Kc. Hace falta extender el clima de R05 hasta noviembre de 2026; `base` lo baja solo hasta el 31-03-2026 (`periodo` en `regiones.json`).
+  - **La ficha:** la serie hasta noviembre de 2026 y la última escena limpia, rotulada aparte de "temporada analizada".
+  - **Experimento, no para la demo:** pesar cada fecha de M3 por el déficit hídrico de los 30 días previos (ET0 menos lluvia), en vez de usar solo la temporada. Se adopta solo si mejora el AUC con los 159 predios de validación.
+- **Rehacer el plan:** `plan` no se repite si `plan/escenas.parquet` existe. `REHACER_PLAN=1 scripts/cloud/chile/ejecutar.sh plan` lo rehace. No se debe rehacer con tareas `satelite` corriendo, porque reescribe `plan/partes/`.
 
 
 ## Job 2: `caudal-chile-prediccion`

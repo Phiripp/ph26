@@ -123,17 +123,34 @@ def buscar_escenas(catalogo: Client, tile: str, inicio: str, fin: str, nubes_max
     return deduplicar(items)
 
 
-def repartir(costos: dict[str, float], orden: list[str], n: int) -> list[list[str]]:
-    """Reparto codicioso: los tiles, en `orden`, van a la parte con menos costo acumulado.
+def periodo_tile(zonas: dict, regiones, inicio: str, fin: str) -> tuple[str, str]:
+    """Temporada seca, salvo que alguna región del tile pida un período propio (`periodo_satelite`): entonces la unión.
 
-    Cada parte procesa sus tiles en el orden en que quedaron, así los de mejor prioridad terminan antes en todas.
+    Un tile que toca Valparaíso trae el año completo también para los polígonos vecinos que caen en él; la etapa region
+    recorta la serie a la temporada antes de los modelos, así que el ranking de esas regiones no cambia.
     """
-    partes: list[list[str]] = [[] for _ in range(n)]
+    hoy = pd.Timestamp.today().strftime("%Y-%m-%d")
+    propios = [zonas[r]["periodo_satelite"] for r in regiones if zonas[r].get("periodo_satelite")]
+    if not propios:
+        return inicio, fin
+    inicios = [p["inicio"] for p in propios] + [inicio]
+    fines = [hoy if p["fin"] == "hoy" else p["fin"] for p in propios] + [fin]
+    return min(inicios), max(fines)
+
+
+def repartir(unidades: list[tuple[str, object, float]], n: int) -> list[list[tuple[str, object]]]:
+    """Reparto codicioso por escena: cada (tile, escena, costo), en orden, va a la parte con menos costo acumulado.
+
+    Se reparte por escena y no por tile completo: con pocos tiles (una sola región) un tile por parte deja tareas vacías
+    y otras con el doble de trabajo. El costo de una escena son las celdas ocupadas de su tile. Cada parte agrupa sus
+    escenas por tile y arma la máscara de cada tile una vez (unos segundos).
+    """
+    partes: list[list[tuple[str, object]]] = [[] for _ in range(n)]
     carga = np.zeros(n)
-    for tile in orden:
+    for tile, item, costo in unidades:
         k = int(carga.argmin())
-        partes[k].append(tile)
-        carga[k] += costos[tile]
+        partes[k].append((tile, item))
+        carga[k] += costo
     return partes
 
 
@@ -183,7 +200,8 @@ def main() -> int:
         celdas = celdas_ocupadas(g.to_crs(crs_item(item)).geometry, grilla_de_item(item))
         if not celdas:
             continue
-        escenas = buscar_escenas(catalogo, t, inicio, fin, args.nubes_max)
+        ini_t, fin_t = periodo_tile(zonas, g["region"].unique(), inicio, fin)
+        escenas = buscar_escenas(catalogo, t, ini_t, fin_t, args.nubes_max)
         prioridad = min(zonas[r]["prioridad"] for r in g["region"].unique())
         g.to_parquet(plan / "poligonos_tile" / f"{t}.parquet", index=False)
         por_tile[t] = {"escenas": escenas, "celdas": len(celdas), "prioridad": prioridad}
@@ -193,23 +211,23 @@ def main() -> int:
     if not por_tile:
         sys.exit("Ningún tile toca polígonos: ¿están base/predio y base/referencia_secano?")
 
-    costos = {t: len(v["escenas"]) * v["celdas"] for t, v in por_tile.items()}
-    orden = sorted(por_tile, key=lambda t: (por_tile[t]["prioridad"], -costos[t], t))
-    partes = repartir(costos, orden, args.partes)
+    # Escenas en orden de prioridad del tile (las del centro terminan antes en todas las partes) y, dentro, por fecha.
+    orden = sorted(por_tile, key=lambda t: (por_tile[t]["prioridad"], -por_tile[t]["celdas"], t))
+    unidades = [(t, it, por_tile[t]["celdas"]) for t in orden for it in por_tile[t]["escenas"]]
+    partes = repartir(unidades, args.partes)
 
     (plan / "partes").mkdir(parents=True, exist_ok=True)
     for k, lista in enumerate(partes):
         with (plan / "partes" / f"{k}.jsonl").open("w", encoding="utf-8") as f:
-            for t in lista:
-                for it in por_tile[t]["escenas"]:
-                    f.write(json.dumps(it.to_dict()) + "\n")
-                    filas.append({"escena_id": it.id, "tile": t, "fecha": pd.Timestamp(it.datetime).tz_localize(None).normalize(),
-                                  "nubes": it.properties.get("eo:cloud_cover"), "parte": k, "prioridad": por_tile[t]["prioridad"]})
+            for t, it in lista:
+                f.write(json.dumps(it.to_dict()) + "\n")
+                filas.append({"escena_id": it.id, "tile": t, "fecha": pd.Timestamp(it.datetime).tz_localize(None).normalize(),
+                              "nubes": it.properties.get("eo:cloud_cover"), "parte": k, "prioridad": por_tile[t]["prioridad"]})
     (plan / "regiones_tiles.json").write_text(json.dumps(tiles_region, indent=1), encoding="utf-8")  # control de completitud
     esc = pd.DataFrame(filas)
     esc.to_parquet(plan / "escenas.parquet", index=False)  # al final: es la marca de plan terminado
 
-    carga = [sum(costos[t] for t in lista) for lista in partes]
+    carga = [sum(por_tile[t]["celdas"] for t, _ in lista) for lista in partes]
     print(f"\n{len(esc)} escenas en {len(por_tile)} tiles, {args.partes} partes; costo por parte: "
           f"mín {min(carga):,.0f}, máx {max(carga):,.0f}, media {np.mean(carga):,.0f}")
     print(esc.groupby("prioridad").agg(tiles=("tile", "nunique"), escenas=("escena_id", "size")).to_string())

@@ -350,6 +350,16 @@ Si cambian los datos (por ejemplo, la ruta), hay que regenerar en el mismo commi
 
 Estado al 22-11 en la madrugada: T1, T2 (backend), T2b, T6, T7 y T10 están listos. `caudal-api` está en producción: `PROD_API` de `js/config.js` (`https://caudal-api-170658673954.southamerica-west1.run.app`, la misma API que `https://caudal-api-nioa63appa-tl.a.run.app`), con CORS solo para `caudal-web`. Siguen T3, T4, T5 y T8 contra la API en producción, y después T9 y T11.
 
+### Nota para Tomás: serie del año completo en Valparaíso (22-11)
+
+La corrida nacional extrae Sentinel-2 del **año completo solo en Valparaíso** (R05, de abril de 2025 a hoy). El resto de las regiones sigue con diciembre a marzo. El ranking no cambia: M1–M5 siguen usando solo la temporada. Quedan dos archivos nuevos en `gs://ph-26-caudal-chile/modelo/chile-2025-26/region=R05/`: `serie_anual.parquet` y `serie_referencia_anual.parquet`. Tienen el mismo esquema que `serie_predio_elegibles_2025-26.parquet`. Detalle en [spec-chile.md](spec-chile.md#año-completo-en-valparaíso).
+
+Usos que quedan abiertos (ninguno está hecho):
+
+1. **Consumo anual (M4)** con el Kc de cada mes observado, en vez de extrapolar el del verano. Necesita clima de R05 hasta noviembre de 2026.
+2. **Ficha:** serie hasta noviembre de 2026 y la última escena limpia (13-11-2026 sobre Z1 y Z2). Se rotula aparte de `dato_al`, que es la última imagen de la temporada analizada (28-03-2026), no la última que existe.
+3. **Experimento:** pesar las fechas de M3 por déficit hídrico. Solo si mejora el AUC de validación; no para la demo.
+
 ## Criterios de aceptación de la demo
 
 - [ ] El recorrido del guion se completa en producción en menos de 1:40, sin recargar.

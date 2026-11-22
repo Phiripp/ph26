@@ -139,7 +139,7 @@ function setupZonaPanel({ getValle, onFocusChange }) {
       p.detail.hidden = true; p.detail.replaceChildren(); p.detail.onclick = null;
       p.rank.hidden = false;
       if (p.rankFor !== d || typeof P.selectRankingRow !== 'function') {
-        P.renderRanking(p.rank, d, { selectedId: st.selectedId, onSelect: id => selectPredio(id, { from: 'panel' }) });
+        P.renderRanking(p.rank, d, { selectedId: st.selectedId, onSelect: id => selectPredio(id, { from: 'panel' }), onRuta: () => setTab('ruta', { focus: true }) });
         p.rankFor = d;
       } else {
         if (wasHidden && st.tab === 'predios') body.scrollTop = p.rankScroll;

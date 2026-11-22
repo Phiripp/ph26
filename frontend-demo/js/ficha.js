@@ -92,7 +92,47 @@ export function selectRankingRow(el, id, { scroll = true } = {}) {
   if (scroll) sel.scrollIntoView({ block: 'nearest' });
 }
 
-export function renderRanking(el, data, { onSelect, selectedId } = {}) {
+/** "usa 25–44 veces su derecho" / "sin derecho de agua" — the consumption vs. right, in words. */
+function vsDerecho(p) {
+  const der = +(p.m3_derecho_rol ?? p.m3_derecho ?? NaN);
+  if (p.m3_estimado_min == null) return '';
+  if (Number.isNaN(der)) return 'sin cruce con derechos';
+  if (der <= 0) return '<b>sin derecho de agua</b> registrado';
+  const lo = p.m3_estimado_min / der, hi = p.m3_estimado_max / der;
+  if (hi < 1.5) return 'cerca de su derecho';
+  const f = v => fmtNum(v, v < 10 ? 1 : 0);
+  return `usa <b>${f(lo)}–${f(hi)} veces</b> su derecho`;
+}
+
+/** The 3-minute version of the ranking: one sentence, a proportion bar, the top 5 and a button to the route. */
+function storyHTML(data, groups, sinInd, routeN) {
+  const c = data.counts;
+  const total = (c.alta || 0) + (c.media || 0) + (c.baja || 0) + sinInd;
+  const pct = n => total ? (100 * n / total).toFixed(2) : 0;
+  const top = groups.alta.length ? groups.alta.slice(0, 5) : [...groups.media, ...groups.baja].slice(0, 5);
+  const card = (f, i) => {
+    const p = f.properties;
+    const what = [p.cultivo && p.cultivo !== 'sin catastro' ? p.cultivo : null, `${fmtNum(p.area_ha, 1)} ha`, fmtComuna(p.comuna)].filter(Boolean).map(esc).join(' · ');
+    return `<li><button type="button" class="pn-row pn-top pn-r-${p.banda}" data-id="${esc(p.id)}" title="Predio ${esc(p.id)}">
+        <span class="pn-top-n">${i + 1}</span>
+        <span class="pn-top-main"><b class="pn-id">Rol ${esc(p.rol || p.id)}</b>${p.caso ? casoTag(p.caso) : ''}<small>${what}</small><span class="pn-top-vs">${vsDerecho(p)}</span></span>
+        <span class="pn-top-go" aria-hidden="true">›</span>
+      </button></li>`;
+  };
+  return `
+    <header class="pn-story">
+      <p class="pn-story-h">De <b>${fmtNum(total, 0)}</b> predios, <b class="pn-hot">${fmtNum(c.alta || 0, 0)}</b> tienen señal alta de riego por sobre su derecho.</p>
+      <div class="pn-bar" role="img" aria-label="Alta ${c.alta || 0}, media ${c.media || 0}, baja ${c.baja || 0}, sin indicio ${sinInd}">
+        <i class="pn-alta" style="width:${pct(c.alta || 0)}%"></i><i class="pn-media" style="width:${pct(c.media || 0)}%"></i><i class="pn-baja" style="width:${pct(c.baja || 0)}%"></i><i class="pn-sin_alerta" style="flex:1"></i>
+      </div>
+      <p class="pn-bar-k"><span class="pn-alta">● alta ${fmtNum(c.alta || 0, 0)}</span><span class="pn-media">● media ${fmtNum(c.media || 0, 0)}</span><span class="pn-sin_alerta">● resto ${fmtNum((c.baja || 0) + sinInd, 0)}</span></p>
+    </header>
+    <h4 class="pn-gh pn-top-h">Inspeccionar primero</h4>
+    <ol class="pn-list pn-toplist">${top.map(card).join('')}</ol>
+    ${routeN ? `<button type="button" class="btn primary pn-cta" data-act="ruta">Ver la ruta de inspección →</button>` : ''}`;
+}
+
+export function renderRanking(el, data, { onSelect, selectedId, onRuta } = {}) {
   if (!el) return;
   const groups = groupsOf(data);
   const state = { selectedId: selectedId || null };
@@ -100,10 +140,9 @@ export function renderRanking(el, data, { onSelect, selectedId } = {}) {
   const c = data.counts;
   const sinInd = (c.sin_alerta || 0) + (c.sin_dato || 0);
   const lists = []; // [{ key, items, withPill }] in DOM order
-  let h = `<div class="pn-sum" role="list">
-      ${['alta', 'media', 'baja'].map(b => `<span role="listitem" class="pn-sum-i pn-${b}"><b>${c[b] || 0}</b>${esc(BAND_SHORT[b])}</span>`).join('')}
-      <span role="listitem" class="pn-sum-i pn-sin_alerta"><b>${sinInd}</b>Sin indicio</span>
-    </div>`;
+  const nPrio = groups.alta.length + groups.media.length;
+  let h = storyHTML(data, groups, sinInd, !!onRuta)
+    + `<details class="pn-all"><summary>Ver los ${fmtNum(nPrio, 0)} predios priorizados</summary>`;
   for (const b of ['alta', 'media']) {
     if (!groups[b].length) continue;
     lists.push({ key: b, items: groups[b], withPill: false });
@@ -115,7 +154,7 @@ export function renderRanking(el, data, { onSelect, selectedId } = {}) {
     lists.push({ key: 'rest', items: rest, withPill: true });
     h += `<details class="pn-group pn-g-rest pn-more"${open ? ' open' : ''}><summary class="pn-gh"><span class="pn-dot pn-sin_alerta"></span>Otros predios<span class="pn-count">${rest.length}</span></summary><ul class="pn-list" data-list="rest"></ul></details>`;
   }
-  h += `<p class="pn-foot">Consumo estimado ${esc(temporadaOf(data))} en mil m³ (rango). Bandas del modelo M5.</p>`;
+  h += `<p class="pn-foot">Consumo estimado ${esc(temporadaOf(data))} en mil m³ (rango). Bandas del modelo M5.</p></details>`;
   el._rank?.lists.forEach(l => l.dispose()); // observers of the previous render of this element
   el.innerHTML = h;
   el._rank = {
@@ -123,6 +162,7 @@ export function renderRanking(el, data, { onSelect, selectedId } = {}) {
     lists: lists.map(l => mountRows(el.querySelector(`[data-list="${l.key}"]`), l.items, { withPill: l.withPill, state, root })),
   };
   el.onclick = e => {
+    if (e.target.closest('[data-act="ruta"]')) { onRuta?.(); return; }
     const b = e.target.closest('.pn-row');
     if (!b || !el.contains(b)) return;
     selectRankingRow(el, b.dataset.id, { scroll: false });

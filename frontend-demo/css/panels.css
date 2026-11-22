@@ -234,3 +234,32 @@ button.pn-stop:focus-visible{outline:2px solid var(--water);outline-offset:-2px}
   .pn-kpis3 dd{font-size:14px}
   .pn-pdf-view{height:min(60svh,520px)}
 }
+
+/* ---------- ranking, 3-minute version: one sentence, proportion bar, top 5, CTA ---------- */
+.pn-story{margin:2px 0 18px}
+.pn-story-h{margin:0;font:600 20px/1.25 var(--f-display);font-stretch:105%;letter-spacing:-.005em;color:var(--ink);text-wrap:balance}
+.pn-story-h b{font-weight:800}
+.pn-story-h .pn-hot{color:var(--crit)}
+.pn-bar{display:flex;height:8px;margin-top:14px;background:var(--rule);gap:2px}
+.pn-bar i{display:block;min-width:2px;background:var(--b)}
+.pn-bar .pn-sin_alerta{--b:var(--rule-2)}
+.pn-bar-k{display:flex;flex-wrap:wrap;gap:4px 14px;margin:8px 0 0;font:10.5px var(--f-mono);letter-spacing:.06em;text-transform:uppercase;color:var(--dim)}
+.pn-bar-k span{color:var(--b)}
+.pn-bar-k .pn-sin_alerta{color:var(--dim)}
+.pn-top-h{margin:0 0 8px;color:var(--dim)}
+.pn-toplist{gap:6px}
+.pn-row.pn-top{flex-direction:row;align-items:center;gap:12px;padding:10px 12px}
+.pn-top-n{flex:none;width:26px;font:700 22px/1 var(--f-display);color:var(--b);text-align:center}
+.pn-top-main{flex:1;display:flex;flex-wrap:wrap;align-items:center;gap:2px 8px}
+.pn-top-main small{flex-basis:100%;font:12px var(--f-body);color:var(--dim)}
+.pn-top-vs{flex-basis:100%;font:12.5px var(--f-body);color:var(--ink)}
+.pn-top-vs b{color:var(--loss);font-weight:600}
+.pn-top-go{flex:none;font:20px var(--f-mono);color:var(--dim);transition:transform .2s,color .2s}
+.pn-row.pn-top:hover .pn-top-go{color:var(--water);transform:translateX(3px)}
+.pn-cta{width:100%;margin-top:14px}
+.pn-all{margin-top:18px;border-top:1px solid var(--rule);padding-top:12px}
+.pn-all>summary{cursor:pointer;list-style:none;font:500 11px var(--f-mono);letter-spacing:.1em;text-transform:uppercase;color:var(--dim);padding:6px 0}
+.pn-all>summary::-webkit-details-marker{display:none}
+.pn-all>summary::after{content:" +"}
+.pn-all[open]>summary::after{content:" −"}
+.pn-all>summary:hover{color:var(--water)}

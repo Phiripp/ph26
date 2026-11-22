@@ -108,6 +108,7 @@ La etapa `base` de la corrida nacional ya bajó los derechos y los sectores de a
 | AP6 | Regenerar el respaldo (`api/respaldo.py --predios demo`), desplegar `caudal-api` y `caudal-web`, y correr `probar.sh` | P0 | — | AP3 a AP5 | El recorrido completo funciona en producción y con la API apagada |
 | AP7 | Pitch: agregar la frase y cortar la de las latas de Monster | P0 | — | AP2 | El guion sigue bajo 430 palabras y la cifra calza con `impacto.md` |
 | AP8 | Filtro "solo cerca de agua potable" en la lista de la zona, y `?agua_potable=1` en `/api/zonas/{zona}/ranking` | P1 | — | AP4 | Z2 muestra solo los 49 |
+| AP9 | Orden y ruta "agua potable" (ver [Prioridad por agua potable](#prioridad-por-agua-potable-ap9)). Tiene tres partes: `rank_agua` en `predio_agua_potable.parquet`; `ruta_agua_z1` y `ruta_agua_z2` (`.json`, `.geojson`, `.gpx`) en `data/processed/` con `ruta_inspeccion.py --puntajes`; y un selector "Ruta: sospecha / agua potable" en la pestaña Ruta | P1 | — | AP1, AP1b, AP5 | La ruta de Z2 da 5 paradas, de 08:30 a 12:37 y 75,3 km, como el prototipo, o la tabla se actualiza con el resultado nuevo |
 
 Orden sugerido: AP1, AP1b y AP7 en paralelo (el guion se escribe con la cifra de la exploración y se ajusta después). Luego AP2, AP3 y AP4 a la vez, después AP5, y AP6 al final. Hay que congelar el código 1 hora antes de la demo para AP6 y para ensayar.
 
@@ -125,6 +126,8 @@ Orden sugerido: AP1, AP1b y AP7 en paralelo (el guion se escribe con la cifra de
 | `apr_m3_anual` | float | Volumen anual del derecho de ese pozo |
 | `agua_potable` | bool | `dist_agua_potable_m` ≤ `RADIO_M` |
 | `radio_m` | int | Radio usado (1.000) |
+| `beneficiarios_cercanos` | int | Beneficiarios de los APR a `RADIO_APR_M` o menos del pozo `apr_derecho_id`; 0 si `agua_potable` es falso (AP9) |
+| `rank_agua` | int | Puesto en la zona con el orden de AP9, solo para los 467 candidatos; nulo para el resto (AP9) |
 
 **`pozo_agua_potable.geojson`:** son puntos con `derecho_id`, `zona`, `comuna`, `caudal_ls`, `m3_anual`, `cod_shac` y `n_candidatos_cerca` (candidatos de los 467 a `RADIO_M` o menos). No lleva titular.
 
@@ -160,6 +163,44 @@ En `pozo_agua_potable.geojson` se agregan `apr_cercanos` (lista de `nombre`) y `
   - `apr_cercanos`
   - `beneficiarios_cercanos`: cada APR se cuenta una sola vez, aunque esté cerca de varios pozos
 - `casos_esperados`: los candidatos cerca multiplicados por el acierto de la DGA.
+
+## Prioridad por agua potable (AP9)
+
+**Qué prioriza:** entre los predios que ya son sospechosos, se inspeccionan primero los que podrían afectar el agua de más gente. No cambia quién es sospechoso: el puntaje, las bandas y la validación (2,6×, medida sobre la banda alta) quedan igual. Solo cambia el orden dentro de los 467 candidatos. [impacto.md](impacto.md) ya dice que hay que priorizar dentro de la banda.
+
+**Por qué la cercanía:** un pozo que bombea hace bajar la napa a su alrededor, y la baja es mayor cerca del pozo. Un predio que riega sin derechos cerca de un pozo de agua potable, y en el mismo acuífero, tiene más probabilidad de afectarlo que uno lejano o de otro acuífero.
+
+**Cálculo:**
+
+1. Universo: los 467 candidatos de `impacto.py` (`candidatos()`).
+2. `agua_potable` (AP1): pozo de agua potable del mismo SHAC a 1.000 m o menos.
+3. `beneficiarios_cercanos` (AP1b): suma de `BENEF_EST` de los APR a 2.000 m o menos de ese pozo.
+4. `rank_agua`, por zona. Primero van los candidatos con `agua_potable`, ordenados por `beneficiarios_cercanos` y después por `puntaje`, de mayor a menor. Después va el resto, por `puntaje`.
+5. Ruta: entran a `ruta_inspeccion.py --puntajes` solo los candidatos con `beneficiarios_cercanos` > 0. Cada uno pesa `prioridad = puntaje × (1 + beneficiarios_cercanos / máximo de la zona)`, de modo que el del pozo con más gente pesa hasta el doble. Se usan `--top 40 --max-paradas 5` y `--salida data/processed/ruta_agua_<zona>`.
+
+**Prototipo del 21-11, Z2:** 37 candidatos con APR cerca.
+
+| Ruta | Paradas | Horario | Km |
+| --- | --- | --- | --- |
+| Actual, por sospecha (`ruta_z2`) | 5331169, 5331643, 5331040, 5300317, 5301325 | 08:30–12:28 | 71,3 |
+| Agua potable (`ruta_agua_z2`) | 5340803, 5340136, 5301352, 5301325, 5300860 | 08:30–12:37 | 75,3 |
+
+Las paradas de la ruta de agua potable están cerca de los pozos asociados a los APR La Palma, 19 de Febrero y La Tetera (3.879 beneficiarios) y La Sombra (3.543). Los primeros puestos de `rank_agua` en Z2 son 5340136 (sube del puesto 51 al 1) y 5301325 (del 4 al 3). En Z1 el primero es 5311382 (sube del 101 al 1), cerca del pozo asociado al APR John Kennedy (2.133).
+
+**Lo que este orden no sabe:**
+
+- Si el predio afecta de verdad al pozo: no hay modelo de la napa ni niveles de pozos, y 1.000 m es un criterio.
+- Si ese pozo abastece al APR: el APR se asocia por cercanía y su punto es la localidad, no la captación.
+- Si a ese APR le falta agua hoy: no hay datos de déficit ni de camión aljibe por APR.
+
+Se presenta como "priorizamos los casos que podrían afectar el agua de más gente", nunca como "protegemos el agua de N personas".
+
+**Después de la demo:**
+
+- Pesar por la tendencia de los 68 pozos de nivel de la DGA en las comunas de Z1 y Z2, entre ellos "Agua Potable Hierro Viejo".
+- Ubicar la captación real de cada APR.
+
+**Para la demo (opcional):** en la pestaña Ruta: "Y si la prioridad es el agua de la gente, la ruta cambia: cinco predios cerca de los pozos de cuatro APR, con unos 7.400 beneficiarios".
 
 ## Textos
 
@@ -211,5 +252,6 @@ Sin datos de demanda ni de déficit por APR, Caudal no propone un plan de acceso
 - `uv run scripts/models/agua_potable.py` da 72 candidatos cerca con 1.000 m. Si cambia, se actualizan esta tabla y el guion.
 - `impacto.md` tiene la sección "Agua potable", generada por el script y sin cifras escritas a mano.
 - `apr.parquet` no trae `RUT`, y cada APR aparece una sola vez.
+- AP9: `ruta_agua_z2.json` existe, y la ruta por sospecha (`ruta_z2.json`) no cambió.
 - En producción, en Z2 se ven los pozos de agua potable y la parada 5 de la ruta lleva la etiqueta y la distancia.
 - Con `caudal-api` apagado, el respaldo muestra lo mismo.

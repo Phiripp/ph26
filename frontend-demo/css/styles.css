@@ -286,7 +286,7 @@ figure.chart{margin:28px 0 0;border:1px solid var(--rule);background:linear-grad
 .flow b{color:var(--ink);font-weight:600}
 
 /* ---------- valley side panel (bottom sheet on mobile) ---------- */
-.valle-panel{--vp-top:calc(env(safe-area-inset-top,0px) + 96px);position:absolute;z-index:6;top:var(--vp-top);right:clamp(10px,2vw,22px);bottom:max(clamp(14px,3vh,24px),env(safe-area-inset-bottom,0px));width:min(400px,calc(100vw - 32px));
+.valle-panel{--vp-top:max(clamp(14px,3vh,24px),env(safe-area-inset-top,0px));position:absolute;z-index:6;top:var(--vp-top);right:clamp(10px,2vw,22px);bottom:max(clamp(14px,3vh,24px),env(safe-area-inset-bottom,0px));width:min(400px,calc(100vw - 32px));
   display:flex;flex-direction:column;background:rgba(8,13,17,.93);backdrop-filter:blur(10px);border:1px solid var(--rule-2);animation:vp-in .45s var(--ease)}
 @keyframes vp-in{from{opacity:0;transform:translateX(16px)}to{opacity:1;transform:none}}
 .vp-grip{display:none}

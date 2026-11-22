@@ -69,11 +69,10 @@ function getCasos() {
 }
 const loadZonaData = async id => (await Zmod()).loadZona(zkey(id));
 
-function dms(v, pos, neg) {
-  const s = v < 0 ? neg : pos; v = Math.abs(v);
-  const d = Math.floor(v), mf = (v - d) * 60, m = Math.floor(mf), sec = Math.round((mf - m) * 60) % 60;
-  return `${d}°${String(m).padStart(2, '0')}′${String(sec).padStart(2, '0')}″${s}`;
-}
+/* Moving focus after a click/tap (zone enter/exit) should not paint a focus ring; after keyboard use it should. */
+let usingKeyboard = false;
+addEventListener('keydown', e => { if (e.key === 'Tab' || e.key === 'Enter' || e.key === ' ') usingKeyboard = true; }, true);
+addEventListener('pointerdown', () => { usingKeyboard = false; }, true);
 
 function showFallback(host, text) {
   if (!host) return;
@@ -186,6 +185,7 @@ function setupZonaPanel({ getValle, onFocusChange }) {
   function selectPredio(id, { from = 'panel' } = {}) {
     if (!id) { deselect({ from }); return; }
     st.selectedId = id;
+    sheetNormal();   // phones: the 3D close-up and the ficha both in view
     // any way of choosing a predio (ranking row, its polygon or its dot on the terrain) flies to it
     valleCall('selectPredio', id, { focus: true });
     focusChanged();
@@ -227,6 +227,7 @@ function setupZonaPanel({ getValle, onFocusChange }) {
 
   async function showCaso(exp, { from = 'panel' } = {}) {
     if (!exp) return;
+    sheetNormal();
     st.caseView = 'caso';
     st.selectedCaso = exp;
     if (st.tab !== 'casos') setTab('casos', { render: false });
@@ -295,13 +296,15 @@ function setupZonaPanel({ getValle, onFocusChange }) {
     if (!v || typeof v.playRoute !== 'function') return;
     st.playing = true;
     panel.classList.add('playing');
+    // phones: fold the sheet down so the camera flight is visible (vp-peek: an even lower sheet, CSS)
+    if (MOBILE.matches) { setSheet('normal'); panel.classList.add('vp-peek'); }
     valleCall('showRoute', true);
     // the route is a whole-zone story: leave a predio close-up before playing it
     if (v.isFocused?.()) { try { await v.resetView(); } catch (_) { /* opcional */ } }
     try { await v.playRoute({ duration: ROUTE_MS }); }
     catch (err) { console.error('[Caudal] playRoute:', err); }
     st.playing = false;
-    panel.classList.remove('playing');
+    panel.classList.remove('playing', 'vp-peek');
   }
 
   /* --- tabs --- */
@@ -331,10 +334,20 @@ function setupZonaPanel({ getValle, onFocusChange }) {
     });
   }
   grip.addEventListener('click', () => {
-    const ex = panel.classList.toggle('expanded');
+    setSheet(panel.classList.contains('expanded') ? 'normal' : 'expanded');
+  });
+  /** Bottom sheet height (phones): 'normal' (46svh) | 'expanded' (86svh). Drops the playback peek. */
+  function setSheet(state) {
+    const ex = state === 'expanded';
+    panel.classList.toggle('expanded', ex);
+    panel.classList.remove('vp-peek');
     grip.setAttribute('aria-expanded', String(ex));
     syncInsets();
-  });
+  }
+  /** Phones: an expanded (or peeking) sheet goes back to its normal height. */
+  function sheetNormal() {
+    if (MOBILE.matches && (panel.classList.contains('expanded') || panel.classList.contains('vp-peek'))) setSheet('normal');
+  }
 
   /* tell the 3D view how much of the canvas the panel covers so it frames the scene in the visible part */
   function insets() {
@@ -377,7 +390,7 @@ function setupZonaPanel({ getValle, onFocusChange }) {
     },
     close() {
       panel.hidden = true;
-      panel.classList.remove('expanded', 'playing');
+      panel.classList.remove('expanded', 'playing', 'vp-peek');
       grip.setAttribute('aria-expanded', 'false');
       reset();
     },
@@ -391,6 +404,13 @@ function setupZonaPanel({ getValle, onFocusChange }) {
       return MOBILE.matches ? { right: 0, bottom: Math.round(innerHeight * 0.46) } : { right: Math.min(424, innerWidth - 32), bottom: 0 };
     },
     syncInsets,
+    /** Viewport crossed the phone breakpoint: the sheet states only exist on phones. */
+    onLayoutChange() {
+      panel.classList.remove('expanded');
+      panel.classList.toggle('vp-peek', MOBILE.matches && st.playing);
+      grip.setAttribute('aria-expanded', 'false');
+      if (!panel.hidden) syncInsets();
+    },
     // valle.js callbacks
     onValleSelect(arg) {
       const id = arg && typeof arg === 'object' ? arg.id : arg;
@@ -553,14 +573,6 @@ function setupStage() {
     return Promise.resolve(mapCtl.flyToSite(zkey(meta?.id), { center, zoom: 11.6, pitch: 50, bearing: 0, duration }));
   }
 
-  function setZonaHud(meta, data) {
-    const nP = data?.predios?.length, nC = data?.casos?.length ?? (meta?.casos || []).length;
-    $('hz-name').textContent = `${meta?.codigo || ''} · ${meta?.nombre || ''}`;
-    $('hz-count').textContent = `${nP ?? '—'} predios · ${nC} casos DGA`;
-    const c = Array.isArray(meta?.centro) ? meta.centro : null;
-    $('hz-coords').textContent = c ? `${dms(c[1], 'N', 'S')} ${dms(c[0], 'E', 'O')} · Valparaíso · 10 m/px` : 'Valparaíso · 10 m/px';
-  }
-
   async function enterZona(id, { caso = null } = {}) {
     if (mode !== 'landing') return;
     id = zkey(id);
@@ -574,7 +586,6 @@ function setupStage() {
       if (!meta) throw new Error('zona desconocida: ' + id);
       const data = await loadZonaData(id);
       zp.prepare(meta, { predios: data.predios.length, casos: data.casos.length });
-      setZonaHud(meta, data);
       mapSetValley(true);
       const flyP = flyToZona(meta, null);
       const v = await ensureValle(id, data, meta);
@@ -587,7 +598,7 @@ function setupStage() {
       zp.open({ caso });
       const h = caso ? 'caso-' + caso : id;
       if (location.hash !== '#' + h) history.replaceState(null, '', '#' + h);
-      back.focus({ preventScroll: true });
+      back.focus({ preventScroll: true, focusVisible: usingKeyboard }); // no ring after a tap/click
     } catch (err) {
       console.error('[Caudal] zona enter:', err);
       if (/valle|initValle|WebGL/i.test(String(err?.message))) { valleFailed = true; valleCanvas.style.display = 'none'; updateHint(); }
@@ -622,7 +633,7 @@ function setupStage() {
     curZona = null;
     clearHash(h => ZONA_IDS.includes(zkey(h)) || h.startsWith('caso-'));
     setMode('landing');
-    if (home) hint.focus({ preventScroll: true });
+    if (home) hint.focus({ preventScroll: true, focusVisible: usingKeyboard });
   }
 
   function clearHash(test) {
@@ -703,7 +714,8 @@ function setupStage() {
       }
     }, { threshold: 0.02 }).observe(stage);
   }
-  MOBILE.addEventListener?.('change', () => { if (mode === 'zona') zp.syncInsets(); });
+  // rotating a phone (or resizing across the breakpoint): bottom sheet <-> side panel
+  MOBILE.addEventListener?.('change', () => { zp.onLayoutChange(); });
   updateHint();
 
   return {

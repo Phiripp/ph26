@@ -99,8 +99,9 @@ function seasonSeriesSVG(data, id, opts = {}) {
   const ref = own.map(r => ({ fecha: r.fecha, ndvi: r.ref_ndvi ?? null, ndmi: r.ref_ndmi ?? null }));
   const keys = [...new Set(own.map(r => seasonKey(r.fecha)))].sort((a, b) => a - b);
   const pl = compact ? 34 : 44, pr = compact ? 8 : 18, pt = compact ? 14 : 22, pb = compact ? 24 : 34;
-  const gap = compact ? 8 : 12;
+  const gap = compact ? (W < 420 ? 5 : 8) : 12;
   const n = keys.length, cw = (W - pl - pr - gap * (n - 1)) / n;
+  const tight = cw < 46; // narrow column (phone): short season label "19-20" at 10 px
   const vmin = ndmi ? -0.3 : 0, vmax = 0.9;
   const Y = v => pt + (1 - (Math.max(vmin, Math.min(vmax, v)) - vmin) / (vmax - vmin)) * (H - pt - pb);
   const win = k => [dayNum(`${k}-12-01`), dayNum(`${k + 1}-04-01`)];
@@ -144,8 +145,9 @@ function seasonSeriesSVG(data, id, opts = {}) {
   }
   keys.forEach((k, i) => {
     s += `<line class="c-grid" x1="${colX(i).toFixed(1)}" x2="${colX(i).toFixed(1)}" y1="${pt}" y2="${H - pb}"/><line class="c-grid" x1="${(colX(i) + cw).toFixed(1)}" x2="${(colX(i) + cw).toFixed(1)}" y1="${pt}" y2="${H - pb}"/>`;
-    const lab = compact && n > 5 ? `’${String(k).slice(2)}-${String((k + 1) % 100).padStart(2, '0')}` : seasonLabel(k);
-    s += `<text class="c-axis" x="${(colX(i) + cw / 2).toFixed(1)}" y="${H - (compact ? 7 : 10)}" text-anchor="middle">${lab}</text>`;
+    const yy = `${String(k).slice(2)}-${String((k + 1) % 100).padStart(2, '0')}`;
+    const lab = tight ? yy : compact && n > 5 ? `’${yy}` : seasonLabel(k);
+    s += `<text class="c-axis" x="${(colX(i) + cw / 2).toFixed(1)}" y="${H - (compact ? 7 : 10)}" text-anchor="middle"${tight ? ' style="font-size:10px"' : ''}>${lab}</text>`;
   });
   s += `<path class="pc-ref" d="${path(ref, 'ndvi')}"/>`;
   if (ndmi) s += `<path class="pc-ref pc-dash" d="${path(ref, 'ndmi')}"/>`;
@@ -178,6 +180,7 @@ export function historialTimelineSVG(rows, opts = {}) {
   if (!rows?.length) return '';
   const pl = 4, pr = 4, pt = 20, cellH = 24, gap = 2;
   const n = rows.length, cw = (W - pl - pr) / n;
+  const tight = cw < 56; // phone: "19-20" at 10 px so the season labels never touch
   const t0 = dayNum(seasonStart(rows[0].temporada));
   const X = iso => pl + ((dayNum(iso) - t0) / 365.25) * cw; // one season = one year from its start
   let s = '';
@@ -187,7 +190,7 @@ export function historialTimelineSVG(rows, opts = {}) {
       r.puntaje != null ? `puntaje ${fmtNum(r.puntaje, 1)}` : null,
       r.m3_exceso_min != null && r.m3_exceso_max != null && r.m3_exceso_max > 0 ? `exceso estimado ${fmtNum(r.m3_exceso_min / 1000, 0)}–${fmtNum(r.m3_exceso_max / 1000, 0)} mil m³` : null].filter(Boolean).join(' · ');
     s += `<rect x="${(x + gap / 2).toFixed(1)}" y="${pt}" width="${(cw - gap).toFixed(1)}" height="${cellH}" style="fill:${TL_COLOR[b]};fill-opacity:${b === 'sin_alerta' ? 1 : 0.85}"><title>${tip}</title></rect>` +
-      `<text class="c-axis" x="${(x + cw / 2).toFixed(1)}" y="${pt + cellH + 14}" text-anchor="middle">${r.temporada}</text>`;
+      `<text class="c-axis" x="${(x + cw / 2).toFixed(1)}" y="${pt + cellH + 14}" text-anchor="middle"${tight ? ' style="font-size:10px"' : ''}>${tight ? String(r.temporada).slice(2) : r.temporada}</text>`;
   });
   if (fecha) {
     const x = Math.max(pl, Math.min(pl + n * cw, X(fecha)));
@@ -213,4 +216,43 @@ export function chartLegendHTML({ ndmi = true, mark = false } = {}) {
     `<span class="pc-key"><i class="k-ref"></i>Secano</span>` +
     `<span class="pc-key"><i class="k-dry"></i>Sin lluvia ≥10 días</span>` +
     (mark ? `<span class="pc-key"><i class="k-mark"></i>Inspección DGA</span>` : '');
+}
+
+/**
+ * Draws an SVG chart with a viewBox as wide as the element is on screen (1 user unit = 1 css px), so axis text
+ * keeps its CSS size (10–11 px) on a phone instead of shrinking with a fixed wide viewBox. Re-draws when the
+ * width changes (panel resize, rotation, a hidden pane becoming visible).
+ * render(W) -> {H, svg}: inner markup for that width. minW/maxW bound W; a hidden element uses fallbackW.
+ */
+export function fitSVG(svg, render, { fallbackW = 560, minW = 240, maxW = 760 } = {}) {
+  if (!svg) return;
+  let lastW = 0;
+  const draw = () => {
+    const cw = Math.round(svg.getBoundingClientRect().width || 0);
+    const W = cw > 0 ? Math.max(minW, Math.min(maxW, cw)) : (lastW || fallbackW);
+    if (W === lastW) return;
+    lastW = W;
+    const { H, svg: inner } = render(W);
+    svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
+    svg.innerHTML = inner;
+  };
+  draw();
+  if (typeof ResizeObserver === 'function') {
+    const ro = new ResizeObserver(() => { if (!svg.isConnected) { ro.disconnect(); return; } draw(); });
+    ro.observe(svg);
+  }
+}
+
+/** Series chart (seriesChartSVG) fitted to its element's width; height scales down a little on narrow screens. */
+export function mountSeriesChart(svg, data, id, opts = {}) {
+  const H0 = opts.H || 230;
+  fitSVG(svg, W => {
+    const H = Math.round(Math.max(180, Math.min(H0, W * 0.6)));
+    return { H, svg: seriesChartSVG(data, id, { ...opts, W, H }) };
+  });
+}
+
+/** Per-season band strip (historialTimelineSVG) fitted to its element's width. */
+export function mountTimeline(svg, rows, opts = {}) {
+  fitSVG(svg, W => ({ H: 64, svg: historialTimelineSVG(rows, { ...opts, W }) }), { fallbackW: 380, minW: 200 });
 }

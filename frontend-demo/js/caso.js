@@ -2,6 +2,7 @@
 // Un caso sancionado sí se puede nombrar como tal; los predios sin resolver nunca.
 import { fmtNum, fmtDate, fmtDateNum, fmtComuna, expShort, dryWindowStats, seriesFailed, SERIES_FAILED_TEXT, esc } from './zona-data.js';
 import { mountSeriesChart, mountTimeline, chartLegendHTML, historialLegendHTML, seasonStart } from './chart.js';
+import { mountExplicacion } from './explicacion.js';
 
 /**
  * Valor UTM para pasar la multa a pesos: impacto.json -> supuestos.utm_clp (scripts/models/impacto.py).
@@ -166,6 +167,7 @@ export function renderCaso(el, caso, zonaData, { onPredio, onExpediente, onBack 
       <div class="pn-legend">${chartLegendHTML({ mark: true })}</div>
     </figure>
     <p class="pn-note">${esc(text)}</p>
+    <section class="pn-why" data-why></section>
     ${imgs.length ? `
     <section class="pn-imgs" data-mode="rgb">
       <div class="pn-imgs-h"><span>Sentinel-2 · recorte del predio</span>
@@ -189,6 +191,9 @@ export function renderCaso(el, caso, zonaData, { onPredio, onExpediente, onBack 
     <p class="pn-foot">${esc(caso.tipo_infraccion || 'Extracción no autorizada de aguas')}${caso.resolucion ? ` · Res. ${esc(caso.resolucion)}` : ''}. Fuente: planilla de fiscalización DGA. <span data-utm>${Number.isFinite(utmClp) ? "Multa en pesos con UTM a $" + fmtNum(utmClp, 0) + " (" + UTM_FUENTE + ")." : ""}</span> Banda por temporada: puntaje de Caudal (M5).</p>`;
 
   mountSeriesChart(el.querySelector('svg[data-series]'), data, caso.predio_id, { W: 560, H: 230, compact: true, marks, highlight: st?.win });
+  // Lo que Caudal veía con los datos previos a la inspección (misma explicación de la ficha y del PDF)
+  mountExplicacion(el.querySelector('[data-why]'), `/api/casos/${encodeURIComponent(caso.expediente)}`,
+    { titulo: x => `Qué veía Caudal antes de la inspección (temporada ${x.temporada})`, datoAl: false });
   const mountTl = r => mountTimeline(el.querySelector('svg[data-timeline]'), r, { fecha: caso.fecha_inspeccion });
   if (rows) mountTl(rows);
   // Late data, filled in place while this case is still on screen: historial.json and the UTM value of impacto.json.

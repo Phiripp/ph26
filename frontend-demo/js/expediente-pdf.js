@@ -2,7 +2,7 @@
 // Pide el expediente a caudal-api, muestra los pasos reales que informa el backend y abre el PDF en un
 // visor dentro del panel, con descarga. Si el backend falla o deja de responder, abre el PDF de respaldo
 // (data/respaldo/expedientes/) y dice de cuándo es. No hay progreso simulado.
-import { apiUrl } from './config.js';
+import { apiUrl, MODO_DEMO } from './config.js';
 import { esc } from './zona-data.js';
 
 const CONNECT_MS = 20000; // spec F3: sin expediente en este tiempo, se usa el respaldo
@@ -45,7 +45,8 @@ async function pdfBlobUrl(url, signal) {
  */
 function requestLive(predioId, { onPaso, signal }) {
   return new Promise((resolve, reject) => {
-    const es = new EventSource(apiUrl(`/api/expediente/eventos?predio_id=${encodeURIComponent(predioId)}`));
+    // El servidor pone el rol solo en el PDF de un predio con caso sancionado; en modo demo, en ninguno.
+    const es = new EventSource(apiUrl(`/api/expediente/eventos?predio_id=${encodeURIComponent(predioId)}${MODO_DEMO ? '&rol=false' : ''}`));
     let timer = 0;
     const done = (fn, value) => { clearTimeout(timer); es.close(); fn(value); };
     const fail = (msg) => done(reject, new Error(msg));

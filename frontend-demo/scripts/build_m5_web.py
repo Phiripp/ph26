@@ -188,7 +188,8 @@ def predios_geojson(z: str, sel: dict[int, str], geo: gpd.GeoDataFrame, u: pd.Da
         c = cu.loc[pid] if pid in cu.index else None
         esp = titulo(c["especie_principal"]) if c is not None else None
         props = {
-            "id": str(pid), "predio_id": pid, "rol": r.rol, "comuna": r.comuna, "zona": z,
+            # el rol solo va en los predios con un caso sancionado por la DGA (dato público); el resto, por ID
+            "id": str(pid), "predio_id": pid, "rol": r.rol if pid in casos_z else None, "comuna": r.comuna, "zona": z,
             "area_ha": num(r.area_ha, 2),
             "cultivo": esp or "sin catastro",
             "especies": (c["especies"] if c is not None and isinstance(c["especies"], str) else None),

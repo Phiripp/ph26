@@ -11,7 +11,7 @@
 // Apagarlo: abrir la página con ?sw=0 (js/main.js lo desregistra y borra las cachés).
 // Al cambiar las reglas de este archivo, subir VERSION: la caché anterior se borra al activar.
 
-const VERSION = 'v3'; // v3: imagen de zonas ampliada al área de todos los predios
+const VERSION = 'v4'; // v4: predios sin rol salvo los casos sancionados; bloque de razones en la ficha
 const CACHE = `caudal-${VERSION}`;
 const NETWORK_TIMEOUT_MS = 2500;
 const HEAVY_LOCAL = /\/(tiles|assets)\//;

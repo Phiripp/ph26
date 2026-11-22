@@ -1,6 +1,7 @@
 // Caudal · zone data loader (Z1 Petorca, Z2 Aconcagua bajo) + shared formatting helpers.
 // Principle: "el sistema prioriza, no acusa" — IDs/rol only, ranges only. Data: M5 export of
 // scripts/build_m5_web.py (data/processed/puntaje.parquet and friends; see docs/spec-demo.md).
+import { MODO_DEMO } from './config.js';
 
 const ROOT = 'data/zonas/';
 const cache = new Map();
@@ -23,7 +24,8 @@ function once(key, fn) {
 export const loadZonas = () => once('index', () => getJSON(ROOT + 'index.json'));
 export const loadCasos = () => once('casos', async () => {
   const c = await getJSON(ROOT + 'casos.json');
-  return (Array.isArray(c) ? c : c.casos || []).map(x => ({ ...x, predio_id: x.predio_id == null ? null : String(x.predio_id) }));
+  // ?demo=1 (MODO_DEMO): ningún rol en pantalla, tampoco el de los casos
+  return (Array.isArray(c) ? c : c.casos || []).map(x => ({ ...x, rol: MODO_DEMO ? null : x.rol, predio_id: x.predio_id == null ? null : String(x.predio_id) }));
 });
 export const loadFiscalizaciones = () => once('fisc', () => getJSON(ROOT + 'fiscalizaciones.geojson'));
 /**
@@ -157,7 +159,8 @@ export function loadZona(id) {
     const predios = (geo.features || []).map(f => {
       const p = f.properties || {};
       const pid = String(p.id ?? p.predio_id);
-      const props = { ...p, id: pid, ...scoreProps(sc[pid], p) };
+      // El rol solo viene en los predios con un caso sancionado (build_m5_web.py); en modo demo, en ninguno.
+      const props = { ...p, rol: MODO_DEMO ? null : p.rol, id: pid, ...scoreProps(sc[pid], p) };
       if (!props.centroid) props.centroid = centroidOf(f.geometry);
       return { ...f, properties: props };
     });

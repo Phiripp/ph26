@@ -29,3 +29,34 @@ export const API_BASE = localOverride() || (isLocal(location.hostname) ? LOCAL_A
  * @returns {string} URL completa en el backend
  */
 export const apiUrl = (ruta) => API_BASE + ruta;
+
+const API_TIMEOUT_MS = 5000;
+const BACKUP_BASE = 'data/respaldo';
+
+async function fetchJson(url, ms) {
+  const ctl = new AbortController();
+  const timer = setTimeout(() => ctl.abort(), ms);
+  try {
+    const res = await fetch(url, { signal: ctl.signal });
+    if (!res.ok) throw new Error(`${res.status} en ${url}`);
+    return await res.json();
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+/**
+ * Pide un recurso de lectura a la API; si no responde en 5 s o da error, lee el archivo equivalente del
+ * respaldo estático ("/api/zonas/Z2/ranking" -> "data/respaldo/zonas/Z2/ranking.json").
+ * @param {string} ruta ruta de la API, con la barra inicial
+ * @returns {Promise<{ data: any, respaldo: boolean }>} `respaldo` dice si salió del archivo estático
+ */
+export async function api(ruta) {
+  try {
+    return { data: await fetchJson(apiUrl(ruta), API_TIMEOUT_MS), respaldo: false };
+  } catch (err) {
+    console.warn('[Caudal] API sin respuesta, se usa el respaldo:', ruta, err.message);
+    const archivo = `${BACKUP_BASE}${ruta.replace(/^\/api/, '')}.json`;
+    return { data: await fetchJson(archivo, API_TIMEOUT_MS), respaldo: true };
+  }
+}

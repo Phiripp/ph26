@@ -589,6 +589,11 @@ const CSS = `
 .cm-zona .cm-pill{height:28px;padding:6px 11px 0;gap:9px}
 .cm-zona .cm-pill b{font-size:15px}
 .cm-zona .cm-lead{margin-top:14px}
+@media (max-width:700px){
+  .cm-zona .cm-pill{padding:7px 8px 0;gap:6px}
+  .cm-zona .cm-pill b{font-size:12.5px}
+  .cm-zona .cm-pill em{font-size:12px}
+}
 /* fiscalization hover tip */
 .maplibregl-popup.cf-pop .maplibregl-popup-content{background:rgba(5,8,11,.92);color:#cfd8dc;padding:5px 8px 4px;border-radius:0;
   border:1px solid rgba(138,151,158,.5);box-shadow:0 4px 14px rgba(0,0,0,.45);font:500 10.5px/1.35 'IBM Plex Mono',ui-monospace,monospace;white-space:nowrap}
@@ -1106,13 +1111,20 @@ export async function initMap({ container, sites, casos: casosIn, onSelect } = {
 
   // Screen box of each label pill (geometry mirrors .cm-tag/.cm-lead/.cm-pill in CSS): the pill
   // is 22 px tall, its bottom 7 px above the dot, offset by the 22 px leader; flipped to the left.
+  const pillWidth = (m) => { if (!m.pw) m.pw = m.el.querySelector('.cm-pill').offsetWidth || 0; return m.pw || 170; };
+  // A label goes to the left of its dot only when it does not fit on the right and the left has more room.
+  const shouldFlip = (m, viewW) => {
+    const need = m.size * 0.3 + 22 + pillWidth(m) + 8;
+    return m.po.x + need > viewW && m.po.x > viewW - m.po.x;
+  };
   const boxOf = (m) => {
     if (!m.pw) m.pw = m.el.querySelector('.cm-pill').offsetWidth || 0;
     const w = m.pw || 170, off = m.size * 0.3 + 22, flip = m.el.classList.contains('flip');
     const x0 = flip ? m.po.x - off - w : m.po.x + off;
     // zone pills are taller (28 px, bottom 4 px above the dot)
-    const top = m.kind === 'zona' ? 32 : 29, bottom = m.kind === 'zona' ? 4 : 7;
-    return { x0: x0 - 4, x1: x0 + w + 4, y0: m.po.y - top - 3, y1: m.po.y - bottom + 3 };
+    // (no vertical margin for them: at the national zoom the two zones sit ~33 px apart and both labels must show)
+    const zona = m.kind === 'zona', top = zona ? 32 : 29, bottom = zona ? 4 : 7, pad = zona ? 0 : 3;
+    return { x0: x0 - 4, x1: x0 + w + 4, y0: m.po.y - top - pad, y1: m.po.y - bottom + pad };
   };
 
   /**
@@ -1130,7 +1142,7 @@ export async function initMap({ container, sites, casos: casosIn, onSelect } = {
     const casesOn = z >= CASES_MIN_ZOOM;
     for (const m of markers.values()) m.zh = m.kind === 'caso' && !casesOn && m.d.id !== selectedId;
     // zone labels are always on: place them first so case bubbles can keep clear of them
-    for (const m of markers.values()) if (m.kind === 'zona') { m.el.classList.toggle('flip', m.po.x > w - 230); m.box = boxOf(m); }
+    for (const m of markers.values()) if (m.kind === 'zona') { m.el.classList.toggle('flip', shouldFlip(m, w)); m.box = boxOf(m); }
     layoutClusters();
     const cands = [];
     for (const m of markers.values()) {
@@ -1138,7 +1150,7 @@ export async function initMap({ container, sites, casos: casosIn, onSelect } = {
       const always = m.kind === 'zona' ||
         (m.kind === 'caso' ? z >= CASE_LABEL_ZOOM : z >= AUTO_LABEL_ZOOM);
       const want = !isHidden() && !m.clustered && !m.zh && (always || id === selectedId || id === hoverId || id === focusId);
-      m.el.classList.toggle('flip', m.po.x > w - 230);
+      m.el.classList.toggle('flip', shouldFlip(m, w));
       if (!want) { m.show = false; continue; }
       const pri = (id === selectedId ? 2000 : 0) + (id === hoverId || id === focusId ? 1000 : 0) + m.d.pri;
       cands.push({ m, pri });
@@ -1288,7 +1300,7 @@ export async function initMap({ container, sites, casos: casosIn, onSelect } = {
   let layoutRaf = 0;
   const scheduleLayout = () => { if (!layoutRaf) layoutRaf = requestAnimationFrame(() => { layoutRaf = 0; layoutLabels(); }); };
   map.on('move', scheduleLayout);
-  map.on('resize', scheduleLayout);
+  map.on('resize', () => { for (const m of markers.values()) m.pw = 0; scheduleLayout(); }); // pill sizes depend on the viewport
   layoutLabels();
   // pill widths change once the web fonts arrive: re-measure
   if (document.fonts && document.fonts.ready) document.fonts.ready.then(() => { for (const m of markers.values()) m.pw = 0; layoutLabels(); });

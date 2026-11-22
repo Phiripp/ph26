@@ -814,6 +814,7 @@ async function boot() {
   } else {
     const introDone = startIntro(mapCtl);
     introP.then(i => focusZonasWhenTitleLeaves(mapCtl, i));
+    import('./datos-portada.js').then(m => m.mountPortadaDatos($('facts'))).catch(err => console.error('[Caudal] datos-portada.js:', err));
     // the 3D scenes warm up only after the flight, so they never compete with it for the GPU
     preloadAll(Promise.race([introDone, sleep(15000)]));
   }

@@ -186,6 +186,7 @@ function setupZonaPanel({ getValle, onFocusChange }) {
   function selectPredio(id, { from = 'panel' } = {}) {
     if (!id) { deselect({ from }); return; }
     st.selectedId = id;
+    sheetNormal();   // phones: the 3D close-up and the ficha both in view
     // any way of choosing a predio (ranking row, its polygon or its dot on the terrain) flies to it
     valleCall('selectPredio', id, { focus: true });
     focusChanged();
@@ -227,6 +228,7 @@ function setupZonaPanel({ getValle, onFocusChange }) {
 
   async function showCaso(exp, { from = 'panel' } = {}) {
     if (!exp) return;
+    sheetNormal();
     st.caseView = 'caso';
     st.selectedCaso = exp;
     if (st.tab !== 'casos') setTab('casos', { render: false });
@@ -295,13 +297,15 @@ function setupZonaPanel({ getValle, onFocusChange }) {
     if (!v || typeof v.playRoute !== 'function') return;
     st.playing = true;
     panel.classList.add('playing');
+    // phones: fold the sheet down so the camera flight is visible (vp-peek: an even lower sheet, CSS)
+    if (MOBILE.matches) { setSheet('normal'); panel.classList.add('vp-peek'); }
     valleCall('showRoute', true);
     // the route is a whole-zone story: leave a predio close-up before playing it
     if (v.isFocused?.()) { try { await v.resetView(); } catch (_) { /* opcional */ } }
     try { await v.playRoute({ duration: ROUTE_MS }); }
     catch (err) { console.error('[Caudal] playRoute:', err); }
     st.playing = false;
-    panel.classList.remove('playing');
+    panel.classList.remove('playing', 'vp-peek');
   }
 
   /* --- tabs --- */
@@ -331,10 +335,20 @@ function setupZonaPanel({ getValle, onFocusChange }) {
     });
   }
   grip.addEventListener('click', () => {
-    const ex = panel.classList.toggle('expanded');
+    setSheet(panel.classList.contains('expanded') ? 'normal' : 'expanded');
+  });
+  /** Bottom sheet height (phones): 'normal' (46svh) | 'expanded' (86svh). Drops the playback peek. */
+  function setSheet(state) {
+    const ex = state === 'expanded';
+    panel.classList.toggle('expanded', ex);
+    panel.classList.remove('vp-peek');
     grip.setAttribute('aria-expanded', String(ex));
     syncInsets();
-  });
+  }
+  /** Phones: an expanded (or peeking) sheet goes back to its normal height. */
+  function sheetNormal() {
+    if (MOBILE.matches && (panel.classList.contains('expanded') || panel.classList.contains('vp-peek'))) setSheet('normal');
+  }
 
   /* tell the 3D view how much of the canvas the panel covers so it frames the scene in the visible part */
   function insets() {
@@ -377,7 +391,7 @@ function setupZonaPanel({ getValle, onFocusChange }) {
     },
     close() {
       panel.hidden = true;
-      panel.classList.remove('expanded', 'playing');
+      panel.classList.remove('expanded', 'playing', 'vp-peek');
       grip.setAttribute('aria-expanded', 'false');
       reset();
     },
@@ -391,6 +405,13 @@ function setupZonaPanel({ getValle, onFocusChange }) {
       return MOBILE.matches ? { right: 0, bottom: Math.round(innerHeight * 0.46) } : { right: Math.min(424, innerWidth - 32), bottom: 0 };
     },
     syncInsets,
+    /** Viewport crossed the phone breakpoint: the sheet states only exist on phones. */
+    onLayoutChange() {
+      panel.classList.remove('expanded');
+      panel.classList.toggle('vp-peek', MOBILE.matches && st.playing);
+      grip.setAttribute('aria-expanded', 'false');
+      if (!panel.hidden) syncInsets();
+    },
     // valle.js callbacks
     onValleSelect(arg) {
       const id = arg && typeof arg === 'object' ? arg.id : arg;
@@ -703,7 +724,8 @@ function setupStage() {
       }
     }, { threshold: 0.02 }).observe(stage);
   }
-  MOBILE.addEventListener?.('change', () => { if (mode === 'zona') zp.syncInsets(); });
+  // rotating a phone (or resizing across the breakpoint): bottom sheet <-> side panel
+  MOBILE.addEventListener?.('change', () => { zp.onLayoutChange(); });
   updateHint();
 
   return {

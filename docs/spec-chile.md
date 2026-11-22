@@ -39,6 +39,8 @@ gcloud storage cp gs://ph-26-caudal-chile/base/predio/region=R13.parquet data/pr
 
 Desde Cloud Run, el bucket se monta en `/datos`: ver [`infra/README.md`](../infra/README.md).
 
+`caudal-api` sirve `modelo/chile-2025-26/` en `/api/chile`, `/api/chile/{región}/ranking` y `/api/chile/predios/{id}` (solo lectura, todo exploratorio fuera de Z1 y Z2) una vez desplegada con el montaje: ver [api/README.md](../api/README.md#corrida-nacional-apichile).
+
 - **Imagen de los jobs:** `caudal-jobs/pipeline:e6d5ad0315fe`.
 - **API de la demo:** `caudal-api` está en producción (T7 en [spec-demo.md](spec-demo.md)) y sigue con los datos de Z1 y Z2.
 - **Ranking:** no cambia con el año completo de Valparaíso. Ver [Año completo en Valparaíso](#año-completo-en-valparaíso).

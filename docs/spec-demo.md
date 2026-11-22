@@ -277,6 +277,7 @@ Cada ruta llama a una función de `api/datos.py` y devuelve los campos del contr
 | `GET /api/zonas` (portada: total y resumen de cada zona) | P0 |
 | `GET /api/casos` (los 10 casos resueltos) | P0 |
 | `GET /api/demo` (zona, caso y candidato del guion: `data/demo.json`) | P1 |
+| `GET /api/chile`, `/api/chile/{zona}/ranking`, `/api/chile/predios/{id}` (corrida nacional exploratoria, leída del bucket montado en `/datos`; 503 si no está montado) | P2 |
 | `POST /api/ruta` (otra jornada u otro filtro; solo con matrices de OSRM guardadas) | P2 |
 
 Reglas:

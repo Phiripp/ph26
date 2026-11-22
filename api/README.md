@@ -37,6 +37,9 @@ Todas responden JSON. Los `GET` llevan `Cache-Control: public, max-age=300` y un
 | `GET /api/zonas/{zona}/ruta` | Ruta | Paradas con horas, km, punto de acceso y enlace de navegación. También `ruta.gpx` y `ruta.geojson` (trazado) |
 | `GET /api/predios/{id}` | Ficha | Puntaje, **explicación de la alerta**, agua, puntos a revisar y contexto. Parámetro: `temporada` |
 | `GET /api/predios/{id}/serie` | Gráfico | Por imagen: verdor y humedad del predio y del cerro seco, ventana seca, señal, escena. Parámetro: `temporada` |
+| `GET /api/chile` | Corrida nacional | Regiones disponibles con conteo por banda y aplicabilidad (todo exploratorio), corrida y temporada. 503 si no hay corrida montada |
+| `GET /api/chile/{zona}/ranking` | Corrida nacional | Predios de la región (`R05`, ...) por `rank_zona`, con `aplicabilidad`. Parámetros: `banda`, `limite` (200), `desde` |
+| `GET /api/chile/predios/{id}` | Corrida nacional | Puntaje nacional del predio, con `exploratorio: true` si no está en Z1 ni Z2 (para esos, la ficha es `/api/predios/{id}`). Parámetro: `rol` |
 | `GET /api/casos` | Mapa y portada | Los 10 casos resueltos por la DGA, con banda previa, primera alerta y años de adelanto |
 | `GET /api/casos/{expediente}` | Ficha del caso | El caso, el historial por temporada de su predio y la explicación con los datos previos a la inspección |
 | `GET /api/impacto` | Impacto | `impacto.json` de M9, con fuentes y supuestos |
@@ -44,7 +47,16 @@ Todas responden JSON. Los `GET` llevan `Cache-Control: public, max-age=300` y un
 | `GET /api/expediente/eventos` | Botón de la ficha | Lo mismo, con los pasos reales de la generación |
 | `GET /api/expediente/{id}/expediente.pdf` | Visor | El PDF |
 
-`{zona}` es `Z1` o `Z2` (acepta minúsculas).
+`{zona}` es `Z1` o `Z2` (acepta minúsculas). En `/api/chile/{zona}/`, la zona es una región `RXX`.
+
+### Corrida nacional (`/api/chile`)
+
+Lee `puntaje.parquet` de cada región desde `CAUDAL_NACIONAL` (por ejemplo `/datos/modelo/chile-2025-26`, con una carpeta `region=RXX` por región). Es un resultado exploratorio: solo Z1 y Z2 están validadas. Sin la variable, o con la carpeta vacía, el resto de la API responde igual, `/api/health` dice `nacional.disponible: false` y las rutas `/api/chile` dan 503. Errores: 404 si la región o el predio no está; 422 si la banda no existe. Sin nombres de titulares; el rol solo con `?rol=1`.
+
+- En Cloud Run, `scripts/cloud/api/desplegar.sh` monta el bucket `ph-26-caudal-chile` en `/datos` (solo lectura, GCS FUSE, gen2) y fija `CAUDAL_NACIONAL=/datos/modelo/chile-2025-26`. `BUCKET` y `CORRIDA` se pueden cambiar. La cuenta de servicio necesita `roles/storage.objectViewer`.
+- La lista de regiones se mira al arrancar y de nuevo cada 5 minutos (`CAUDAL_NACIONAL_TTL`, en segundos), como mucho: las regiones que terminen de calcularse aparecen sin redesplegar. No se hace glob por solicitud, porque listar en GCS FUSE es lento. El `ETag` de `/api/chile` incluye las regiones servidas.
+- En local, copie `modelo/chile-2025-26/region=R05/puntaje.parquet` del bucket a una carpeta y corra con `CAUDAL_NACIONAL=<carpeta>/modelo/chile-2025-26`.
+- El puntaje nacional de un predio de Z1 o Z2 puede diferir del de `/api/predios/{id}` (otra corrida, otros rangos de `rank_zona`): la fuente de verdad de esas zonas sigue siendo `/api/zonas` y `/api/predios`.
 
 ### Ficha: `GET /api/predios/5301984`
 

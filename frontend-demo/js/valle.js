@@ -37,6 +37,19 @@ const CYAN = '#45d6ee';
 const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
 const easeInOutCubic = (t) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2);
 const easeInOutSine = (t) => -(Math.cos(Math.PI * t) - 1) / 2;
+/**
+ * One leg of the route drive: speed up quickly (first 15 %), cruise fast, brake visibly into the stop
+ * (last 30 %). Position for a trapezoidal speed profile, 0..1 -> 0..1.
+ */
+const DRIVE_ACC = 0.15, DRIVE_BRK = 0.3, DRIVE_VMAX = 1 / (1 - DRIVE_ACC / 2 - DRIVE_BRK / 2);
+const driveEase = (k) => {
+  if (k <= 0) return 0;
+  if (k >= 1) return 1;
+  if (k < DRIVE_ACC) return (DRIVE_VMAX * k * k) / (2 * DRIVE_ACC);
+  if (k < 1 - DRIVE_BRK) return DRIVE_VMAX * (DRIVE_ACC / 2 + (k - DRIVE_ACC));
+  const u = 1 - k;
+  return 1 - (DRIVE_VMAX * u * u) / (2 * DRIVE_BRK);
+};
 /** signed shortest turn from angle a to angle b (radians, -PI..PI) */
 const angDiff = (a, b) => { let d = (b - a) % (2 * Math.PI); if (d > Math.PI) d -= 2 * Math.PI; if (d < -Math.PI) d += 2 * Math.PI; return d; };
 const hhmm = (s) => { const m = /^(\d{1,2}):(\d{2})/.exec(String(s || '')); return m ? +m[1] * 60 + +m[2] : null; };
@@ -491,7 +504,7 @@ export async function initValle({
 
   // ---------- view state ----------
   const reduced = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-  const state = { year: 0, routeT: 0, routeOn: true };
+  const state = { year: 0, routeT: 0, routeOn: true, casosOn: false }; // casosOn: case badges (Casos tab only)
   let dirty = true;
   let overlayAmt = 0, routeAmt = 0;
   let routePlay = null;
@@ -1295,10 +1308,8 @@ export async function initValle({
       startPin.el.style.transform = on ? `translate(calc(${g.x.toFixed(1)}px - 50%), ${(g.y - 5).toFixed(1)}px)` : OFF;
       if (on) {
         const w = startPin.el.offsetWidth || 200, h = startPin.el.offsetHeight || 30;
-        // keep the "INICIO · …" caption on screen (the diamond stays on its point)
-        const x0 = g.x - w / 2, sx = clamp(x0, 4, Math.max(4, maxX - w)) - x0;
-        if (startPin.cap) startPin.cap.style.transform = sx ? `translateX(${sx.toFixed(1)}px)` : '';
-        tags.push({ x: x0 + sx, y: g.y - 5, w, h, pin: true });
+        // the "INICIO · …" caption stays fixed under its diamond (sliding it to stay on screen looked loose)
+        tags.push({ x: g.x - w / 2, y: g.y - 5, w, h, pin: true });
       }
     }
     // declutter: the selected / hovered case is placed first and always keeps its tag; any other tag that
@@ -1306,9 +1317,11 @@ export async function initValle({
     const isSel = (c) => (c.predioId ? c.predioId === selectedId : selectedCaso === c.exp);
     const order = casos.map((c) => ({ c, g: project(c.world), pri: isSel(c) ? 2 : hoverCaso === c ? 1 : 0 }))
       .sort((a, b) => b.pri - a.pri || a.g.x - b.g.x);
-    const rings = order.filter(({ g }) => entered && g.ok).map(({ c, g }) => ({ c, x: g.x - 10, y: g.y - 10, w: 20, h: 20 }));
+    // case badges only while the Casos tab is open (the selected case always shows)
+    const caseVis = ({ pri }) => state.casosOn || pri === 2;
+    const rings = order.filter((o) => entered && o.g.ok && caseVis(o)).map(({ c, g }) => ({ c, x: g.x - 10, y: g.y - 10, w: 20, h: 20 }));
     for (const { c, g, pri } of order) {
-      if (!entered || !g.ok) { c.el.style.transform = OFF; continue; }
+      if (!entered || !g.ok || !caseVis({ pri })) { c.el.style.transform = OFF; continue; }
       const tw = c.tag.offsetWidth || 78, th = c.tag.offsetHeight || 16;
       const gap = isSmall() ? 8 : 14, up = isSmall() ? th + 14 : th + 22;
       let tx = -tw - gap, ty = -up;
@@ -1594,9 +1607,9 @@ export async function initValle({
   let lastT = 0, lastReached = 0;
   // ---------- route playback: the camera follows a vehicle along the road ----------
   // timeline: swoop to the start (INTRO) -> drive leg by leg, easing into each stop and pausing on it (DWELL)
-  // -> rise back to the zone view with the whole route drawn (OUTRO). Same total duration as before.
+  // -> rise back to the zone view with the whole route drawn (OUTRO). The camera stays north-up and only travels.
   const CHASE_POL = THREE.MathUtils.degToRad(58);
-  const INTRO = 1300, OUTRO = 1700, DWELL = 900;
+  const INTRO = 1100, OUTRO = 1500, DWELL = 650;
   function chaseR() {
     const want = clamp(home.r * (isSmall() ? 0.36 : 0.27), 2.2, 60);
     return Math.max(want, minCamR());
@@ -1607,8 +1620,8 @@ export async function initValle({
     return Math.atan2(b.x - a.x, b.z - a.z);
   }
   function chaseTarget(d, r) {
-    // a little ahead of the vehicle so the road it is about to take stays in view
-    const p = pointAt(Math.min(routeLen, d + r * 0.18)) || pointAt(d);
+    // slightly ahead of the vehicle (smoothed in stepChase) so the road it is about to take stays in view
+    const p = pointAt(Math.min(routeLen, d + r * 0.08)) || pointAt(d);
     return p;
   }
   function buildTimeline(duration) {
@@ -1655,7 +1668,7 @@ export async function initValle({
   function startChase(duration, resolve) {
     pick(null, false); focus = null;
     const r = chaseR();
-    const az = headingAt(0) + Math.PI;
+    const az = 0; // north-up the whole way: the camera only travels, it never turns (turns read as jerky)
     const target = chaseTarget(0, r);
     chase = { az, t: target.clone(), r, rNow: r, live: false, stopShown: -1 };
     routePlay = { chase: true, t0: performance.now(), dur: duration, tl: buildTimeline(duration), resolve, phase: 'intro' };
@@ -1743,16 +1756,14 @@ export async function initValle({
         return;
       }
       const k = clamp((e - seg.t0) / ((seg.t1 - seg.t0) || 1), 0, 1);
-      const d = seg.type === 'drive' ? seg.d0 + (seg.d1 - seg.d0) * easeInOutSine(k) : seg.d0;
+      const d = seg.type === 'drive' ? seg.d0 + (seg.d1 - seg.d0) * driveEase(k) : seg.d0;
       state.routeT = clamp(d / routeLen, 0, 1);
       if (seg.type === 'dwell' && chase.stopShown !== seg.stop.i) { chase.stopShown = seg.stop.i; ripple(seg.stop.st); arrive.innerHTML = arriveHTML(seg.stop.st, tl.n); }
       // camera: behind the vehicle, heading smoothed; a slight push-in while it stops at a predio
-      const az = headingAt(d) + Math.PI;
-      chase.az += angDiff(chase.az, az) * (1 - Math.exp(-dt * 2.2));
       const rWant = seg.type === 'dwell' ? chase.r * 0.82 : chase.r;
       chase.rNow += (rWant - chase.rNow) * (1 - Math.exp(-dt * 3));
       const tgt = chaseTarget(d, chase.rNow);
-      if (tgt) chase.t.lerp(tgt, 1 - Math.exp(-dt * 6));
+      if (tgt) chase.t.lerp(tgt, 1 - Math.exp(-dt * 8));
       cam.az = chase.az; cam.pol = CHASE_POL; cam.r = chase.rNow; camT.copy(chase.t);
       placeVehicle(d, dt, false);
       placeArrive(seg.type === 'dwell');
@@ -1972,6 +1983,8 @@ export async function initValle({
       return new Promise((resolve) => { startChase(duration, resolve); });
     },
     showRoute(on) { state.routeOn = !!on; dirty = true; },
+    /** case badges on the scene: only while the Casos tab is open (a selected case always shows) */
+    showCasos(on) { state.casosOn = !!on; dirty = true; },
     setYear(y) {
       if (!years.length) return;
       state.year = clamp(Number(y) || lastYear, years[0], lastYear);

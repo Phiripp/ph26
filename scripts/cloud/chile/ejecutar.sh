@@ -3,7 +3,7 @@
 # Uso: scripts/cloud/chile/ejecutar.sh ETAPA [TAREAS]
 #   base      caudal-chile-datos, 14 tareas (una por región)
 #   plan      caudal-chile-datos, 1 tarea
-#   satelite  caudal-chile-satelite en us-west1, us-west2, us-west4 y us-central1, 10 tareas por región (PARTE_BASE ya
+#   satelite  caudal-chile-satelite en us-west1, us-west2 y us-west4, 10 tareas por región (PARTE_BASE ya
 #             viene en la definición de cada job: 0, 10, 20 y 30); TAREAS es por región
 #   region    caudal-chile-prediccion, 14 tareas
 #   nacional  caudal-chile-prediccion, 1 tarea
@@ -30,7 +30,7 @@ ejecutar() {  # job región tareas
 case "$ETAPA" in
   base)     ejecutar caudal-chile-datos us-west1 "${2:-14}" ;;
   plan)     ejecutar caudal-chile-datos us-west1 "${2:-1}" ;;
-  satelite) for r in us-west1 us-west2 us-west4 us-central1; do ejecutar caudal-chile-satelite "$r" "${2:-10}"; done ;;
+  satelite) for r in us-west1 us-west2 us-west4; do ejecutar caudal-chile-satelite "$r" "${2:-10}"; done ;;
   region)   ejecutar caudal-chile-prediccion us-west1 "${2:-14}" ;;
   nacional) ejecutar caudal-chile-prediccion us-west1 "${2:-1}" ;;
   *) echo "etapa desconocida: $ETAPA" >&2; exit 1 ;;

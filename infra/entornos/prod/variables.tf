@@ -41,7 +41,6 @@ variable "regiones_satelite" {
     "us-west1"    = 0
     "us-west2"    = 10
     "us-west4"    = 20
-    "us-central1" = 30
   }
 }
 

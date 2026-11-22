@@ -90,7 +90,7 @@ Fuera de alcance: la calibración (M7) y la validación (M6) siguen siendo las d
                      └──────────────┬─────────────────────────────────────────────────────┘                 │
                                     │ plan/escenas, plan/poligonos_tile, plan/partes/<k>.jsonl              │
                                     ▼                                                                       ▼
-                     ┌─ ETAPA=satelite (40 tareas: 10 × us-west1, us-west2, us-west4, us-central1) ─────────────┐
+                     ┌─ ETAPA=satelite (40 tareas: 10 × us-west1, us-west2, us-west4) ─────────────────────────┐
                      │  por escena: SCL primero → rojo, NIR, NIR08, SWIR16 en celdas ocupadas                  │
                      │  dos máscaras (predio, secano) → NDVI, NDMI por polígono                                 │
                      └──────────────┬───────────────────────────────────────────────────────────────────────────┘
@@ -296,7 +296,7 @@ Se descartaron:
 - **Bandas:** rojo, NIR, NIR08, SWIR16 y SCL, a 20 m vía overview.
 - **Lectura:** celdas de 512 en tramos, SCL primero y salto por huella STAC.
 - **Tareas de Cloud Run:** 2 vCPU y 4 GiB, 10 hilos. Con la cuota de 20 vCPU y 40 GiB son 10 tareas por región.
-- **Job:** `caudal-chile-satelite` (`ETAPA=satelite`, `HILOS=10`, 6 h, 2 reintentos), el mismo job en `us-west1`, `us-west2`, `us-west4` y `us-central1`, con `PARTE_BASE` 0, 10, 20 y 30. En total, `N = 40` partes y 80 vCPU.
+- **Job:** `caudal-chile-satelite` (`ETAPA=satelite`, `HILOS=10`, 6 h, 2 reintentos), el mismo job en `us-west1`, `us-west2` y `us-west4`, con `PARTE_BASE` 0, 10 y 20. `us-central1` se liberó el 22-11 para desplegar `caudal-web` y `caudal-api`. En `us-west3` el proyecto no tiene cuota de Cloud Run ("Project failed to initialize in this region due to quota exceeded"). Las partes 30 a 39 se corren como una segunda ejecución en la primera región que se libere: `gcloud run jobs execute caudal-chile-satelite --region <r> --tasks 10 --update-env-vars "^;^ETAPA=satelite;CORRIDA=chile-2025-26;PARTE_BASE=30"`.
 - **Cuota:** al inicio (H0) se pide subir la de `us-west1` a 200 vCPU y 400 GiB. Si se aprueba, se relanza solo ahí con más tareas: el plan se rehace con el nuevo `N` y el caché evita repetir escenas.
 
 **Estimación (E).** Unos 57 MB y 1,6 s de CPU por escena, contra 228 MB y 6 s del código actual sobre el tile completo (M para los 228 MB). Para 3.500 escenas son ~200 GB y ~1,6 horas de CPU. Contando el arranque, la rasterización y los reintentos, la corrida toma **20 a 40 min en 4 regiones**, o **1 a 1,5 horas solo en us-west1**. El **piloto** (H2: 1 tile, 1 tarea, desde Cloud Run) mide los MB/s y los segundos por escena antes de fijar `N`.

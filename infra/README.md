@@ -41,7 +41,7 @@ infra/
 | Job | Región | Recursos | Timeout | Reintentos | `ETAPA` |
 | --- | --- | --- | --- | --- | --- |
 | `caudal-chile-datos` | us-west1 | 4 vCPU, 8 GiB | 6 h | 2 | `base` (también `plan`) |
-| `caudal-chile-satelite` | us-west1, us-west2, us-west4, us-central1 | 2 vCPU, 4 GiB | 6 h | 2 | `satelite` (`HILOS=10`, `PARTE_BASE` = 0, 10, 20, 30) |
+| `caudal-chile-satelite` | us-west1, us-west2, us-west4 | 2 vCPU, 4 GiB | 6 h | 2 | `satelite` (`HILOS=10`, `PARTE_BASE` = 0, 10, 20, 30) |
 | `caudal-chile-prediccion` | us-west1 | 8 vCPU, 32 GiB | 3 h | 1 | `region` |
 
 Todos usan la imagen `us-west1-docker.pkg.dev/ph-26-caudal/caudal-jobs/pipeline:<version>` (ver [Imagen de los jobs](#imagen-de-los-jobs)), corren como `caudal-jobs` en gen2 y montan el bucket en `/datos` (caché de metadatos de 600 s). Variables de entorno: `CAUDAL_DATA=/datos`, `CORRIDA`, `ETAPA`, `HILOS` y `PARTE_BASE` (solo satélite), más `CDS_API_KEY` desde Secret Manager.
@@ -138,7 +138,7 @@ gcloud run jobs execute caudal-chile-datos --region us-west1 $P --tasks 1  --upd
 gcloud run jobs execute caudal-chile-datos --region us-west1 $P --tasks 14 --update-env-vars ETAPA=base
 
 # Satélite: 10 tareas en cada una de las 4 regiones (N = 40 partes)
-for r in us-west1 us-west2 us-west4 us-central1; do
+for r in us-west1 us-west2 us-west4; do
   gcloud run jobs execute caudal-chile-satelite --region $r $P --tasks 10 --update-env-vars ETAPA=satelite
 done
 

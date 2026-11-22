@@ -382,9 +382,11 @@ function setupZonaPanel({ getValle, onFocusChange }) {
       $('vt-predios-n').textContent = n.predios ? `· ${n.predios}` : '';
       $('vt-casos-n').textContent = `(${n.casos ?? (meta?.casos || []).length})`;
     },
-    open({ caso = null } = {}) {
+    open({ caso = null, predio = null, tab = null } = {}) {
       panel.hidden = false;
       if (caso) { setTab('casos', { render: false }); showCaso(caso); }
+      else if (predio) selectPredio(String(predio), { from: 'panel' });
+      else if (tab === 'ruta') setTab('ruta');
       else { setTab('predios', { render: false }); if (st.selectedId) showFicha(st.selectedId); else showRanking(); }
       syncInsets();
     },
@@ -395,6 +397,10 @@ function setupZonaPanel({ getValle, onFocusChange }) {
       reset();
     },
     showCaso,
+    // demo links and keys: the ficha of a predio, a tab, or back to the zone's first screen
+    showPredio(id) { selectPredio(String(id), { from: 'panel' }); },
+    showTab(tab) { setTab(tab); },
+    showInicio() { deselect({ from: 'panel' }); if (st.tab !== 'predios') setTab('predios'); },
     // predicted insets for map padding before the panel is visible
     predictedPadding() {
       if (MOBILE.matches) return { top: 110, bottom: Math.round(innerHeight * 0.48), left: 24, right: 24 };
@@ -573,7 +579,7 @@ function setupStage() {
     return Promise.resolve(mapCtl.flyToSite(zkey(meta?.id), { center, zoom: 11.6, pitch: 50, bearing: 0, duration }));
   }
 
-  async function enterZona(id, { caso = null } = {}) {
+  async function enterZona(id, { caso = null, predio = null, tab = null } = {}) {
     if (mode !== 'landing') return;
     id = zkey(id);
     const site = byId.get(id);
@@ -595,7 +601,7 @@ function setupStage() {
       await v.enter({ duration: RM ? 0 : ENTER_MS });
       curZona = id;
       setMode('zona');
-      zp.open({ caso });
+      zp.open({ caso, predio, tab });
       const h = caso ? 'caso-' + caso : id;
       if (location.hash !== '#' + h) history.replaceState(null, '', '#' + h);
       back.focus({ preventScroll: true, focusVisible: usingKeyboard }); // no ring after a tap/click
@@ -646,16 +652,22 @@ function setupStage() {
   }
 
   /* ---- public navigation ---- */
-  async function goZona(id, { caso = null, scroll = false } = {}) {
+  async function goZona(id, { caso = null, predio = null, tab = null, inicio = false, scroll = false } = {}) {
     if (busy()) return;
     id = zkey(id);
     if (scroll) window.scrollTo({ top: 0, behavior: RM ? 'auto' : 'smooth' });
     if (mode === 'zona' && curZona === id) {
       if (caso) { zp.showCaso(caso); history.replaceState(null, '', '#caso-' + caso); }
+      else {
+        if (predio) zp.showPredio(predio);
+        else if (tab) zp.showTab(tab);
+        else if (inicio) zp.showInicio();
+        if (predio || tab || inicio) history.replaceState(null, '', '#' + id); // no longer on a case
+      }
       return;
     }
     await exitAny({ home: false });
-    if (mode === 'landing') await enterZona(id, { caso });
+    if (mode === 'landing') await enterZona(id, { caso, predio, tab });
   }
 
   async function goCaso(exp, { zona = null, scroll = false } = {}) {
@@ -720,6 +732,7 @@ function setupStage() {
 
   return {
     goZona, goCaso, onMapSelect, warm,
+    goHome: () => exitZona(),
     get busy() { return busy(); },
     setMap(ctl) { mapCtl = ctl; },
     get mode() { return mode; },
@@ -928,7 +941,15 @@ async function boot() {
     if (t.kind === 'zona') return stage.goZona(t.zona, opts);
     if (t.kind === 'caso') return stage.goCaso(t.expediente, opts);
   }
-  addEventListener('hashchange', () => { const t = parseHash(location.hash.slice(1)); if (t) go(t, { scroll: true }); });
+  // modo demo: keys 1-5 (with ?demo=1) and the #caso / #candidato / #ruta links
+  const demoP = import('./modo-demo.js').then(m => ({ m, demo: m.initModoDemo(stage, hideTitle) }))
+    .catch(err => { console.error('[Caudal] modo-demo.js:', err); return null; });
+  const demoLink = h => demoP.then(d => { const paso = d?.m.pasoDeEnlace(h); if (paso) d.demo.ir(paso); });
+  if (!first) demoLink(location.hash.slice(1));
+  addEventListener('hashchange', () => {
+    const h = location.hash.slice(1), t = parseHash(h);
+    if (t) go(t, { scroll: true }); else demoLink(h);
+  });
 }
 
 boot();

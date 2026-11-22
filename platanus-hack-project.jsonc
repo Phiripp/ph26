@@ -3,10 +3,10 @@
   "project-name": "Caudal",
 
   // Short one-line summary of your project (in Spanish).
-  "project-oneliner-spanish": "Le dice a la DGA qué predios fiscalizar primero, usando imágenes satelitales, clima y el registro público de derechos de agua.",
+  "project-oneliner-spanish": "Detecta desde el satélite predios que riegan sin derechos de agua y le dice al fiscalizador cuáles revisar primero.",
 
   // Brief description of your project (in Spanish).
-  "project-description-spanish": "Petorca y el valle del Aconcagua llevan más de una década de sequía, y la DGA tiene pocos fiscalizadores para miles de predios. Caudal detecta riego en períodos secos comparando el verdor y la humedad de cada predio (Sentinel-2, cada 5 días) con el secano vecino, lo cruza con los derechos de agua inscritos en la DGA y ordena los predios por indicio y confianza. Propone una ruta de inspección de un día y prepara un expediente con los campos de la guía de denuncias de la DGA. Caudal prioriza, no acusa: entrega indicios y rangos, y la decisión es de la DGA.",
+  "project-description-spanish": "Caudal detecta desde el satélite predios que riegan sin derechos de agua y le dice a la Dirección General de Aguas (DGA) cuáles revisar primero. En Petorca, 40 mil personas han tenido que vivir con 50 litros de agua al día mientras huertos vecinos riegan todo el verano, y hoy eso se descubre casi solo si un vecino denuncia. Caudal revisa 7.911 predios: si lleva diez días sin llover y un predio sigue más verde que el cerro de al lado, alguien lo riega; si usa más agua que sus derechos inscritos, queda en alerta. Entrega un ranking, una ruta de inspección y el expediente de denuncia en PDF. Probado contra las fiscalizaciones de la DGA: en alerta alta hay 2,6 veces más infractores que al azar, y un predio multado quedó en alerta dos años antes de su inspección. Caudal prioriza, no acusa: la infracción la constata un inspector.",
 
   // Public URL where your project is deployed and running.
   // Must be a valid URL, for example: https://my-project.vercel.app

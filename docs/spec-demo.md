@@ -302,8 +302,8 @@ Reglas:
 Cosas a saber:
 
 - **Cuota:** Cloud Run tiene 20 vCPU y 40 GiB por región. Los trabajos de Gabi corren en `us-west1`, así que no compiten con estos servicios.
-- **Cloud Build:** falló con `PERMISSION_DENIED` al desplegar el trabajo de POI. Si falla aquí, construir la imagen en local con Docker y subirla a Artifact Registry.
-- **Datos en la imagen:** `scripts/cloud/api/desplegar.sh` copia los Parquet (menos las series crudas) y los JSON a `/app/data/` y escribe `/app/data/VERSION`. `predio.parquet` no está en git (capa de CIREN): se copia desde el disco local al contexto de construcción, como hace `scripts/cloud/poi/desplegar.sh`. El script construye con Docker en local, sube a Artifact Registry y despliega; `scripts/cloud/api/probar.sh URL` revisa todas las rutas.
+- **Cloud Build:** ya funciona (el `PERMISSION_DENIED` del trabajo de POI no volvió). `desplegar.sh` construye con Docker en local si está corriendo y, si no, con Cloud Build; `CONSTRUIR=local` o `CONSTRUIR=cloud` lo fuerza.
+- **Datos en la imagen:** `scripts/cloud/api/desplegar.sh` copia los Parquet (menos las series crudas) y los JSON a `/app/data/` y escribe `/app/data/VERSION`. `predio.parquet` no está en git (capa de CIREN): se copia desde el disco local al contexto de construcción, como hace `scripts/cloud/poi/desplegar.sh`. El script construye la imagen (Docker o Cloud Build), la sube a Artifact Registry y despliega; `scripts/cloud/api/probar.sh URL` revisa todas las rutas.
 - **Orden de despliegue:** primero `caudal-api`, después `caudal-web`. Si cambia la forma de una respuesta o un dato, hay que regenerar el respaldo con `api/respaldo.py` en el mismo commit.
 - **Arranque en frío:** con una instancia mínima no hay. Volver a 0 después de la final.
 - **Service worker:** `sw.js` guarda en caché los `GET /api/*` (primero la red, y el caché si no hay red), para que la segunda visita funcione sin red. No guarda `POST /api/expediente`. Al cambiar los datos hay que subir la versión del caché en `sw.js`.
@@ -339,7 +339,7 @@ Si cambian los datos (por ejemplo, la ruta), hay que regenerar en el mismo commi
 | T4 | F4: línea de tiempo y adelanto en la ficha del caso | P0 | Nico | T2 | FO-0504-95 muestra su primera alerta y los años de adelanto |
 | T5 | F5 y F6: ruta de M8 y panel de impacto leídos del dato | P0 | Felipe | T2 | `#impacto` muestra las 5 cifras sin números en el código |
 | T6 | `caudal-api`: `health` y `expediente` | P0 | Tomás ✅ (imagen probada en local con Docker) | — | `POST /api/expediente` devuelve un PDF en local |
-| T7 | Desplegar `caudal-api`: `scripts/cloud/api/desplegar.sh` y luego `EXPEDIENTE=1 scripts/cloud/api/probar.sh URL` (el expediente del candidato se genera al construir) | P0 | Gabi | T2b | `/api/predios/5301984` y el expediente responden en producción en menos de 2 s |
+| T7 | Desplegar `caudal-api`: `scripts/cloud/api/desplegar.sh` y luego `EXPEDIENTE=1 scripts/cloud/api/probar.sh URL` (el expediente del candidato se genera al construir) | P0 | Gabi ✅ (revisión `caudal-api-00002-9vc`: `probar.sh` completo, rutas en menos de 0,6 s y expediente en 1,4 s) | T2b | `/api/predios/5301984` y el expediente responden en producción en menos de 2 s |
 | T8 | F3: botón que llama al backend, visor de PDF y respaldo | P0 | Nico | T6 | El clic abre el PDF en producción; con el backend apagado abre el respaldo |
 | T9 | Desplegar `caudal-web` y llenar `platanus-hack-project.jsonc` | P0 | Nico | T3 a T8 | El recorrido completo funciona en la URL pública, también con `caudal-api` apagado |
 | T10 | Limpieza para el agente del jurado: quitar lo provisional, `data/demo.json`, documento "en vivo y precalculado". Falta que una persona escriba el README raíz y lo enlace | P0 | Tomás ✅ | T3 | La tabla de la sección anterior no tiene pendientes |
@@ -348,7 +348,7 @@ Si cambian los datos (por ejemplo, la ruta), hay que regenerar en el mismo commi
 | T13 | Recortes de los predios en alerta en un bucket privado | P1 | Felipe | T7 | La ficha del candidato muestra recortes con fecha y escena |
 | T14 | Filtros del ranking y ruta del escenario conservador | P2 | Tomás | T2 | — |
 
-Estado al 21-11 en la noche: T1, T2 (backend), T2b y T6 están listos. Sigue Gabi con T7. Nico y Felipe pueden partir T3, T4, T5 y T8 contra la API en local (un comando, ver [api/README.md](../api/README.md)) o contra el respaldo de la demo.
+Estado al 22-11 en la madrugada: T1, T2 (backend), T2b, T6, T7 y T10 están listos. `caudal-api` está en producción: `PROD_API` de `js/config.js` (`https://caudal-api-170658673954.southamerica-west1.run.app`, la misma API que `https://caudal-api-nioa63appa-tl.a.run.app`), con CORS solo para `caudal-web`. Siguen T3, T4, T5 y T8 contra la API en producción, y después T9 y T11.
 
 ## Criterios de aceptación de la demo
 

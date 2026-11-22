@@ -1,6 +1,6 @@
 // Caudal · ranking list + ficha de predio. "El sistema prioriza, no acusa."
 import { BAND_LABEL, BAND_SHORT, CONF_LABEL, fmtNum, fmtMil, fmtRange, fmtDate, fmtComuna, expShort, dryWindowStats, seriesFailed, SERIES_FAILED_TEXT, esc } from './zona-data.js';
-import { seriesChartSVG, chartLegendHTML } from './chart.js';
+import { mountSeriesChart, chartLegendHTML } from './chart.js';
 
 const pill = b => `<span class="pn-pill pn-${b}">${esc(BAND_SHORT[b] || b)}</span>`;
 const casoTag = e => `<span class="pn-caso" title="Caso sancionado por la DGA · ${esc(e)}">Caso ${esc(expShort(e))}</span>`;
@@ -167,13 +167,14 @@ export function renderFicha(el, feature, data, { onExpediente, onBack, onCaso } 
     </dl>
     <figure class="pn-chart">
       <figcaption>Verdor (NDVI) vs. secano · franjas = sin lluvia</figcaption>
-      <svg viewBox="0 0 560 230" role="img" aria-label="Serie NDVI y NDMI del predio ${esc(p.id)} frente a la referencia de secano, con ventanas secas sombreadas">${seriesChartSVG(data, p.id, { W: 560, H: 230, compact: true, marks, highlight: st?.win })}</svg>
+      <svg data-series viewBox="0 0 560 230" role="img" aria-label="Serie NDVI y NDMI del predio ${esc(p.id)} frente a la referencia de secano, con ventanas secas sombreadas"></svg>
       <div class="pn-legend">${chartLegendHTML({ mark: !!caso })}</div>
     </figure>
     <p class="pn-note">${esc(note)}</p>
     <div class="pn-actions">
       <button type="button" class="btn primary" data-act="exp"${flagged ? '' : ' disabled'}>Preparar expediente</button>
     </div>`;
+  mountSeriesChart(el.querySelector('svg[data-series]'), data, p.id, { W: 560, H: 230, compact: true, marks, highlight: st?.win });
   el.onclick = e => {
     const a = e.target.closest('[data-act]')?.dataset.act;
     if (a === 'back') onBack?.();

@@ -546,6 +546,10 @@ const CSS = `
 .cm-pill b{font:600 12px/1.1 Archivo,'Arial Narrow',sans-serif;letter-spacing:.02em;color:#e4ebee}
 .cm-pill em{font:500 12px/1.1 'IBM Plex Mono',ui-monospace,monospace;font-style:normal;color:var(--c)}
 .cm-pill i{font:500 9px/1.1 'IBM Plex Mono',ui-monospace,monospace;font-style:normal;color:#05080b;background:${CYAN};padding:2px 3px 1px;align-self:center;margin-top:-3px}
+/* phones: a label with no room on either side of its dot goes on two lines (name / count + tag) */
+.cm.stk .cm-pill{display:block;width:max-content;height:auto;padding:4px 8px 5px;text-align:left}
+.cm.stk .cm-pill b{display:block;margin-bottom:3px}
+.cm.stk .cm-pill i{display:inline-block;margin:0 0 0 7px;vertical-align:1px}
 .cm.flip .cm-tag{left:auto;right:calc(50% + var(--s) * .3);flex-direction:row-reverse}
 .cm.flip .cm-lead{background:linear-gradient(to top left,transparent calc(50% - .7px),var(--c) 50%,transparent calc(50% + .7px))}
 .cm.sel .cm-pill{border-color:var(--c);background:rgba(5,8,11,.94)}
@@ -586,11 +590,10 @@ const CSS = `
 .cm-caso .cm-pill b{font:600 11.5px/1.1 'IBM Plex Mono',ui-monospace,monospace;letter-spacing:.01em}
 .cm-caso .cm-pill em{color:#cfd8dc;font-size:11px}
 .cm-zona .cm-pill em{color:#cfd8dc;font-size:14px}
-.cm-zona .cm-pill{height:28px;padding:6px 11px 0;gap:9px}
+.cm-zona:not(.stk) .cm-pill{height:28px;padding:6px 11px 0;gap:9px}
 .cm-zona .cm-pill b{font-size:15px}
-.cm-zona .cm-lead{margin-top:14px}
-@media (max-width:700px){
-  .cm-zona .cm-pill{padding:7px 8px 0;gap:6px}
+@media (max-width:760px){
+  .cm-zona:not(.stk) .cm-pill{padding:7px 8px 0;gap:6px}
   .cm-zona .cm-pill b{font-size:12.5px}
   .cm-zona .cm-pill em{font-size:12px}
 }
@@ -791,9 +794,10 @@ export async function initMap({ container, sites, casos: casosIn, onSelect } = {
     fadeDuration: 0,
     maxTileCacheSize: 1500,
     refreshExpiredTiles: false,
-    attributionControl: { compact: true },
-    // On touch screens one finger scrolls the page, two fingers move/zoom the map.
-    cooperativeGestures: !!coarse,
+    attributionControl: false,  // no on-map credits (kept clean); sources are listed in the README
+    // The page never scrolls (the stage is full-screen), so one finger pans the map and a pinch
+    // zooms it, also on touch screens.
+    cooperativeGestures: false,
     locale: {
       'CooperativeGesturesHandler.WindowsHelpText': 'Usa Ctrl + rueda para hacer zoom en el mapa',
       'CooperativeGesturesHandler.MacHelpText': 'Usa ⌘ + rueda para hacer zoom en el mapa',
@@ -822,7 +826,9 @@ export async function initMap({ container, sites, casos: casosIn, onSelect } = {
   function homeCamera() {
     const c = map.getContainer();
     const w = c.clientWidth || innerWidth, h = c.clientHeight || innerHeight;
-    const padTop = Math.round(h * HOME_PAD_TOP), padBottom = Math.round(h * HOME_PAD_BOTTOM), padX = 16;
+    // narrow (title on top, Chile centred): keep Chiloé above the ~130 px of legend + hint
+    const padTop = Math.round(h * HOME_PAD_TOP), padX = 16;
+    const padBottom = Math.max(Math.round(h * HOME_PAD_BOTTOM), w < HOME_WIDE_PX && h > 560 ? 140 : 0);
     const xFrac = w >= HOME_WIDE_PX ? HOME_X_FRAC : 0.5;
     let zoom = 4.6;
     let center = maplibregl.LngLat.convert(HOME_CENTER);
@@ -906,6 +912,10 @@ export async function initMap({ container, sites, casos: casosIn, onSelect } = {
   }
   /** 'chile' (national view, under the landing title) or 'zonas' (close view, once it is gone). */
   let homeMode = 'chile';
+  // true while the camera rests on the landing view (nobody panned / flew elsewhere since): a
+  // resize or a phone rotation then re-frames it for the new viewport
+  let atHome = true;
+  map.on('movestart', (e) => { if (e && e.originalEvent) atHome = false; });
   const landingCamera = () => (homeMode === 'zonas' ? focusCamera() : homeCamera());
 
   /**
@@ -1111,21 +1121,54 @@ export async function initMap({ container, sites, casos: casosIn, onSelect } = {
 
   // Screen box of each label pill (geometry mirrors .cm-tag/.cm-lead/.cm-pill in CSS): the pill
   // is 22 px tall, its bottom 7 px above the dot, offset by the 22 px leader; flipped to the left.
-  const pillWidth = (m) => { if (!m.pw) m.pw = m.el.querySelector('.cm-pill').offsetWidth || 0; return m.pw || 170; };
-  // A label goes to the left of its dot only when it does not fit on the right and the left has more room.
-  const shouldFlip = (m, viewW) => {
-    const need = m.size * 0.3 + 22 + pillWidth(m) + 8;
-    return m.po.x + need > viewW && m.po.x > viewW - m.po.x;
+  // Phones: the stacked (two-line) size is measured too, see placeLabel().
+  const measure = (m) => {
+    if (m.pw) return;
+    const pill = m.el.querySelector('.cm-pill');
+    const had = m.el.classList.contains('stk');
+    m.el.classList.remove('stk');
+    m.pw1 = pill.offsetWidth || 0; m.ph1 = pill.offsetHeight || 22;
+    m.el.classList.add('stk');
+    m.pw2 = pill.offsetWidth || 0; m.ph2 = pill.offsetHeight || 37;
+    m.el.classList.toggle('stk', had);
+    m.pw = m.pw1 ? 1 : 0; // 0: not laid out yet (fonts / hidden), measure again next time
   };
   const boxOf = (m) => {
-    if (!m.pw) m.pw = m.el.querySelector('.cm-pill').offsetWidth || 0;
-    const w = m.pw || 170, off = m.size * 0.3 + 22, flip = m.el.classList.contains('flip');
+    measure(m);
+    const stk = m.el.classList.contains('stk');
+    const w = (stk ? m.pw2 : m.pw1) || 170, ph = (stk ? m.ph2 : m.ph1) || 22;
+    const off = m.size * 0.3 + 22, flip = m.el.classList.contains('flip');
     const x0 = flip ? m.po.x - off - w : m.po.x + off;
-    // zone pills are taller (28 px, bottom 4 px above the dot)
-    // (no vertical margin for them: at the national zoom the two zones sit ~33 px apart and both labels must show)
-    const zona = m.kind === 'zona', top = zona ? 32 : 29, bottom = zona ? 4 : 7, pad = zona ? 0 : 3;
-    return { x0: x0 - 4, x1: x0 + w + 4, y0: m.po.y - top - pad, y1: m.po.y - bottom + pad };
+    const top = Math.max(29, ph); // the tag is as tall as the leader (29 px) or the pill
+    // no vertical margin for zones: at the national zoom they sit ~33 px apart and both labels must show
+    const pad = m.kind === 'zona' ? 0 : 3;
+    return { x0: x0 - 4, x1: x0 + w + 4, y0: m.po.y - top - pad, y1: m.po.y - top + ph + pad };
   };
+  /**
+   * Where the label can go, best first. Wide screens: right of the dot, flipped left near the
+   * right edge (one option). Phones (< NARROW_PX): one line right / left, then two lines right /
+   * left, ordered by how far each would run off the screen (in that order on ties), so labels stay
+   * on screen and layoutLabels() can try the next option when one overlaps another label.
+   */
+  const NARROW_PX = 761;
+  const labelOptions = (m, w) => {
+    if (w >= NARROW_PX) return [{ stk: false, flip: m.po.x > w - 230 }];
+    measure(m);
+    const off = m.size * 0.3 + 22, edge = 4;
+    const right = w - edge - (m.po.x + off), left = m.po.x - off - edge;
+    const one = m.pw1 || 170, two = m.pw2 || one;
+    return [
+      { stk: false, flip: false, over: Math.max(0, one - right) },
+      { stk: false, flip: true, over: Math.max(0, one - left) },
+      { stk: true, flip: false, over: Math.max(0, two - right) },
+      { stk: true, flip: true, over: Math.max(0, two - left) }
+    ].map((o, i) => ({ ...o, i })).sort((a, b) => a.over - b.over || a.i - b.i);
+  };
+  const applyOption = (m, o) => {
+    m.el.classList.toggle('stk', o.stk);
+    m.el.classList.toggle('flip', o.flip);
+  };
+  const placeLabel = (m, w) => { m.opts = labelOptions(m, w); applyOption(m, m.opts[0]); };
 
   /**
    * Which labels show: zones always; the selected, hovered and focused markers; Aculeo from
@@ -1142,7 +1185,7 @@ export async function initMap({ container, sites, casos: casosIn, onSelect } = {
     const casesOn = z >= CASES_MIN_ZOOM;
     for (const m of markers.values()) m.zh = m.kind === 'caso' && !casesOn && m.d.id !== selectedId;
     // zone labels are always on: place them first so case bubbles can keep clear of them
-    for (const m of markers.values()) if (m.kind === 'zona') { m.el.classList.toggle('flip', shouldFlip(m, w)); m.box = boxOf(m); }
+    for (const m of markers.values()) if (m.kind === 'zona') { placeLabel(m, w); m.box = boxOf(m); }
     layoutClusters();
     const cands = [];
     for (const m of markers.values()) {
@@ -1150,8 +1193,8 @@ export async function initMap({ container, sites, casos: casosIn, onSelect } = {
       const always = m.kind === 'zona' ||
         (m.kind === 'caso' ? z >= CASE_LABEL_ZOOM : z >= AUTO_LABEL_ZOOM);
       const want = !isHidden() && !m.clustered && !m.zh && (always || id === selectedId || id === hoverId || id === focusId);
-      m.el.classList.toggle('flip', shouldFlip(m, w));
       if (!want) { m.show = false; continue; }
+      placeLabel(m, w);
       const pri = (id === selectedId ? 2000 : 0) + (id === hoverId || id === focusId ? 1000 : 0) + m.d.pri;
       cands.push({ m, pri });
     }
@@ -1159,10 +1202,19 @@ export async function initMap({ container, sites, casos: casosIn, onSelect } = {
     const hit = (a, b) => a.x0 < b.x1 && b.x0 < a.x1 && a.y0 < b.y1 && b.y0 < a.y1;
     const accepted = [];
     for (const { m } of cands) {
-      m.box = boxOf(m);
-      const clash = accepted.some((o) => hit(o.box, m.box) || Math.hypot(o.po.x - m.po.x, o.po.y - m.po.y) < LABEL_GAP_PX * 0.5);
-      m.show = !clash;
-      if (!clash) accepted.push(m);
+      if (accepted.some((o) => Math.hypot(o.po.x - m.po.x, o.po.y - m.po.y) < LABEL_GAP_PX * 0.5)) { m.show = false; continue; }
+      // phones: an option that overlaps an accepted label gives way to the next one that fits on
+      // screen; zone labels (always on) may as a last resort run a little off the edge
+      const opts = (m.opts || [null]).filter((o, i) => i === 0 || o.over === 0 || m.kind === 'zona');
+      let ok = false;
+      for (const o of opts) {
+        if (o) applyOption(m, o);
+        m.box = boxOf(m);
+        if (!accepted.some((a) => hit(a.box, m.box))) { ok = true; break; }
+      }
+      if (!ok && opts[0]) { applyOption(m, opts[0]); m.box = boxOf(m); }
+      m.show = ok;
+      if (ok) accepted.push(m);
     }
     for (const m of markers.values()) {
       m.el.classList.toggle('lbl', !!m.show);
@@ -1361,7 +1413,12 @@ export async function initMap({ container, sites, casos: casosIn, onSelect } = {
     new ResizeObserver(() => {
       map.resize();
       clearTimeout(rt);
-      rt = setTimeout(() => { try { applyLimits(); } catch (_) { /* ignore */ } }, 150);
+      rt = setTimeout(() => {
+        try {
+          applyLimits();
+          if (atHome && !freeCam && !isHidden()) map.jumpTo(landingCamera());
+        } catch (_) { /* ignore */ }
+      }, 150);
     }).observe(container);
   }
 
@@ -1406,6 +1463,7 @@ export async function initMap({ container, sites, casos: casosIn, onSelect } = {
     flyToSite(id, opts = {}) {
       const m = markers.get(resolveId(id));
       if (!m) return Promise.resolve();
+      atHome = false;
       const cam = {
         center: opts.center || [m.d.lon, m.d.lat],
         zoom: opts.zoom ?? 7,
@@ -1416,7 +1474,8 @@ export async function initMap({ container, sites, casos: casosIn, onSelect } = {
     },
     /** Fly back to the national view (upright Chile, gently tilted). */
     flyHome(opts = {}) {
-      return move(landingCamera(), { duration: opts.duration ?? 2400 }).then(() => restoreLimits());
+      atHome = false;
+      return move(landingCamera(), { duration: opts.duration ?? 2400 }).then(() => { atHome = true; restoreLimits(); });
     },
     /**
      * Which view flyHome() returns to: 'chile' (whole country) or 'zonas' (central Chile close up).
@@ -1425,7 +1484,8 @@ export async function initMap({ container, sites, casos: casosIn, onSelect } = {
     setHomeMode(mode, opts = {}) {
       homeMode = mode === 'zonas' ? 'zonas' : 'chile';
       if (opts.fly === false) return Promise.resolve();
-      return move(landingCamera(), { duration: opts.duration ?? 1800 }).then(() => restoreLimits());
+      atHome = false;
+      return move(landingCamera(), { duration: opts.duration ?? 1800 }).then(() => { atHome = true; restoreLimits(); });
     },
     /** The national landing camera { center, zoom, pitch, bearing } for the current viewport. */
     getHomeCamera() {
@@ -1453,6 +1513,7 @@ export async function initMap({ container, sites, casos: casosIn, onSelect } = {
      */
     flyToBounds(bbox, opts = {}) {
       if (!Array.isArray(bbox) || bbox.length < 4 || !bbox.every(Number.isFinite)) return Promise.resolve();
+      atHome = false;
       const [w, s, e, n] = bbox;
       const pitch = opts.pitch ?? map.getPitch();
       const bearing = opts.bearing ?? map.getBearing();

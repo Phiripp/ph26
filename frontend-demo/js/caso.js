@@ -1,7 +1,7 @@
 // Caudal · panel de caso de validación (casos resueltos por la DGA, con multa).
 // Un caso sancionado sí se puede nombrar como tal; los predios sin resolver nunca.
 import { fmtNum, fmtDate, fmtDateNum, fmtComuna, expShort, dryWindowStats, seriesFailed, SERIES_FAILED_TEXT, esc } from './zona-data.js';
-import { seriesChartSVG, chartLegendHTML, historialTimelineSVG, historialLegendHTML, seasonStart } from './chart.js';
+import { mountSeriesChart, mountTimeline, chartLegendHTML, historialLegendHTML, seasonStart } from './chart.js';
 
 /**
  * Valor UTM para pasar la multa a pesos: impacto.json -> supuestos.utm_clp (scripts/models/impacto.py).
@@ -121,7 +121,7 @@ function timelineHTML(caso, rows) {
   if (!rows) return '';
   return `<figure class="cs-tl">
       <figcaption>Banda de Caudal por temporada</figcaption>
-      <svg viewBox="0 0 380 64" role="img" aria-label="Banda de prioridad de Caudal por temporada para el predio del caso ${esc(caso.expediente)}, con la fecha de inspección DGA">${historialTimelineSVG(rows, { W: 380, fecha: caso.fecha_inspeccion })}</svg>
+      <svg data-timeline viewBox="0 0 380 64" role="img" aria-label="Banda de prioridad de Caudal por temporada para el predio del caso ${esc(caso.expediente)}, con la fecha de inspección DGA"></svg>
       <div class="pn-legend">${historialLegendHTML(rows)}</div>
     </figure>`;
 }
@@ -162,7 +162,7 @@ export function renderCaso(el, caso, zonaData, { onPredio, onExpediente, onBack 
     <div class="cs-hist" data-hist>${adelantoHTML(caso, rows)}${timelineHTML(caso, rows)}</div>
     <figure class="pn-chart">
       <figcaption>Verdor (NDVI) del predio vs. secano · línea = inspección</figcaption>
-      <svg viewBox="0 0 560 230" role="img" aria-label="Serie NDVI y NDMI del predio del caso ${esc(caso.expediente)} con la fecha de inspección DGA">${seriesChartSVG(data, caso.predio_id, { W: 560, H: 230, compact: true, marks, highlight: st?.win })}</svg>
+      <svg data-series viewBox="0 0 560 230" role="img" aria-label="Serie NDVI y NDMI del predio del caso ${esc(caso.expediente)} con la fecha de inspección DGA"></svg>
       <div class="pn-legend">${chartLegendHTML({ mark: true })}</div>
     </figure>
     <p class="pn-note">${esc(text)}</p>
@@ -188,13 +188,16 @@ export function renderCaso(el, caso, zonaData, { onPredio, onExpediente, onBack 
     </div>
     <p class="pn-foot">${esc(caso.tipo_infraccion || 'Extracción no autorizada de aguas')}${caso.resolucion ? ` · Res. ${esc(caso.resolucion)}` : ''}. Fuente: planilla de fiscalización DGA. <span data-utm>${Number.isFinite(utmClp) ? "Multa en pesos con UTM a $" + fmtNum(utmClp, 0) + " (" + UTM_FUENTE + ")." : ""}</span> Banda por temporada: puntaje de Caudal (M5).</p>`;
 
+  mountSeriesChart(el.querySelector('svg[data-series]'), data, caso.predio_id, { W: 560, H: 230, compact: true, marks, highlight: st?.win });
+  const mountTl = r => mountTimeline(el.querySelector('svg[data-timeline]'), r, { fecha: caso.fecha_inspeccion });
+  if (rows) mountTl(rows);
   // Late data, filled in place while this case is still on screen: historial.json and the UTM value of impacto.json.
   const still = () => el.isConnected && el.querySelector('[data-hist]') && el.dataset.caso === caso.expediente;
   el.dataset.caso = caso.expediente;
   if (!rows && caso.predio_id) {
     loadHistorial(data).then(() => {
       const r = historialOf(data, caso.predio_id);
-      if (r && still()) el.querySelector('[data-hist]').innerHTML = adelantoHTML(caso, r) + timelineHTML(caso, r);
+      if (r && still()) { el.querySelector('[data-hist]').innerHTML = adelantoHTML(caso, r) + timelineHTML(caso, r); mountTl(r); }
     });
   }
   import('./zona-data.js').then(Z => (typeof Z.loadImpacto === 'function' ? Z.loadImpacto() : null)).catch(() => null).then(imp => {

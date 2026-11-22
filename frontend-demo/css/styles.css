@@ -60,9 +60,6 @@ a{color:inherit;text-decoration:none}
   /* static: the looping jitter forced a full-stage blend recomposite over the WebGL canvases every 0.2 s, forever */
   }
 @keyframes grain{0%{transform:translate(0,0)}20%{transform:translate(-3%,2%)}40%{transform:translate(2%,-3%)}60%{transform:translate(-2%,-1%)}80%{transform:translate(3%,3%)}100%{transform:translate(0,0)}}
-.hud-meta{position:absolute;top:calc(env(safe-area-inset-top,0px) + 66px);left:0;right:0;z-index:4;font-family:var(--f-mono);font-size:11px;letter-spacing:.07em;color:var(--dim);text-transform:uppercase;pointer-events:none}
-.hud-meta .wrap{display:flex;justify-content:space-between;gap:6px 16px;flex-wrap:wrap}
-.hud-meta b{color:var(--ink);font-weight:500}
 
 /* per-mode visibility: landing / lagoon / zona UI (transitions hide all) */
 .for-landing,.for-lagoon,.for-zona{transition:opacity .4s var(--ease),visibility 0s linear .4s}
@@ -70,10 +67,10 @@ a{color:inherit;text-decoration:none}
 .stage:not([data-mode="lagoon"]) .for-lagoon{opacity:0;visibility:hidden;pointer-events:none}
 .stage:not([data-mode="zona"]) .for-zona{opacity:0;visibility:hidden;pointer-events:none}
 .stage[data-mode="landing"] .for-landing,.stage[data-mode="lagoon"] .for-lagoon,.stage[data-mode="zona"] .for-zona{transition-delay:0s}
-.hud-meta .for-landing,.hud-meta .for-lagoon,.hud-meta .for-zona{display:none}
-.stage[data-mode="landing"] .hud-meta .for-landing,.stage[data-mode="lagoon"] .hud-meta .for-lagoon,.stage[data-mode="zona"] .hud-meta .for-zona{display:inline}
 
-.stage-top{position:absolute;left:0;right:0;top:calc(env(safe-area-inset-top,0px) + 96px);z-index:5;pointer-events:none}
+/* back button: pinned left under the brand (same left edge as the nav), not centred in .wrap */
+.stage-top{position:absolute;left:0;right:0;top:calc(env(safe-area-inset-top,0px) + 88px);z-index:5;pointer-events:none}
+.stage-top.wrap{max-width:none;margin:0;padding-left:max(clamp(16px,2vw,28px),env(safe-area-inset-left,0px))}
 .stage-top>*{pointer-events:auto}
 .back{animation:rise .45s var(--ease)}
 /* landing facts: left column of the zones view, only once the title has left */
@@ -91,7 +88,7 @@ a{color:inherit;text-decoration:none}
 .facts-foot:empty{display:none}
 /* phone: a compact strip under the brand, short label and value only */
 @media (max-width:760px){
-  .facts{left:0;right:0;top:calc(env(safe-area-inset-top,0px) + 88px);transform:none;width:auto;padding:0 12px}
+  .facts{left:0;right:0;top:calc(env(safe-area-inset-top,0px) + 98px);transform:none;width:auto;padding:0 12px}
   .facts-list{flex-direction:row;gap:0;background:rgba(5,8,11,.78);border:1px solid var(--rule-2);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px)}
   .fact{flex:1 1 0;min-width:0;border-left:1px solid var(--rule-2);padding:8px 8px 9px 10px}
   .fact:first-child{border-left:0;flex-grow:1.25}
@@ -108,12 +105,18 @@ a{color:inherit;text-decoration:none}
 .map-legend{display:flex;gap:8px 12px;flex-wrap:wrap;font:11px var(--f-mono);color:var(--dim);text-transform:uppercase;letter-spacing:.06em;pointer-events:none!important}
 .map-legend span{display:inline-flex;align-items:center;gap:6px;background:rgba(5,8,11,.7);padding:3px 7px}
 .map-legend i{width:3px;height:12px;display:inline-block}
-.hint{display:inline-flex;align-items:center;gap:9px;font:11.5px var(--f-mono);letter-spacing:.06em;text-transform:uppercase;color:var(--dim);background:var(--scrim);backdrop-filter:blur(6px);border:1px solid var(--rule-2);padding:8px 12px;cursor:pointer;transition:border-color .2s,color .2s;text-align:left}
+/* block, not flex: the hint is one flowing sentence (as flex items, the text runs and the <b> became separate columns when wrapping) */
+.hint{display:block;font:11.5px var(--f-mono);letter-spacing:.06em;text-transform:uppercase;color:var(--dim);background:var(--scrim);backdrop-filter:blur(6px);border:1px solid var(--rule-2);padding:8px 12px;cursor:pointer;transition:border-color .2s,color .2s;text-align:left}
+.hint .rec{display:inline-block;vertical-align:middle;margin:-2px 9px 0 0}
 .hint b{color:var(--water);font-weight:500}
 .hint:hover{border-color:var(--water);color:var(--ink)}
 .stage:is([data-mode="lagoon"],[data-mode="zona"]) .stage-bottom .for-landing{display:none}
 
-/* floating site card */
+/* floating site card (fallback when the 3D zone view fails) */
+.site-card{display:flex;flex-direction:column;gap:8px;width:min(340px,100%);margin-left:auto;padding:16px 18px;background:rgba(8,13,17,.93);backdrop-filter:blur(10px);border:1px solid var(--rule-2)}
+.site-card h3{margin:0;padding-right:28px;font:760 22px/1.1 var(--f-display);font-stretch:110%}
+.site-card .x{position:absolute;top:2px;right:2px;width:32px;height:32px;display:grid;place-items:center;background:none;border:0;color:var(--dim);font-size:22px;line-height:1;cursor:pointer}
+.site-card .x:hover{color:var(--ink)}
 @media (min-width:700px){.site-card{right:max(28px,env(safe-area-inset-right,0px))}}
 .stage:not([data-mode="landing"]) .site-card{display:none}
 .c-meta{margin:0;font:11px var(--f-mono);letter-spacing:.06em;text-transform:uppercase;color:var(--dim)}
@@ -308,7 +311,7 @@ figure.chart{margin:28px 0 0;border:1px solid var(--rule);background:linear-grad
 .flow b{color:var(--ink);font-weight:600}
 
 /* ---------- valley side panel (bottom sheet on mobile) ---------- */
-.valle-panel{--vp-top:calc(env(safe-area-inset-top,0px) + 96px);position:absolute;z-index:6;top:var(--vp-top);right:clamp(10px,2vw,22px);bottom:max(clamp(14px,3vh,24px),env(safe-area-inset-bottom,0px));width:min(400px,calc(100vw - 32px));
+.valle-panel{--vp-top:max(clamp(14px,3vh,24px),env(safe-area-inset-top,0px));position:absolute;z-index:6;top:var(--vp-top);right:clamp(10px,2vw,22px);bottom:max(clamp(14px,3vh,24px),env(safe-area-inset-bottom,0px));width:min(400px,calc(100vw - 32px));
   display:flex;flex-direction:column;background:rgba(8,13,17,.93);backdrop-filter:blur(10px);border:1px solid var(--rule-2);animation:vp-in .45s var(--ease)}
 @keyframes vp-in{from{opacity:0;transform:translateX(16px)}to{opacity:1;transform:none}}
 .vp-grip{display:none}
@@ -350,9 +353,7 @@ figure.chart{margin:28px 0 0;border:1px solid var(--rule);background:linear-grad
   .vp-head{padding-top:4px}
   .vp-kicker,.vp-principle{display:none}
   .valle-panel.expanded .vp-principle{display:block}
-  .stage[data-mode="zona"] .hud-meta{display:none}
   .nav nav a{display:none}
-  .hud-coords{display:none!important}
   .map-legend span:last-child{display:none}
   .hint{width:100%}
   .mini{margin-left:0;width:100%;justify-content:space-between}
@@ -360,7 +361,59 @@ figure.chart{margin:28px 0 0;border:1px solid var(--rule);background:linear-grad
   .lagoon-bar .timeline{flex:1 1 100%;order:-1}
   .wh{flex:1 1 180px;width:auto;max-width:260px}
   .wh svg{width:100%}
-  .stage-top{top:calc(env(safe-area-inset-top,0px) + 92px)}
+  /* compact top chrome: one row = brand (left) + back button (right), ends at safe-area + ~50px */
+  .nav{padding-top:calc(env(safe-area-inset-top,0px) + 12px)}
+  .brand{font-size:17px;letter-spacing:.16em;gap:10px}
+  .brand svg{width:34px;height:34px;filter:drop-shadow(0 0 6px rgba(69,214,238,.4))}
+  .stage-top{top:calc(env(safe-area-inset-top,0px) + 9px)}
+  .stage-top.wrap{display:flex;justify-content:flex-end}
+  .stage-top .back{min-height:40px;padding:8px 12px;gap:7px;font-size:11px;letter-spacing:.06em;background:var(--scrim);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);white-space:nowrap}
+  .vp-tab{white-space:nowrap}
+  /* the expanded sheet stops below the top row so the back button stays tappable */
+  .valle-panel.expanded{--sheet:min(86svh,calc(100svh - env(safe-area-inset-top,0px) - 58px))}
+  /* route playback on a phone: the sheet shrinks to a peek so the 3D route stays visible */
+  .valle-panel.vp-peek:not(.expanded){--sheet:24svh}
+  /* landing hint: compact, one flowing sentence */
+  .hint{font-size:10.5px;line-height:1.45;letter-spacing:.05em;padding:8px 11px}
+  .map-legend{font-size:10px}
+  /* MapLibre attribution: landing → under the zoom control (clear of legend + hint);
+     zona → right above the collapsed sheet (the expanded sheet simply covers it) */
+  .stage[data-mode="landing"] .maplibregl-ctrl-bottom-right{top:calc(env(safe-area-inset-top,0px) + 108px);bottom:auto}
+  .stage:not([data-mode="landing"]) .maplibregl-ctrl-bottom-right{bottom:calc(46svh + 4px)}
+  .stage[data-mode="zona"] .maplibregl-ctrl-bottom-right{right:0}
+  .maplibregl-ctrl-attrib{font-size:9px!important;line-height:1.35!important}
+  .site-card{flex:1 1 100%;width:auto}
+}
+/* very narrow phones: in zona mode the brand keeps only its logo so the back button fits on the same row */
+@media (max-width:359px){
+  .stage:not([data-mode="landing"]) .brand{font-size:0;gap:0}
+  .vp-tab{white-space:nowrap;padding-inline:2px;font-size:10.5px;letter-spacing:.03em}
+}
+
+/* landscape phones / short viewports wider than the sheet breakpoint: compact chrome, full-height narrow panel */
+@media (min-width:761px) and (max-height:500px){
+  .nav{padding-top:calc(env(safe-area-inset-top,0px) + 10px)}
+  .brand{font-size:16px;letter-spacing:.16em;gap:10px}
+  .brand svg{width:32px;height:32px;filter:drop-shadow(0 0 6px rgba(69,214,238,.4))}
+  .stage-top{top:calc(env(safe-area-inset-top,0px) + 54px)}
+  .stage-top .back{min-height:40px;padding:8px 12px;gap:7px;font-size:11px;letter-spacing:.06em;background:var(--scrim);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px)}
+  .valle-panel{--vp-top:calc(env(safe-area-inset-top,0px) + 10px);bottom:max(10px,env(safe-area-inset-bottom,0px));width:min(360px,46vw)}
+  .vp-head{padding:10px 14px 0;gap:4px}
+  .vp-tabs{margin-top:0}
+  .vp-tab{padding:8px 4px 7px;white-space:nowrap;letter-spacing:.05em;font-size:11px}
+  .vp-pane{padding:12px 14px 14px}
+  .stage[data-mode="zona"] .maplibregl-ctrl-bottom-right{right:calc(min(360px,46vw) + clamp(10px,2vw,22px) + 6px)}
+  .stage-bottom{padding-bottom:max(12px,env(safe-area-inset-bottom,0px))}
+  .maplibregl-ctrl-top-right{top:calc(env(safe-area-inset-top,0px) + 8px)!important}
+  .maplibregl-ctrl-attrib{font-size:9px!important}
+}
+
+/* touch: ≥40px hit areas without making controls visually bulky */
+@media (max-width:760px),(pointer:coarse){
+  .vp-tab{min-height:42px}
+  .maplibregl-ctrl-group button{width:40px!important;height:40px!important}
+  .site-card .x{width:40px;height:40px}
+  .maplibregl-ctrl-attrib-button::after{content:"";position:absolute;inset:-8px}
 }
 @media (max-width:440px){
   .chip{font-size:10px;padding:4px 7px}

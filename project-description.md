@@ -1,35 +1,55 @@
 # Caudal
 
-**Caudal tells Chile's water authority (Dirección General de Aguas, DGA) which farms to inspect first, using satellite imagery, weather data and the public registry of water rights.**
+**Caudal finds, from satellite images, farms that irrigate without water rights, and tells Chile's water authority which ones to inspect first.**
+
+Live: <https://caudal-web-170658673954.southamerica-west1.run.app>
 
 ## The problem
 
-Petorca and the Aconcagua valley have been in drought for over a decade. Some towns depend on water trucks, while nearby orchards keep being irrigated without water rights. The DGA has few inspectors for thousands of farms. Only one in three of its inspections finds an infraction (33% of water-extraction inspections in our two study areas, according to the DGA's public inspection records), and many start from a complaint by a neighbor who had to gather the evidence on their own.
+In Petorca, 40,000 people have had to live on 50 liters of water a day, delivered by truck. In 2023 and 2024 the state contracted more than CLP 5,700 million in water trucks for that province alone. In the same valleys, orchards stay green all summer, and some have no water rights.
 
-## What Caudal does
+Today this is found almost only when a neighbor files a complaint. The water authority (Dirección General de Aguas, DGA) has few inspectors for thousands of farms.
 
-1. **Detects irrigation during dry spells.** For every rural property it computes greenness (NDVI) and moisture (NDMI) from Sentinel-2 every 5 days and compares them with the nearby dryland scrub on the same date. If it has not rained for 10 days or more and the property is still much greener and wetter than the dryland around it, that is a sign of irrigation.
-2. **Checks it against water rights.** It estimates crop water use with FAO-56, always as a range, and compares it with the rights registered at the DGA for that property and its surroundings.
-3. **Ranks properties and plans the route.** It orders properties by suspicion and confidence, and proposes a one-day inspection route for the top ones.
-4. **Prepares the visit and the complaint.** It marks where to look inside the property (irrigated patches, possible ponds, canals, wells) and generates a PDF file with the fields of the DGA's official complaint guide: location, map, description of the facts and a technical annex. The complainant's details, the harm they suffered and the signature are left for the person to fill in.
+## What it does
 
-## A real case
+Caudal checks 7,911 farms in two areas of the Valparaíso region, Petorca and lower Aconcagua.
 
-In November 2021 the DGA fined an avocado farm in Hijuelas 1,983.9 UTM (about CLP 127 million) for extracting water without rights, and said it had found it with satellite imagery. Caudal sees the dry-season irrigation signal on that property in **all 7 dry seasons analyzed (2019-20 to 2025-26), including the two before the inspection**, with no water rights registered on the property or within 500 m. The example file for this case is in the repository.
+1. **It spots irrigation.** If it has not rained for 10 days and a farm is still greener and wetter than the dry hill next to it, someone is watering it.
+2. **It compares with water rights.** It estimates how much water the crop needs and compares it with the rights registered for that farm. If the farm uses more than its rights allow, it goes on alert.
+3. **It tells the inspector where to go.** A ranking, a one-day driving route, and the points to check inside each farm.
+4. **It prepares the complaint.** One click builds a PDF with the fields of the DGA's official complaint form. A person reviews it, signs it and files it.
 
-## In numbers
+Every alert says why it exists, where each number comes from, and what Caudal does not know.
 
-- 2 areas in the Valparaíso region: Petorca (Petorca, Cabildo, La Ligua, Papudo and Zapallar) and lower Aconcagua (Hijuelas, La Cruz, Quillota, Nogales and La Calera).
-- 7,911 rural properties analyzed with December–March imagery, against 3,642 dryland reference polygons.
-- 497 water-extraction inspections for validation, with a clean set of positives and negatives.
-- Sentinel-2 series since 2019, corrected and checked pixel by pixel (sea and tile overlap tests); they run on GCP in minutes.
+## Does it work?
 
-## Principles
+- **A real case, two years early.** In November 2021 the DGA inspected an avocado farm in Hijuelas and later fined it 1,983.9 UTM (about CLP 144 million at today's UTM) for taking water without rights. Caudal has that farm on high alert from the 2019-20 season, the first one we analyzed.
+- **2.6 times better than chance.** We tested Caudal against the DGA's own inspection records. Farms on high alert hold 2.6 times more confirmed infractions than a random pick (95% interval: 1.3 to 4.4; 19 cases, so the interval is wide).
 
-- **Caudal ranks, it does not accuse.** It gives signs and ranges and never claims an infraction. A person files the complaint with their national digital ID (Clave Única), and the DGA decides.
-- **Everything as a range, with its confidence.** Every estimate says where it comes from, how recent it is and how much cloud cover or uncertainty it has.
-- **Public data.** Copernicus Sentinel-2, DGA (water rights, inspections and streams), CIREN (properties, fruit-crop census and canals), CONAF (land use) and Open-Meteo.
+## How big is it?
+
+- **501 farms** are on high alert today and have had no inspection within 500 m since 2018.
+- Together they use an estimated **2.1 to 9.3 million m³ a year** without registered rights. At 100 liters per person per day, that is the water of 34,000 to 256,000 people.
+- The DGA runs about 33 water-extraction inspections a year in these two areas. At that pace, checking those farms one by one would take **14 years**. Caudal says which five to visit tomorrow.
+
+## Why now
+
+The satellite passes every 5 days and its images are free. The water-rights registry, the inspection records and the farm boundaries are public. Nobody had joined them farm by farm. The same data covers all of Chile.
+
+## Who it is for
+
+The DGA and the local water boards (juntas de vigilancia) that must decide where to send an inspector. It also helps rural communities that today file complaints without evidence.
+
+## What is real
+
+Everything on the page comes from files that the scripts in this repository produce; nothing is typed in by hand. The scores are computed in batch. The complaint PDF is built on the server when you ask for it. Details: [docs/en-vivo-y-precalculado.md](docs/en-vivo-y-precalculado.md). Validation: [docs/validacion.md](docs/validacion.md).
+
+Caudal ranks; it does not accuse. It gives signs and ranges, with their confidence. Only an inspector can confirm an infraction.
+
+Under the hood: Sentinel-2 imagery (Copernicus), FAO-56 crop water use, DGA water rights and inspections, CIREN farm boundaries and crops, CONAF land use, Open-Meteo and DMC weather.
 
 ## Team
 
-Nicolas Del Valle, Felipe Mellado, Tomás Morales and Gabriela Acuña · Platanus Hack 26 Santiago, Physical World track.
+Nicolás del Valle, Felipe Mellado, Tomás Morales and Gabriela Acuña · Platanus Hack 26 Santiago, Physical World track.
+
+Next step: run it with DGA inspectors in the 2026-27 dry season, which starts in December.

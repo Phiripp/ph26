@@ -91,13 +91,13 @@ El tono es hablado. No se nombran satélites, índices ni métodos (Sentinel-2, 
 "Este es el valle del Aconcagua, vecino de Petorca. En verano el cerro está seco: lo que sigue verde, alguien lo riega. Si usa más agua de la que tiene por derecho, queda en alerta. Aquí son 425."
 
 **1:04 Demo: el caso real.**
-"Miren este predio de paltos, en Hijuelas. La Dirección General de Aguas lo fiscalizó y lo multó con más de 140 millones de pesos, por sacar agua sin derechos. Caudales ya lo tenía en alerta al menos dos años antes de que llegara un inspector. En ese tiempo, según nuestra estimación, se llevó más de 100 mil metros cúbicos de más: lo mismo que consumen 1.500 personas."
+"Miren este predio de paltos, en Hijuelas. La Dirección General de Aguas lo fiscalizó y lo multó con más de 140 millones de pesos, por sacar agua sin derechos. Caudales ya lo tenía en alerta al menos dos años antes de que llegara un inspector. En ese tiempo, según nuestra estimación, se llevó 100 mil metros cúbicos de más: lo mismo que consumen 1.500 personas."
 
 **1:37 Demo: un candidato de hoy.**
 "Ahora vamos a la temporada pasada, en la misma comuna. Diecinueve hectáreas de paltos, verdes todo el verano. Sin derechos de agua inscritos, sin un canal cerca, y nadie lo ha fiscalizado. El mismo patrón, hoy. Ojo: Caudales no acusa, prioriza; la infracción la confirma un inspector en terreno. Por eso, con un clic, sale con el expediente ya escrito, en el formato oficial de denuncias."
 
 **2:06 Demo: la ruta de mañana.**
-"Y esto es lo que importa: a dónde ir primero. Cinco predios en una mañana, 71 kilómetros, y en cada uno, dónde mirar."
+"Esto es lo que importa: a dónde ir primero. Cinco predios en una mañana, 71 kilómetros, y en cada uno, dónde mirar."
 
 **2:17 Qué tan bien funciona.**
 "Y funciona. Lo probamos con los casos que la DGA ya multó: con esta lista se encuentran más del doble de infracciones que sin ella. Hoy, entre las dos zonas, hay 501 predios en alerta que nadie ha visitado."
@@ -105,12 +105,12 @@ El tono es hablado. No se nombran satélites, índices ni métodos (Sentinel-2, 
 **2:33 Cierre.**
 "El agua que falta no se ve. El verde en pleno verano, sí. Todo esto con datos públicos, que estaban ahí, dispersos: faltaba cruzarlos. Somos Nicolás, Felipe, Gabriela y Tomás. Gracias."
 
-El texto tiene 381 palabras (Intro: 7 · El problema: 53 · La solución: 57 · la zona: 38 · el caso real: 67 · un candidato de hoy: 66 · la ruta de mañana: 23 · Qué tan bien funciona: 39 · Cierre: 31). A 150 palabras por minuto son 2:32 hablando; el resto son los clics, los vuelos y las pausas.
+El texto tiene 378 palabras (Intro: 7 · El problema: 53 · La solución: 57 · la zona: 38 · el caso real: 65 · un candidato de hoy: 66 · la ruta de mañana: 22 · Qué tan bien funciona: 39 · Cierre: 31). A 150 palabras por minuto son 2:31 hablando; el resto son los clics, los vuelos y las pausas.
 
 Cuidados al decirlo:
 
 - **El momento que tiene que quedar es "al menos dos años antes".** Después de esa frase van 2 segundos de silencio, con la ficha del caso en pantalla. Hay que decir "al menos": la serie parte en 2019, así que es el tope de los datos y no el día en que empezó el riego.
-- **El agua del caso real** es la que Caudales estima sobre el derecho entre la primera alerta y la inspección: 106 a 138 mil m³ (lo dice la ficha). Se dice "más de 100 mil metros cúbicos de más" y "según nuestra estimación". Las 1.500 personas son las que consumen ese volumen en los mismos dos años.
+- **El agua del caso real** es la que Caudales estima sobre el derecho entre la primera alerta y la inspección: 106 a 138 mil m³ (lo dice la ficha). Se dice "100 mil metros cúbicos de más" y "según nuestra estimación". Las 1.500 personas son las que consumen ese volumen en los mismos dos años.
 - **Las cifras cambian de escala y hay que decirlo.** La pantalla de la zona dice 3.639 predios y 425 en alerta; el 501 es de las dos zonas juntas y sin fiscalizar. Por eso el guion dice "en esta zona" y "entre las dos zonas".
 - **El expediente del candidato ya está generado.** La pantalla dice "Generado el…, el servidor lo reutiliza". Por eso el guion no dice "se está generando ahora". Si el jurado pide verlo generarse, se pide el de otro predio: tarda unos 5 segundos y la pantalla muestra los pasos.
 - **La multa en pantalla dice 1.983,9 UTM, unos $144 millones** al valor de la UTM de `impacto.json`. La DGA informó "más de 127 millones" en su momento. El guion dice "más de 140" para calzar con la pantalla.

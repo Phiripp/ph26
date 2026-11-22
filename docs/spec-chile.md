@@ -2,7 +2,7 @@
 
 21-11-2026 · plazo: 12 horas · complementa [spec-v2.md](spec-v2.md) y [spec-demo.md](spec-demo.md)
 
-## Estado de la corrida (22-11, 23:30)
+## Estado de la corrida (21-11, 23:30)
 
 | Etapa | Estado |
 | --- | --- |

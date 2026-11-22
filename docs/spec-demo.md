@@ -304,7 +304,7 @@ Cosas a saber:
 - **Cuota:** Cloud Run tiene 20 vCPU y 40 GiB por región. Los trabajos de Gabi corren en `us-west1`, así que no compiten con estos servicios.
 - **Cloud Build:** falló con `PERMISSION_DENIED` al desplegar el trabajo de POI. Si falla aquí, construir la imagen en local con Docker y subirla a Artifact Registry.
 - **Datos en la imagen:** `scripts/cloud/api/desplegar.sh` copia los Parquet (menos las series crudas) y los JSON a `/app/data/` y escribe `/app/data/VERSION`. `predio.parquet` no está en git (capa de CIREN): se copia desde el disco local al contexto de construcción, como hace `scripts/cloud/poi/desplegar.sh`. El script construye con Docker en local, sube a Artifact Registry y despliega; `scripts/cloud/api/probar.sh URL` revisa todas las rutas.
-- **Orden de despliegue:** primero `caudal-api`, después `caudal-web`. Si cambia la forma de una respuesta, hay que regenerar el respaldo con `build_m5_web.py` en el mismo commit.
+- **Orden de despliegue:** primero `caudal-api`, después `caudal-web`. Si cambia la forma de una respuesta o un dato, hay que regenerar el respaldo con `api/respaldo.py` en el mismo commit.
 - **Arranque en frío:** con una instancia mínima no hay. Volver a 0 después de la final.
 - **Service worker:** `sw.js` guarda en caché los `GET /api/*` (primero la red, y el caché si no hay red), para que la segunda visita funcione sin red. No guarda `POST /api/expediente`. Al cambiar los datos hay que subir la versión del caché en `sw.js`.
 - **URL para el jurado:** la de `caudal-web` va en `platanus-hack-project.jsonc`.
@@ -315,15 +315,17 @@ El jurado hará preguntas técnicas a un agente que lee el repo. Lo que debe enc
 
 | Pregunta probable | Dónde está la respuesta | Pendiente |
 | --- | --- | --- |
-| ¿Hay datos escritos a mano? | Cada cifra sale de `data/processed/` y de un script | Quitar los puntajes provisionales del frontend (`build_zonas_scores.py`, `scores*.json`), el `.txt` de `expediente.js` y cualquier identificador de predio en el código (pasan a `data/demo.json`) |
+| ¿Hay datos escritos a mano? | Cada cifra sale de `data/processed/` y de un script. El caso y el candidato del guion están en `data/demo.json`, no en el código | — |
 | ¿De dónde sale cada número del pitch? | Tabla de respaldo en [pitch-demo.md](pitch-demo.md); `impacto.json` lleva sus fuentes y sus supuestos | — |
-| ¿Qué es en vivo y qué es precalculado? | Sección nueva en el README raíz | Escribirla (T10) |
-| ¿Cómo se reproduce? | Comando de cada script en `data/README.md` | Agregar el orden completo de la cadena en el README raíz |
+| ¿Qué es en vivo y qué es precalculado? | [en-vivo-y-precalculado.md](en-vivo-y-precalculado.md) | Enlazarlo desde el README raíz, que debe escribir una persona (la plantilla trae una instrucción para detectar README escritos por un modelo) |
+| ¿Cómo se reproduce? | Orden de la cadena en [en-vivo-y-precalculado.md](en-vivo-y-precalculado.md#cómo-se-reproduce); comando de cada script en `data/README.md` | — |
 | ¿Está validado? | [validacion.md](validacion.md), con intervalos y límites | — |
 | ¿Los umbrales salieron de la nada? | [calibracion.md](calibracion.md) y `calibracion_grilla.csv` | — |
 | ¿Qué supuestos tiene? | Encabezado de cada script y `impacto.json` (`supuestos`, `equivalencias`) | — |
 
-Ya corregido: la cifra de validación del pitch (2,6) y las equivalencias (personas, latas, torre) estaban escritas como texto; ahora se calculan y quedan en `impacto.json` con su fuente.
+Ya corregido: la cifra de validación del pitch (2,6) y las equivalencias (personas, latas, torre) estaban escritas como texto; ahora se calculan y quedan en `impacto.json` con su fuente. Se quitaron el script de puntajes provisionales (`build_zonas_scores.py`), los textos de relleno de la portada y el identificador del candidato que estaba en `build_m5_web.py`. El expediente usaba los umbrales antiguos del detector; ahora los importa.
+
+Si cambian los datos (por ejemplo, la ruta), hay que regenerar en el mismo commit la exportación de la página (`build_m5_web.py`) y el respaldo (`api/respaldo.py`), y revisar las cifras del guion en [pitch-demo.md](pitch-demo.md).
 
 ## Tareas
 
@@ -340,7 +342,7 @@ Ya corregido: la cifra de validación del pitch (2,6) y las equivalencias (perso
 | T7 | Desplegar `caudal-api`: `scripts/cloud/api/desplegar.sh` y luego `EXPEDIENTE=1 scripts/cloud/api/probar.sh URL` (el expediente del candidato se genera al construir) | P0 | Gabi | T2b | `/api/predios/5301984` y el expediente responden en producción en menos de 2 s |
 | T8 | F3: botón que llama al backend, visor de PDF y respaldo | P0 | Nico | T6 | El clic abre el PDF en producción; con el backend apagado abre el respaldo |
 | T9 | Desplegar `caudal-web` y llenar `platanus-hack-project.jsonc` | P0 | Nico | T3 a T8 | El recorrido completo funciona en la URL pública, también con `caudal-api` apagado |
-| T10 | Limpieza para el agente del jurado: quitar lo provisional, `data/demo.json`, README raíz con "en vivo y precalculado" | P0 | Tomás 🟡 | T3 | La tabla de la sección anterior no tiene pendientes |
+| T10 | Limpieza para el agente del jurado: quitar lo provisional, `data/demo.json`, documento "en vivo y precalculado". Falta que una persona escriba el README raíz y lo enlace | P0 | Tomás ✅ | T3 | La tabla de la sección anterior no tiene pendientes |
 | T11 | Video de respaldo y 5 ensayos con cronómetro | P0 | Todos | T9 | Video guardado en dos computadores |
 | T12 | F7: modo demo (enlaces, teclas, `?demo=1`) | P1 | Nico | T3 | Las teclas 1 a 5 recorren el guion |
 | T13 | Recortes de los predios en alerta en un bucket privado | P1 | Felipe | T7 | La ficha del candidato muestra recortes con fecha y escena |

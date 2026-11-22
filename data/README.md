@@ -226,7 +226,7 @@ Para regenerar: `uv run scripts/models/consumo_fao56.py` (muestra) o con `--seri
 Para regenerar: `uv run scripts/models/ruta_inspeccion.py --zona Z1 --puntajes data/processed/puntaje.parquet` (o `--demo`, que usa los positivos limpios y los casos de validación con puntaje 1). Desde el backend: `from scripts.models.ruta_inspeccion import ruta`.
 
 - Prize-collecting TSP con OR-Tools sobre la matriz de tiempos de OSRM: sale y vuelve a la plaza de La Ligua (Z1) o de Quillota (Z2), jornada de 8 h, 30 min por visita, 40 predios de mayor puntaje como máximo.
-- Con M5 (`ruta_z1`, `ruta_z2`): Z1 visita 10 de 40 predios (08:30 a 16:25, 143 km); Z2, 12 de 40 (08:30 a 16:29, 91 km).
+- Con M5 (`ruta_z1`, `ruta_z2`) y `--max-paradas 5`: Z1 visita 5 de 40 predios (08:30 a 15:21, 168 km); Z2, 5 de 40 (08:30 a 12:28, 71 km). Sin el tope eran 10 predios y 143 km en Z1, y 12 predios y 91 km en Z2.
 - Salidas `ruta_ejemplo_z1` y `ruta_ejemplo_z2`: `.json` (orden, horas, km, punto de acceso al camino, enlace a Google Maps, predios fuera y motivo), `.geojson` y `.gpx` (válido contra el esquema GPX 1.1).
 - Ejemplo Z1: 7 de 8 predios entre 08:30 y 15:20, 141 km. Ejemplo Z2: 6 de 6 entre 08:30 y 13:31, 110 km.
 - Caché de OSRM en `data/raw/osrm/` (no va a git). La demo sirve rutas precalculadas: el servidor público a veces tarda minutos.

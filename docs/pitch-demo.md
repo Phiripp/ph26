@@ -63,10 +63,10 @@ El tono es hablado. No se nombran satélites, índices ni métodos (Sentinel-2, 
 "Ahora, el verano pasado, en la misma comuna. Diecinueve hectáreas de paltos, verdes todo el verano. No tiene derechos de agua inscritos, no tiene un canal cerca y nunca lo han fiscalizado. Ojo: Caudal no acusa, prioriza. Y con un clic arma el expediente, con el formato oficial de denuncias de la DGA. Esto se está generando ahora, en producción."
 
 **1:35 Demo 3, la ruta.**
-"Y esto es lo que importa: a dónde va el inspector mañana. Doce predios, ocho horas, 91 kilómetros. Se abre en Google Maps. Y dentro de cada predio le decimos dónde mirar: el parche regado, el tranque, el pozo."
+"Y esto es lo que importa: a dónde va el inspector mañana. Cinco predios, cuatro horas, 71 kilómetros. Se abre en Google Maps. Y dentro de cada predio le decimos dónde mirar: el parche regado, el tranque, el pozo."
 
 **2:00 Validación e impacto.**
-"Esto lo probamos contra las fiscalizaciones reales de la DGA: donde Caudal marca alerta alta, hay 2,6 veces más infractores que si uno eligiera al azar. Y para que se hagan una idea: un solo predio como el que acaban de ver se toma al año el agua de casi 3.000 personas. O, si prefieren, 220 millones de latas de Monster. Como ese hay 501 predios que nadie ha ido a mirar. Juntos son entre 5 y 20 Torres Costanera llenas de agua, todos los años. Revisarlos uno por uno tomaría 14 años. Caudal te dice por cuáles doce partir mañana."
+"Esto lo probamos contra las fiscalizaciones reales de la DGA: donde Caudal marca alerta alta, hay 2,6 veces más infractores que si uno eligiera al azar. Y para que se hagan una idea: un solo predio como el que acaban de ver se toma al año el agua de casi 3.000 personas. O, si prefieren, 220 millones de latas de Monster. Como ese hay 501 predios que nadie ha ido a mirar. Juntos son entre 5 y 20 Torres Costanera llenas de agua, todos los años. Revisarlos uno por uno tomaría 14 años. Caudal te dice por cuáles cinco partir mañana."
 
 **2:45 Cierre.**
 "Todo esto con datos públicos, y sirve para cualquier valle de Chile. Somos Nicolás, Felipe, Gabriela y Tomás. Gracias."
@@ -83,7 +83,7 @@ El texto tiene unas 410 palabras.
 | Multa de 127 millones | 1.983,9 UTM | Planilla de la DGA y nota de prensa de la DGA | — |
 | Alerta alta desde 2019, dos años antes | Temporada 2019-20; inspección el 23-11-2021 | `impacto.md` | La serie parte en 2019-20: es una cota inferior |
 | Diecinueve hectáreas, sin derechos, sin canal cerca, nunca fiscalizado | 18,8 ha, 89 % palto, sin derechos a 500 m, canal a 1,2 km, sin fiscalización a 500 m desde 2018 | `puntaje.parquet`, predio `5301984` | No mostrar rol ni dueño |
-| Doce predios, ocho horas, 91 km | Ruta de Z2 | `ruta_z2.json` | Cambia si se regenera la ruta |
+| Cinco predios, cuatro horas, 71 km | Ruta de Z2 (5 paradas, 08:30 a 12:28, 71,3 km) | `ruta_z2.json` | Cambia si se regenera la ruta. Con tope de 5 paradas desde el 21-11; antes eran 12 predios, 8 horas y 91 km |
 | 2,6 veces más infractores | IC 95 %: 1,3–4,4 | `validacion.md` | Usar 2,6 y no 3,7: el 3,7 se midió con los mismos casos que calibraron los umbrales |
 | El agua de casi 3.000 personas | 105.000 m³ al año ÷ 36,5 m³ por persona = 2.877 | `puntaje.parquet`; dotación de 100 litros al día ([Corte Suprema, 2021](https://www.24horas.cl/regiones/valparaiso/corte-suprema-determina-100-litros-de-agua-por-habitantes-de-petorca-4708851)) | 105.000 m³ es el mínimo del rango del candidato |
 | 220 millones de latas de Monster | 105.000 m³ ÷ 473 ml = 222 millones | Lata de 473 ml | — |
@@ -119,7 +119,7 @@ Datos de reserva para las preguntas:
 | --- | --- |
 | ¿Cuántos falsos positivos tiene? | Entre los fiscalizados en alerta alta, 7 de 15 tuvieron infracción (47 %; la DGA tiene 33 %). Son pocos casos y lo decimos. Por eso Caudal prioriza y entrega rangos; la infracción la constata el inspector |
 | ¿Cómo saben que es agua ilegal y no de un canal? | No lo sabemos con certeza. El agua de canal no está en el registro de derechos. Por eso el escenario conservador excluye a todo predio con un canal a 300 m, y la ficha lo avisa |
-| ¿Qué es en vivo y qué es precalculado? | Las series satelitales se precalculan (7.911 predios, 97 escenas, en GCP). En vivo: ranking, ficha, expediente PDF y ruta |
+| ¿Qué es en vivo y qué es precalculado? | Las series satelitales, el puntaje y la ruta se precalculan (7.911 predios, en GCP y en los scripts del repo). En vivo: el expediente PDF y las consultas de la API. Detalle en [en-vivo-y-precalculado.md](en-vivo-y-precalculado.md) |
 | ¿La DGA no hace esto ya? | En el caso de Hijuelas dijo que usó imágenes, pero su fiscalización parte casi siempre de una denuncia. Caudal lo hace para todos los predios y todas las temporadas |
 | ¿El satélite es "mundo físico"? | La entrada son mediciones físicas (reflectancia, lluvia, evapotranspiración) y la salida es una inspección en terreno con ruta y puntos a revisar |
 | ¿Por qué el AUC entre fiscalizados es bajo (0,62)? | La DGA ya fiscaliza predios regados, así que entre ellos el verdor no separa. La pregunta útil es otra: frente a todos los predios, Caudal concentra 2,6 veces más infractores |

@@ -14,3 +14,22 @@
 @media (pointer: coarse) {
   .valle-layer .v-case::before { content: ""; position: absolute; left: -9px; top: -9px; width: 36px; height: 36px; border-radius: 50%; }
 }
+
+/* route playback HUD (valle.js): clock · km · next stop */
+.v-telem{position:absolute;left:0;top:0;z-index:5;display:flex;align-items:center;gap:14px;white-space:nowrap;
+  padding:8px 14px;background:rgba(5,8,11,.82);border:1px solid rgba(69,214,238,.45);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);
+  font:500 12px/1 var(--f-mono);letter-spacing:.08em;text-transform:uppercase;color:#cfdde2;box-shadow:0 0 24px rgba(69,214,238,.18)}
+.v-telem span+span{padding-left:14px;border-left:1px solid rgba(139,155,164,.35)}
+.v-telem-clock{font:600 18px/1 var(--f-mono);letter-spacing:.02em;color:#fff;font-variant-numeric:tabular-nums}
+.v-telem-hot{color:var(--water);font-weight:600}
+@media (max-width:700px){.v-telem{gap:10px;padding:6px 10px;font-size:10.5px}.v-telem span+span{padding-left:10px}.v-telem-clock{font-size:15px}}
+/* arrival card over the vehicle while it stops at a predio */
+.v-arrive{position:absolute;left:0;top:0;z-index:6;min-width:200px;max-width:280px;padding:9px 12px 10px;
+  background:rgba(5,8,11,.9);border:1px solid rgba(255,255,255,.22);border-left:2px solid var(--water);
+  font:12.5px/1.4 var(--f-body);color:#e8eef0;white-space:normal;box-shadow:0 10px 30px rgba(0,0,0,.45);
+  opacity:0;transition:opacity .18s ease,margin .25s cubic-bezier(.2,.7,.2,1);margin-top:8px;pointer-events:none}
+.v-arrive.on{opacity:1;margin-top:0}
+.v-arrive-k{font:600 10.5px/1 var(--f-mono);letter-spacing:.12em;text-transform:uppercase;margin-bottom:6px}
+.v-arrive-t{color:#9fb0b6;font-size:12px}
+.v-arrive-v{margin-top:2px}
+.v-arrive-v b{color:var(--loss);font-weight:600}

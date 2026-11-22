@@ -214,7 +214,11 @@
       "fruticola": 59,
       "dga": "V",
       "aplicabilidad": "calibrado",
-      "prioridad": 1
+      "prioridad": 1,
+      "periodo_satelite": {
+        "inicio": "2025-04-01",
+        "fin": "hoy"
+      }
     },
     "R13": {
       "nombre": "Metropolitana",

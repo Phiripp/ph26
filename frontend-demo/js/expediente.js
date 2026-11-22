@@ -2,6 +2,10 @@
 // Caudal prepara; una PERSONA presenta con Clave Única. Caudal no presenta nada.
 import { fmtNum, fmtMil, fmtCoord, fmtDate, fmtComuna, excesoRange, dryWindowStats, esc } from './zona-data.js';
 import { temporadaOf, seasonRange } from './ficha.js';
+import { mountExpedientePdf } from './expediente-pdf.js';
+
+// the PDF request of the expediente on screen: cancelled when another view replaces it
+let pdfEnCurso = null;
 
 function croquis(feature, W = 150, H = 110) {
   const g = feature.geometry;
@@ -67,6 +71,8 @@ export function renderExpediente(el, feature, data, { onBack } = {}) {
       <h3 class="pn-title">Expediente ${esc(label)}</h3>
       <p class="pn-sub">Caudal ordena los antecedentes. La presentación la hace una persona.</p>
     </header>
+    <section class="pn-pdf" data-part="pdf"></section>
+    <p class="pn-kicker pn-exp-k">Texto del borrador, para copiar</p>
     <ol class="pn-exp">
       <li class="pn-sec"><h4>1 · Denunciante</h4>
         <p class="pn-hint">Lo completa la persona con Clave Única. Caudal no guarda ni sugiere estos datos.</p>
@@ -97,8 +103,7 @@ export function renderExpediente(el, feature, data, { onBack } = {}) {
       </li>
     </ol>
     <div class="pn-actions">
-      <button type="button" class="btn primary" data-act="copy">Copiar texto</button>
-      <button type="button" class="btn" data-act="txt">Descargar borrador (.txt)</button>
+      <button type="button" class="btn" data-act="copy">Copiar texto</button>
       <span class="pn-status" role="status" aria-live="polite"></span>
     </div>
     <p class="pn-legal">Se presenta en la Oficina Virtual DGA (SNIA) con Clave Única. Caudal no presenta nada.</p>`;
@@ -125,21 +130,18 @@ export function renderExpediente(el, feature, data, { onBack } = {}) {
     document.body.appendChild(ta); ta.select();
     let ok = false; try { ok = document.execCommand('copy'); } catch { ok = false; }
     ta.remove();
-    status(ok ? 'Texto copiado' : 'No se pudo copiar: usa Descargar');
-  }
-  function download() {
-    const url = URL.createObjectURL(new Blob([text()], { type: 'text/plain;charset=utf-8' }));
-    const a = Object.assign(document.createElement('a'), { href: url, download: `caudal-expediente-${String(p.rol || p.id).replace(/[^\w-]+/g, '_')}.txt` });
-    document.body.appendChild(a); a.click(); a.remove();
-    setTimeout(() => URL.revokeObjectURL(url), 1000);
-    status('Borrador descargado');
+    status(ok ? 'Texto copiado' : 'No se pudo copiar el texto');
   }
   el.onclick = e => {
     const a = e.target.closest('[data-act]')?.dataset.act;
-    if (a === 'back') onBack?.();
+    if (a === 'back') { pdfEnCurso?.destroy(); pdfEnCurso = null; onBack?.(); }
     else if (a === 'copy') copy();
-    else if (a === 'txt') download();
   };
+  pdfEnCurso?.destroy();
+  pdfEnCurso = mountExpedientePdf(el.querySelector('[data-part="pdf"]'), {
+    predioId: p.id,
+    fileName: `caudal-expediente-${String(p.id).replace(/[^\w-]+/g, '_')}.pdf`,
+  });
   el.scrollTop = 0;
   return { getText: text };
 }

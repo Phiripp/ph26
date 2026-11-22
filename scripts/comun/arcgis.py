@@ -36,12 +36,21 @@ def pedir(url: str, params: dict, reintentos: int = 6, timeout: int = 180) -> di
 
 
 def paginar(url: str, params: dict, pagina: int, orden: str = "objectid", inicio: int = 0) -> Iterator[dict]:
-    """Entrega el cuerpo de cada página (con `features`) hasta que llega una vacía."""
+    """Entrega el cuerpo de cada página (con `features`) hasta que llega una vacía o una repetida.
+
+    Algunos servidores (el de restricciones de la DGA en rest-sit.mop.gob.cl) ignoran `resultOffset` y devuelven
+    siempre la primera página: sin el corte por página repetida, el bucle no termina nunca.
+    """
     offset = inicio
+    anterior = None
     while True:
         cuerpo = pedir(url, {**params, "orderByFields": orden, "resultOffset": offset, "resultRecordCount": pagina})
-        n = len(cuerpo.get("features", []))
-        if n == 0:
+        features = cuerpo.get("features", [])
+        if not features:
             return
+        huella = json.dumps([features[0], features[-1], len(features)], sort_keys=True, default=str)
+        if huella == anterior:
+            return
+        anterior = huella
         yield cuerpo
-        offset += n
+        offset += len(features)

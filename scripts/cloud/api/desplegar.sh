@@ -2,7 +2,7 @@
 # Construye la imagen de caudal-api con los datos de data/processed/ y la despliega en Cloud Run.
 #
 # Qué hace:
-#   1. Arma un contexto mínimo: api/, scripts/models/ y los datos que lee la API (los Parquet menos las series crudas,
+#   1. Arma un contexto mínimo: api/, scripts/models/, scripts/comun/ y los datos que lee la API (los Parquet menos las series crudas,
 #      las rutas, impacto.json, zonas.json, demo.json, los casos). predio.parquet no está en git: sale del disco local.
 #   2. Escribe data/VERSION (commit y fecha de cálculo de puntaje.parquet): es la versión que muestra /api/health.
 #   3. Construye la imagen: con Docker en local si está, y si no con Cloud Build (CONSTRUIR=cloud lo fuerza). Al
@@ -28,7 +28,7 @@ cd "$RAIZ"
 
 falla() { echo "ERROR: $*" >&2; exit 1; }
 [ -f data/processed/predio.parquet ] || falla "falta data/processed/predio.parquet (no está en git): uv run scripts/extract/predios_ciren.py"
-[ -z "$(git status --porcelain -- api scripts/models data)" ] || echo "AVISO: hay cambios sin commit en api/, scripts/models/ o data/: la versión dirá $(git rev-parse --short HEAD) igual" >&2
+[ -z "$(git status --porcelain -- api scripts/models scripts/comun data)" ] || echo "AVISO: hay cambios sin commit en api/, scripts/models/ o data/: la versión dirá $(git rev-parse --short HEAD) igual" >&2
 
 COMMIT=$(git rev-parse --short HEAD)
 CTX=$(mktemp -d)
@@ -36,6 +36,7 @@ trap 'rm -rf "$CTX"' EXIT
 mkdir -p "$CTX/scripts" "$CTX/data/processed"
 cp -R api "$CTX/api"
 cp -R scripts/models "$CTX/scripts/models"
+cp -R scripts/comun "$CTX/scripts/comun"  # los modelos importan comun.rutas
 find "$CTX" -name __pycache__ -type d -prune -exec rm -rf {} +
 cp data/zonas.json data/demo.json data/casos_validacion.geojson "$CTX/data/"
 for f in data/processed/*.parquet data/processed/ruta_z?.* data/processed/impacto.json data/processed/calibracion_grilla.csv \

@@ -66,14 +66,14 @@ BASE_PASOS = [
     ("cauces", "scripts/extract/cauces_dga.py", [],
      {"processed/cauce.parquet": "base/cauce/region={z}.parquet",
       "processed/predio_cauce.parquet": "base/predio_cauce/region={z}.parquet"}),
+    ("clima", "scripts/extract/d2_clima_era5land.py", ["--hilos", HILOS],
+     {"processed/clima.parquet": "base/clima/region={z}.parquet",
+      "processed/predio_clima.parquet": "base/predio_clima/region={z}.parquet"}),
     ("restriccion", "scripts/extract/restriccion_dga.py", [],
      {"processed/restriccion.parquet": "base/restriccion/region={z}.parquet",
       "processed/predio_restriccion.parquet": "base/predio_restriccion/region={z}.parquet"}),
     ("fiscalizaciones", "scripts/extract/fiscalizaciones_dga.py", [],
      {"processed/fiscalizacion.parquet": "base/fiscalizacion/region={z}.parquet"}),
-    ("clima", "scripts/extract/d2_clima_era5land.py", ["--hilos", HILOS],
-     {"processed/clima.parquet": "base/clima/region={z}.parquet",
-      "processed/predio_clima.parquet": "base/predio_clima/region={z}.parquet"}),
 ]
 
 

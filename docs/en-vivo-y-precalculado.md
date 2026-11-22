@@ -8,7 +8,7 @@ Caudal tiene dos partes: una cadena de scripts que se corre por lotes y deja sus
 
 | Qué | Cómo | Dónde |
 | --- | --- | --- |
-| Expediente PDF | Se arma en el servidor al pedirlo: lee los datos del predio, baja las imágenes satelitales de esa fecha y dibuja el PDF. Tarda unos 20 segundos | [api/expedientes.py](../api/expedientes.py), [scripts/models/expediente.py](../scripts/models/expediente.py) |
+| Expediente PDF | Se arma en el servidor al pedirlo: lee los datos del predio, baja las imágenes satelitales de esa fecha y dibuja el PDF. Tarda unos 5 segundos (4 de mediana, medido en la imagen de la API) | [api/expedientes.py](../api/expedientes.py), [scripts/models/expediente.py](../scripts/models/expediente.py) |
 | Texto de "por qué está en alerta" | Se redacta en cada consulta a partir de las filas del predio. No guarda frases | [scripts/models/explicacion.py](../scripts/models/explicacion.py) |
 | Ranking, ficha, serie, casos | Consultas de DuckDB sobre los Parquet, en cada solicitud | [api/datos.py](../api/datos.py) |
 

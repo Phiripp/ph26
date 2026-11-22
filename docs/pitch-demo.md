@@ -102,7 +102,7 @@ El texto tiene 401 palabras: 2:40 hablando a 150 palabras por minuto. Los 15 seg
 
 Tres cuidados al decirlo:
 
-- **El expediente del candidato ya está generado.** La pantalla dice "Generado el…, el servidor lo reutiliza". Por eso el guion dice "lo arma el servidor" y no "se está generando ahora". Si el jurado pide verlo generarse, se pide el de otro predio: tarda unos 20 segundos.
+- **El expediente del candidato ya está generado.** La pantalla dice "Generado el…, el servidor lo reutiliza". Por eso el guion dice "lo arma el servidor" y no "se está generando ahora". Si el jurado pide verlo generarse, se pide el de otro predio: tarda unos 5 segundos y la pantalla muestra los pasos.
 - **La multa en pantalla dice 1.983,9 UTM, unos $144 millones** al valor de la UTM de `impacto.json`. La DGA informó "más de 127 millones" en su momento. El guion dice "más de 140" para calzar con la pantalla.
 - **Si falta tiempo**, la primera frase que se salta es la de las latas de Monster; la segunda, "el parche regado, el tranque, el pozo".
 

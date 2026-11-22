@@ -296,7 +296,7 @@ gcloud compute instances delete job-s2-<corrida> --zone us-west1-b --project ph-
 Borrador de antecedentes para una denuncia, con las 7 secciones de la *Guía para la presentación de denuncias por infracciones al Código de Aguas* (DGA, julio de 2025) y un anexo técnico. Sigue el flujo B de [spec-flujos-poligono.md](../docs/spec-flujos-poligono.md).
 
 ```
-uv run scripts/models/expediente.py --rol HIJUELAS:61-6                 # caso base FO-0504-95, ~15–25 s con imágenes
+uv run scripts/models/expediente.py --rol HIJUELAS:61-6                 # caso base FO-0504-95, ~5 s con imágenes
 uv run scripts/models/expediente.py --predio-id 5344181 --sin-imagenes   # ~3 s, sin leer Sentinel-2
 uv run scripts/models/expediente.py --rol CABILDO:390-80 --temporada 2025-26
 ```

@@ -36,7 +36,7 @@ Every alert says why it exists, where each number comes from and what Caudal doe
 ## What is live and what is precomputed
 
 - **Precomputed, in batch:** satellite series, irrigation signal, water use, score, route. Scripts in `scripts/`, results in `data/processed/`.
-- **Live:** the API queries those files on each request, writes the "why is this farm on alert" text, and builds the complaint PDF when asked (about 20 seconds for a new one; the demo ones are built with the image and the page shows their date).
+- **Live:** the API queries those files on each request, writes the "why is this farm on alert" text, and builds the complaint PDF when asked (about 5 seconds for a new one; the demo ones are built with the image and the page shows their date).
 
 Nothing on the page is typed in by hand. More in [docs/en-vivo-y-precalculado.md](docs/en-vivo-y-precalculado.md).
 

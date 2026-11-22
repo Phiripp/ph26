@@ -9,7 +9,7 @@ Qué predios llevan ficha y serie:
   --predios alerta   (por defecto) los del mapa: banda alta y media, casos, vecindarios de validación y paradas de ruta
   --predios demo     solo los casos, sus vecindarios, las paradas de las rutas y los candidatos de data/demo.json
 
-No incluye el expediente (POST): la página usa el PDF de respaldo.
+No incluye el expediente (POST): la página usa los PDF de respaldo de <salida>/expedientes/, que este script no toca.
 
 Uso (desde la raíz del repo):
   uv run --with-requirements api/requirements.txt python -m api.respaldo
@@ -18,7 +18,6 @@ Uso (desde la raíz del repo):
 
 import argparse
 import json
-import shutil
 import sys
 from pathlib import Path
 
@@ -64,8 +63,10 @@ def main() -> int:
     ap.add_argument("--salida", default=str(SALIDA))
     args = ap.parse_args()
     salida = Path(args.salida)
-    if salida.exists():
-        shutil.rmtree(salida)
+    # Borra solo lo que escribió la corrida anterior (indice.json): la carpeta también guarda los PDF de respaldo.
+    if (salida / "indice.json").exists():
+        for x in json.loads((salida / "indice.json").read_text(encoding="utf-8"))["rutas"]:
+            (salida / x["archivo"]).unlink(missing_ok=True)
     guardados, fallas, peso = [], [], 0
     with TestClient(app) as cliente:
         for ruta in rutas(args.predios):

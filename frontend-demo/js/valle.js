@@ -199,6 +199,7 @@ const TERRAIN_FS = /* glsl */`
   uniform vec4 uImgRect;      // imagery extent inside the scene UV space (u0, v0, u1, v1)
   uniform sampler2D uOverlay; // predios (straight alpha), scene UV space
   uniform float uOverlayAmt;
+  uniform float uDim;       // 0..1: route focus (Ruta tab) darkens and desaturates the ground
   uniform float uFogNear;
   uniform float uFogFar;
   uniform float uGrid;        // km between survey grid lines in the no-imagery zone
@@ -224,6 +225,7 @@ const TERRAIN_FS = /* glsl */`
     vec4 ov = texture2D(uOverlay, vUv);
     float lum = dot(col, vec3(0.299, 0.587, 0.114));
     col = mix(col, vec3(lum) * 0.92, 0.22 * uOverlayAmt);
+    col = mix(col, vec3(lum) * 0.7, 0.45 * uDim) * (1.0 - 0.22 * uDim);
     col = mix(col, ov.rgb * (0.8 + 0.25 * shade), ov.a * uOverlayAmt);
     if (imgK < 0.999) {
       vec2 g = abs(fract(vPosW.xz / uGrid) - 0.5);
@@ -392,6 +394,7 @@ export async function initValle({
     uImgRect: { value: new THREE.Vector4(0, 0, 1, 1) },
     uOverlay: { value: null },
     uOverlayAmt: { value: 0 },
+    uDim: { value: 0 },
     uFogNear: { value: 100 },
     uFogFar: { value: 200 },
     uGrid: { value: 0.5 },
@@ -504,9 +507,10 @@ export async function initValle({
 
   // ---------- view state ----------
   const reduced = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-  const state = { year: 0, routeT: 0, routeOn: true, casosOn: false }; // casosOn: case badges (Casos tab only)
+  const state = { year: 0, routeT: 0, routeOn: true, casosOn: false, routeFocus: false }; // routeFocus: Ruta tab, only route predios in colour // casosOn: case badges (Casos tab only)
   let dirty = true;
-  let overlayAmt = 0, routeAmt = 0;
+  let overlayAmt = 0, routeAmt = 0, dimAmt = 0;
+  let routeIds = new Set(); // predio ids visited by the route
   let routePlay = null;
   let chase = null; // route chase camera while "Recorrer ruta" plays: {az, t: Vector3, r, rNow}
   let hoverId = null;
@@ -766,20 +770,47 @@ export async function initValle({
   // rectangles around the previously and newly selected predios.
   const selPad = () => Math.ceil(kmPx(0.08, 6) * 2 + kmPx(0.04, 2.5) + 4); // glow + stroke of the selected predio
   function paintRegion(r) {
-    const m = selPad();
-    const hit = (f) => !r || (f._px.x1 + m >= r.x && f._px.x0 - m <= r.x + r.w && f._px.y1 + m >= r.y && f._px.y0 - m <= r.y + r.h);
+    const focusRoute = state.routeFocus && routeIds.size > 0;
+    const haloR = kmPx(1.0, 28); // Ruta tab: soft halo around each route predio (they are tiny at zone scale)
+    const m0 = selPad();
+    const hit = (f) => {
+      const m = focusRoute && routeIds.has(f.properties.id) ? Math.max(m0, haloR) : m0;
+      return !r || (f._px.x1 + m >= r.x && f._px.x0 - m <= r.x + r.w && f._px.y1 + m >= r.y && f._px.y0 - m <= r.y + r.h);
+    };
+    if (focusRoute) {
+      for (const id of routeIds) {
+        const f = byId.get(id);
+        if (!f || !hit(f)) continue;
+        const B = bandOf(f.properties.banda), c = B.fill || [69, 214, 238];
+        const cx = (f._px.x0 + f._px.x1) / 2, cy = (f._px.y0 + f._px.y1) / 2;
+        const rad = haloR + Math.max(f._px.x1 - f._px.x0, f._px.y1 - f._px.y0) / 2;
+        const g = ovCtx.createRadialGradient(cx, cy, 0, cx, cy, rad);
+        g.addColorStop(0, rgba(c, 0.7)); g.addColorStop(0.35, rgba(c, 0.32)); g.addColorStop(1, rgba(c, 0));
+        ovCtx.fillStyle = g;
+        ovCtx.beginPath(); ovCtx.arc(cx, cy, rad, 0, Math.PI * 2); ovCtx.fill();
+      }
+    }
     for (const f of sortedFeatures) {
       if (f.properties.id === selectedId || !hit(f)) continue;
       const B = bandOf(f.properties.banda);
       tracePath(f);
-      if (B.fill) { ovCtx.fillStyle = rgba(B.fill, B.fa); ovCtx.fill('evenodd'); }
-      ovCtx.strokeStyle = B.stroke;
-      ovCtx.lineWidth = kmPx(B.sw, 1.2);
+      if (focusRoute && !routeIds.has(f.properties.id)) {
+        // Ruta tab: every predio off the route fades to a faint grey outline
+        ovCtx.fillStyle = 'rgba(196,206,212,.05)'; ovCtx.fill('evenodd');
+        ovCtx.strokeStyle = 'rgba(196,206,212,.16)';
+        ovCtx.lineWidth = kmPx(0.012, 1);
+        ovCtx.stroke();
+        continue;
+      }
+      if (B.fill) { ovCtx.fillStyle = rgba(B.fill, focusRoute ? Math.min(0.85, B.fa + 0.25) : B.fa); ovCtx.fill('evenodd'); }
+      ovCtx.strokeStyle = focusRoute ? '#ffffff' : B.stroke;
+      ovCtx.lineWidth = kmPx(focusRoute ? 0.03 : B.sw, focusRoute ? 2 : 1.2);
       ovCtx.stroke();
     }
     // case predios: white outline on top so they read as "caso" even when their band is low / sin dato
     for (const f of caseFeatures) {
       if (f.properties.id === selectedId || !hit(f)) continue;
+      if (focusRoute && !routeIds.has(f.properties.id)) continue;
       tracePath(f);
       ovCtx.save();
       ovCtx.setLineDash([kmPx(0.05, 3), kmPx(0.03, 2)]);
@@ -906,6 +937,7 @@ export async function initValle({
     ruta = inp.ruta;
     routeCoords = ruta && ruta.geometry && ruta.geometry.type === 'LineString' ? ruta.geometry.coordinates : [];
     paradas = (ruta && ruta.paradas) || [];
+    routeIds = new Set(paradas.map((x) => String(x.predio_id)));
 
     // cases: from the zone's case list, plus any predio flagged with `caso`
     const caseList = [];
@@ -1847,6 +1879,8 @@ export async function initValle({
     if (overlayAmt !== ovTarget) { overlayAmt = clamp(overlayAmt + Math.sign(ovTarget - overlayAmt) * dt * 1.4, 0, 1); dirty = true; }
     const rTarget = state.routeOn && entered && !(anim && anim.kind === 'exit') ? 1 : 0;
     if (routeAmt !== rTarget) { routeAmt = clamp(routeAmt + Math.sign(rTarget - routeAmt) * dt * 3, 0, 1); dirty = true; }
+    const dTarget = state.routeFocus && entered && routeIds.size && !(anim && anim.kind === 'exit') ? 1 : 0;
+    if (dimAmt !== dTarget) { dimAmt = clamp(dimAmt + Math.sign(dTarget - dimAmt) * dt * 2.5, 0, 1); dirty = true; }
 
     if (routePlay && routePlay.chase) stepChase(now, dt);
     else if (routePlay) {
@@ -1878,6 +1912,7 @@ export async function initValle({
       }
     }
     uniforms.uOverlayAmt.value = overlayAmt;
+    uniforms.uDim.value = dimAmt;
     dotUniforms.uAmt.value = overlayAmt;
     routeUniforms.uAmt.value = routeAmt;
     routeUniforms.uDrawn.value = state.routeT >= 1 ? routeLen + 1 : state.routeT * routeLen;
@@ -1985,6 +2020,13 @@ export async function initValle({
     showRoute(on) { state.routeOn = !!on; dirty = true; },
     /** case badges on the scene: only while the Casos tab is open (a selected case always shows) */
     showCasos(on) { state.casosOn = !!on; dirty = true; },
+    /** Ruta tab: only the predios the route visits keep their colour; the rest fade (and the ground dims) */
+    setRouteFocus(on) {
+      on = !!on;
+      if (on === state.routeFocus) return;
+      state.routeFocus = on;
+      drawOverlay();
+    },
     setYear(y) {
       if (!years.length) return;
       state.year = clamp(Number(y) || lastYear, years[0], lastYear);

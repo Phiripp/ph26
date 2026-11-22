@@ -84,13 +84,6 @@ export function renderRuta(el, data, { onPlay, onStop, onGPX } = {}) {
     return [m != null ? `${fmtNum(m, 0)} min` : null, k != null ? `${fmtNum(k, 1)} km` : null].filter(Boolean).join(' · ');
   };
 
-  const nCand = num(r.n_candidatos);
-  const visita = num(r.min_por_visita);
-  const jornada = num(r.jornada_h);
-  const nota = nCand != null && nCand > paradas.length
-    ? `De ${fmtNum(nCand)} predios en prioridad alta y media, ${paradas.length} caben en una jornada${jornada ? ` de ${fmtNum(jornada)} h` : ''}${visita ? ` con ${fmtNum(visita)} min por predio` : ''}. Orden óptimo sobre caminos reales.`
-    : 'Orden óptimo sobre caminos reales, priorizando predios en prioridad alta y media.';
-
   el.innerHTML = `
     <header class="pn-fh">
       <h3 class="pn-title">${esc(head)}</h3>
@@ -112,9 +105,8 @@ export function renderRuta(el, data, { onPlay, onStop, onGPX } = {}) {
     <div class="pn-actions">
       <button type="button" class="btn primary" data-act="play">▶ Recorrer ruta</button>
       ${gmapsBtns}
-    </div>
-    <p class="pn-note"><a data-act="gpx" href="${esc(data.gpxUrl || data.base + 'ruta.gpx')}" download="caudal-ruta-${esc(data.id || 'zona')}.gpx">Descargar GPX</a> para otras apps de navegación.</p>
-    <p class="pn-note">${esc(nota)}</p>`;
+      <a class="btn" data-act="gpx" href="${esc(data.gpxUrl || data.base + 'ruta.gpx')}" download="caudal-ruta-${esc(data.id || 'zona')}.gpx" title="Para otras apps de navegación">Descargar GPX ↓</a>
+    </div>`;
 
   const playBtn = el.querySelector('[data-act="play"]');
   const bar = el.querySelector('.pn-prog i');

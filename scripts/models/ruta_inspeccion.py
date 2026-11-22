@@ -18,7 +18,10 @@ Reglas:
 - Tiempos y km entre paradas: matriz `/table` de OSRM (perfil auto). Trazado de la ruta: `/route` de OSRM. Las
   horas de llegada salen de la matriz, que es lo que usó el solver.
 - Motivos de los predios fuera: `fuera_de_alcance` (ida + visita + vuelta no caben en la jornada ni solos),
-  `sin_ruta` (OSRM no encuentra camino) y `no_cabe_en_jornada` (el resto).
+  `sin_ruta` (OSRM no encuentra camino), `tope_de_paradas` (la ruta ya tiene `--max-paradas` predios) y
+  `no_cabe_en_jornada` (el resto).
+- Tope de paradas (`--max-paradas`, opcional): la ruta visita a lo más esa cantidad de predios, aunque quepan
+  más en la jornada. El solver elige cuáles con la misma regla (primero puntaje, después tiempo).
 - Puntos de inicio por defecto: plaza de armas de la capital provincial de cada zona (ver INICIOS).
 
 OSRM: servidor público (router.project-osrm.org, datos de OpenStreetMap), decisión D9. Cada respuesta se guarda
@@ -42,6 +45,7 @@ Uso desde el backend:
     r = ruta(df[["predio_id", "puntaje", "lon", "lat"]], inicio=(-71.2316, -32.4494), hora_inicio="08:30")
 
 Uso: uv run scripts/models/ruta_inspeccion.py --zona Z1 --demo [--jornada-h 8] [--min-visita 30] [--hora 08:30]
+         [--max-paradas 5]
      uv run scripts/models/ruta_inspeccion.py --zona Z2 --puntajes data/processed/puntaje.parquet [--top 40]
 """
 
@@ -134,12 +138,15 @@ def osrm_trazado(puntos, **kw) -> dict:
 # ------------------------------------------------------------------------------------------ solver
 
 def resolver(duracion: list[list[int]], penalizacion: list[int], servicio_s: int, jornada_s: int,
-             limite_s: int = 5) -> list[int]:
+             limite_s: int = 5, max_paradas: int | None = None) -> list[int]:
     """Prize-collecting TSP. Nodo 0 = inicio; devuelve los nodos visitados en orden (sin el 0).
 
     duracion: matriz (n+1)x(n+1) en segundos; penalizacion[i] se paga si el nodo i (1..n) queda fuera
     (penalizacion[0] se ignora). El tiempo acumulado (manejo + servicio_s por parada) no supera jornada_s.
+    max_paradas: si se indica, la ruta visita a lo más esa cantidad de nodos.
     """
+    if max_paradas is not None and max_paradas < 1:
+        raise ValueError(f"max_paradas debe ser 1 o más (llegó {max_paradas})")
     from ortools.constraint_solver import pywrapcp, routing_enums_pb2
 
     n = len(duracion)
@@ -153,6 +160,10 @@ def resolver(duracion: list[list[int]], penalizacion: list[int], servicio_s: int
     cb = routing.RegisterTransitCallback(transito)
     routing.SetArcCostEvaluatorOfAllVehicles(cb)
     routing.AddDimension(cb, 0, jornada_s, True, "tiempo")
+    if max_paradas is not None:
+        # cada predio visitado suma 1; el inicio no cuenta
+        cuenta = routing.RegisterUnaryTransitCallback(lambda i: 0 if manager.IndexToNode(i) == 0 else 1)
+        routing.AddDimension(cuenta, 0, int(max_paradas), True, "paradas")
     for nodo in range(1, n):
         routing.AddDisjunction([manager.NodeToIndex(nodo)], int(penalizacion[nodo]))
 
@@ -188,11 +199,13 @@ def _nav(lon, lat) -> str:
 
 
 def ruta(predios: pd.DataFrame, inicio: tuple[float, float], hora_inicio="08:30", jornada_h: float = 8,
-         min_por_visita: float = 30, limite_s: int = 5, cache: Path = CACHE_OSRM) -> dict:
+         min_por_visita: float = 30, limite_s: int = 5, cache: Path = CACHE_OSRM,
+         max_paradas: int | None = None) -> dict:
     """Ruta de inspección de una jornada.
 
     predios: DataFrame con predio_id, puntaje, lon, lat (punto representativo del predio, EPSG:4326).
     inicio: (lon, lat) de salida y llegada. hora_inicio: "HH:MM", datetime.time o datetime.
+    max_paradas: tope de predios visitados (None = los que quepan en la jornada).
     Devuelve un dict serializable a JSON (ver `a_geojson` y `a_gpx` para exportar).
     """
     p = predios.reset_index(drop=True)
@@ -210,7 +223,7 @@ def ruta(predios: pd.DataFrame, inicio: tuple[float, float], hora_inicio="08:30"
 
     pmax = max(float(p["puntaje"].max()), 1e-9) if len(p) else 1.0
     penal = [0] + [round(max(s, 0) / pmax * 100 * jornada_s) for s in p["puntaje"]]
-    orden = resolver(dur, penal, servicio_s, jornada_s, limite_s) if len(p) else []
+    orden = resolver(dur, penal, servicio_s, jornada_s, limite_s, max_paradas) if len(p) else []
 
     dest = tabla["destinations"]
     paradas, t, km, prev = [], 0, 0.0, 0
@@ -235,6 +248,7 @@ def ruta(predios: pd.DataFrame, inicio: tuple[float, float], hora_inicio="08:30"
         km += dist[prev][0] / 1000
 
     visitados = set(orden)
+    con_tope = max_paradas is not None and len(orden) >= max_paradas
     fuera = []
     for i in range(1, len(puntos)):
         if i in visitados:
@@ -243,6 +257,8 @@ def ruta(predios: pd.DataFrame, inicio: tuple[float, float], hora_inicio="08:30"
             motivo = "sin_ruta"
         elif dur[0][i] + servicio_s + dur[i][0] > jornada_s:
             motivo = "fuera_de_alcance"
+        elif con_tope:
+            motivo = "tope_de_paradas"
         else:
             motivo = "no_cabe_en_jornada"
         fila = p.iloc[i - 1]
@@ -262,7 +278,7 @@ def ruta(predios: pd.DataFrame, inicio: tuple[float, float], hora_inicio="08:30"
         "inicio": {"lon": inicio[0], "lat": inicio[1], "acceso_lon": tabla["sources"][0]["location"][0],
                    "acceso_lat": tabla["sources"][0]["location"][1], "camino": tabla["sources"][0].get("name") or ""},
         "hora_inicio": t0.strftime("%H:%M"), "hora_termino": (t0 + timedelta(seconds=t)).strftime("%H:%M"),
-        "jornada_h": jornada_h, "min_por_visita": min_por_visita,
+        "jornada_h": jornada_h, "min_por_visita": min_por_visita, "max_paradas": max_paradas,
         "total_min": round(t / 60, 1), "manejo_min": round((t - visita_s) / 60, 1), "visita_min": round(visita_s / 60, 1),
         "total_km": round(km, 1), "km_trazado": km_trazado,
         "n_candidatos": len(p), "n_visitados": len(paradas),
@@ -369,6 +385,7 @@ def main() -> int:
     ap.add_argument("--hora", default="08:30", help="hora de inicio HH:MM")
     ap.add_argument("--jornada-h", type=float, default=8)
     ap.add_argument("--min-visita", type=float, default=30)
+    ap.add_argument("--max-paradas", type=int, help="tope de predios en la ruta (por defecto, los que quepan)")
     ap.add_argument("--limite-s", type=int, default=5, help="segundos de búsqueda de OR-Tools")
     ap.add_argument("--salida", type=Path, help="prefijo de salida (sin extensión)")
     args = ap.parse_args()
@@ -392,7 +409,8 @@ def main() -> int:
         lon, lat = map(float, args.inicio.split(","))
         ini = {"nombre": "Inicio", "lon": lon, "lat": lat}
     try:
-        r = ruta(cand, (ini["lon"], ini["lat"]), args.hora, args.jornada_h, args.min_visita, args.limite_s)
+        r = ruta(cand, (ini["lon"], ini["lat"]), args.hora, args.jornada_h, args.min_visita, args.limite_s,
+                 max_paradas=args.max_paradas)
     except ErrorOSRM as e:
         print(f"Error: {e}", file=sys.stderr)
         return 2

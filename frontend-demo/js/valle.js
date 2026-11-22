@@ -415,6 +415,7 @@ export async function initValle({
     padding: '6px 8px', background: 'rgba(5,8,11,.88)', border: '1px solid #fff', color: '#e8eef0',
     letterSpacing: '.04em', lineHeight: '1.45', boxShadow: '0 6px 24px rgba(0,0,0,.45)',
   });
+  selLabel.className = 'v-sel';
   layer.appendChild(selLabel);
   const tip = document.createElement('div');
   Object.assign(tip.style, {
@@ -422,6 +423,7 @@ export async function initValle({
     padding: '4px 7px', background: 'rgba(5,8,11,.88)', border: '1px solid rgba(232,238,240,.35)', color: '#e8eef0',
     letterSpacing: '.05em',
   });
+  tip.className = 'v-tip';
   layer.appendChild(tip);
 
   // ---------- per-zone state (rebuilt by build()) ----------
@@ -435,6 +437,7 @@ export async function initValle({
   let terrain = null, routeMesh = null, dots = null;
   let routeLen = 0, routeSamples = [];
   let ovCanvas = null, ovCtx = null, ovTex = null, OW = 1, OH = 1, pxPerKm = 1;
+  let texKm = 0.01, camBox = null; // ground texel size (km) and the gesture clamp box (world xz)
   let satTex = {}, satLoading = {};
   let stops = [], startPin = null, zoneEls = [];
   let outsideImagery = [];
@@ -451,6 +454,7 @@ export async function initValle({
   let overlayAmt = 0, routeAmt = 0;
   let routePlay = null;
   let hoverId = null;
+  let hoverCaso = null; // case badge under the mouse: its tag always shows
   let selectedId = null;
   let active = false, entered = false, rafId = 0, prev = performance.now();
   let pendingFocus = null; // predio id to focus once the descent finishes
@@ -464,8 +468,20 @@ export async function initValle({
   const home = { target: new THREE.Vector3(), r: 10 };
   let focus = null; // { id, target: Vector3, r }
   const insets = { right: 0, bottom: 0 };
+  // phone-sized stage (portrait < 700 px wide, or a landscape phone < 500 px tall): tighter margins,
+  // short case tags, a slightly more top-down home view and a minimum camera distance (sharp texels)
+  const isSmall = () => host.clientWidth < 700 || host.clientHeight < 500;
+  const isPortraitPhone = () => host.clientWidth < 700 && host.clientHeight > host.clientWidth;
+  const MOBILE_POL = THREE.MathUtils.degToRad(40);
+  const homePol = () => (isPortraitPhone() ? MOBILE_POL : FINAL_POL);
+  // closest camera distance on a phone: one ground texel spans at most ~2.4 css px at the target
+  function minCamR() {
+    if (!isSmall()) return 0;
+    const fh = Math.max(1, host.clientHeight);
+    return ((texKm / 2.4) * fh) / (2 * Math.tan(THREE.MathUtils.degToRad(camera.fov) / 2));
+  }
   const startPose = () => ({ pol: START_POL, r: home.r * 2.6, target: home.target.clone() });
-  const homePose = () => ({ pol: FINAL_POL, r: home.r, target: home.target.clone() });
+  const homePose = () => ({ pol: homePol(), r: home.r, target: home.target.clone() });
 
   function placeCameraWith(t, pol, r) {
     camera.position.set(t.x, t.y + r * Math.cos(pol), t.z + r * Math.sin(pol));
@@ -484,10 +500,23 @@ export async function initValle({
     tmpV.copy(v).project(camera);
     return { x: (tmpV.x * 0.5 + 0.5) * host.clientWidth, y: (-tmpV.y * 0.5 + 0.5) * host.clientHeight, ok: tmpV.z < 1 };
   }
+  // bottom edge (px from the stage top) of the header chrome over the top of the stage: brand + back button
+  function topChrome(fh) {
+    const hr = host.getBoundingClientRect();
+    let y = 0;
+    for (const el of document.querySelectorAll('#top .nav .brand, #back')) {
+      if (el.hidden || !el.offsetParent) continue;
+      const r = el.getBoundingClientRect();
+      if (r.height && r.top - hr.top < fh * 0.3) y = Math.max(y, r.bottom - hr.top);
+    }
+    return clamp(y ? y + 12 : 140, 56, Math.max(56, fh * 0.35));
+  }
   function viewport() {
     const fw = Math.max(1, host.clientWidth), fh = Math.max(1, host.clientHeight);
-    const small = fw < 700;
-    const m = { l: small ? 20 : 48, r: small ? 20 : (insets.right ? 150 : 60), t: small ? 90 : 120, b: small ? 24 : 60 };
+    const small = isSmall();
+    // phone: the top margin clears the stage chrome actually on screen (logo, back button); the bottom sheet
+    // comes in via insets.bottom
+    const m = { l: small ? 16 : 48, r: small ? (insets.right ? 24 : 16) : (insets.right ? 150 : 60), t: small ? topChrome(fh) : 120, b: small ? 16 : 60 };
     const vx0 = m.l, vx1 = Math.max(vx0 + 50, fw - Math.min(insets.right, fw * 0.6) - m.r);
     const vy0 = m.t, vy1 = Math.max(vy0 + 50, fh - Math.min(insets.bottom, fh * 0.6) - m.b);
     return { fw, fh, vx0, vx1, vy0, vy1 };
@@ -512,6 +541,7 @@ export async function initValle({
     }
     const { fw, fh, vx0, vx1, vy0, vy1 } = viewport();
     const vw = vx1 - vx0, vh = vy1 - vy0;
+    const pol = homePol();
     const [cu, cv] = toUV((FB.w + FB.e) / 2, (FB.s + FB.n) / 2);
     const t = uvToWorld(cu, cv); t.y = heightAt(cu, cv) * 0.6;
     // terrain perimeter: only constrains the horizontal fit, so an elongated zone (Z1 ~3.2:1) never
@@ -521,9 +551,12 @@ export async function initValle({
     if (host.clientWidth >= 700) for (let i = 0; i <= 8; i++) { const k = i / 8; edgePts.push(uvToWorld(k, 0), uvToWorld(k, 1), uvToWorld(0, k), uvToWorld(1, k)); }
     // case tags hang up-left of their ring (≈ tag width + stem); keep them ≥ 24 px inside the visible area
     // (x: tag left ≥ 24 px from the screen edge; y: tag top stays below the header margin vy0)
-    const tagPad = (c) => ({ l: Math.max(60, (c.tag && c.tag.offsetWidth) || 78) + 14 + 24 - vx0, t: ((c.tag && c.tag.offsetHeight) || 16) + 22 });
+    // (phones: tags are short and may flip right / hide when crowded, so only reserve a little room)
+    const tagPad = isSmall()
+      ? (c) => ({ l: 0, t: ((c.tag && c.tag.offsetHeight) || 16) + 10 })
+      : (c) => ({ l: Math.max(60, (c.tag && c.tag.offsetWidth) || 78) + 14 + 24 - vx0, t: ((c.tag && c.tag.offsetHeight) || 16) + 22 });
     const box = (r) => {
-      placeCameraWith(t, FINAL_POL, r); camera.updateMatrixWorld();
+      placeCameraWith(t, pol, r); camera.updateMatrixWorld();
       let x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity;
       // box() runs ~88 times per fit and there is one focus point per predio: project them inline
       // (same maths as project(), minus a Vector3 and two layout reads per point)
@@ -560,7 +593,7 @@ export async function initValle({
       const dxp = (bb.x0 + bb.x1) / 2 - (vx0 + vx1) / 2, dyp = (bb.y0 + bb.y1) / 2 - (vy0 + vy1) / 2;
       const wpp = (2 * r * Math.tan(THREE.MathUtils.degToRad(camera.fov) / 2)) / fh;
       t.x += dxp * wpp;
-      t.z += (dyp * wpp) / Math.cos(FINAL_POL);
+      t.z += (dyp * wpp) / Math.cos(pol);
       if (Math.abs(dxp) < 2 && Math.abs(dyp) < 2) break;
     }
     home.target.copy(t);
@@ -571,7 +604,8 @@ export async function initValle({
   function focusPoseFor(lon, lat, f) {
     let ext = 0.6;
     if (f) { const b = f._bb; ext = Math.max(ext, (b.e - b.w) * 111.32 * Math.cos(lat * Math.PI / 180) * 3, (b.n - b.s) * 110.54 * 3); }
-    const r = clamp(ext * 2.4, 1.6, Math.max(1.6, home.r * 0.6));
+    const rMin = Math.max(1.6, Math.min(minCamR(), home.r));
+    const r = clamp(ext * 2.4, rMin, Math.max(rMin, home.r * 0.6));
     const [u, v] = toUV(lon, lat);
     const t = uvToWorld(u, v);
     const { fw, fh, vx0, vx1, vy0, vy1 } = viewport();
@@ -583,6 +617,8 @@ export async function initValle({
   }
 
   let anim = null;
+  let tapOk = () => true; // false right after a drag / pinch (set up with the gesture handlers)
+  let userCam = false; // the user moved the camera by touch / mouse: keep their view on resize
   function cancelAnim() {
     if (!anim) return;
     const { resolve, kind } = anim;
@@ -592,6 +628,7 @@ export async function initValle({
   }
   function startAnim(to, dur, kind) {
     cancelAnim();
+    userCam = false;
     return new Promise((resolve) => {
       if (reduced || dur <= 0) {
         cam.pol = to.pol; cam.r = to.r; if (to.target) camT.copy(to.target);
@@ -633,12 +670,20 @@ export async function initValle({
     camera.aspect = w / h;
     camera.fov = w / h < 0.9 ? 52 : 38;
     camera.updateProjectionMatrix();
+    layer.classList.toggle('v-compact', isSmall());
     fitHome();
     if (focus) {
       const p = focusPoseFor(focus.lon, focus.lat, focus.f);
       focus.pose = p;
     }
-    if (!anim && SB) {
+    // an animation already under way heads for the re-fitted pose (e.g. the bottom sheet / side panel
+    // reported its size while the camera was still descending)
+    if (anim && SB) {
+      if (anim.kind === 'enter' || anim.kind === 'home') { const hp = homePose(); anim.to.pol = hp.pol; anim.to.r = hp.r; anim.to.target = hp.target; }
+      else if (anim.kind === 'focus' && focus) anim.to = { pol: focus.pose.pol, r: focus.pose.r, target: focus.pose.target.clone() };
+    }
+    if (userCam && !anim && SB) { clampCam(); placeCamera(); }
+    else if (!anim && SB) {
       const p = entered ? (focus ? focus.pose : homePose()) : startPose();
       cam.pol = p.pol; cam.r = p.r; camT.copy(p.target);
       placeCamera();
@@ -745,7 +790,7 @@ export async function initValle({
     if (ovTex) { ovTex.dispose(); ovTex = null; }
     zoneEls.forEach((el) => el.remove());
     zoneEls = []; stops = []; startPin = null; casos = [];
-    selectedId = null; hoverId = null; focus = null; pendingFocus = null; focusPts = null; focusArr = null;
+    selectedId = null; hoverId = null; hoverCaso = null; userCam = false; focus = null; pendingFocus = null; focusPts = null; focusArr = null;
     state.routeT = 0; lastT = 0; lastReached = 0;
     selLabel.style.transform = OFF; tip.style.transform = OFF; headDot.style.opacity = '0';
   }
@@ -933,6 +978,17 @@ export async function initValle({
     OW = W >= H ? OVERLAY_MAX : Math.round(OVERLAY_MAX * W / H);
     OH = W >= H ? Math.round(OVERLAY_MAX * H / W) : OVERLAY_MAX;
     pxPerKm = OW / W;
+    // ground texel (km): the coarser of the predio overlay and the satellite image (Sentinel-2, ~10 m/px);
+    // caps how close the camera may get on a phone (minCamR)
+    {
+      const iw = lastImg ? (lastImg.width || lastImg.naturalWidth || 0) : 0;
+      texKm = Math.max(W / OW, iw ? ((imgRect.z - imgRect.x) * W) / iw : 0.01, 0.004);
+    }
+    // gesture clamp: the framed area (predios + cases + route) in world xz
+    {
+      const [u0, v0] = toUV(FB.w, FB.n), [u1, v1] = toUV(FB.e, FB.s);
+      camBox = { x0: (u0 - 0.5) * W, x1: (u1 - 0.5) * W, z0: (0.5 - v0) * H, z1: (0.5 - v1) * H };
+    }
     // per-zone tables for the overlay and picking: paint order, case predios, pixel bbox, id -> index
     sortedFeatures = features.slice().sort((a, b) => BAND_ORDER.indexOf(a.properties.banda) - BAND_ORDER.indexOf(b.properties.banda));
     caseFeatures = features.filter((f) => casoByPredio.has(f.properties.id));
@@ -1055,7 +1111,7 @@ export async function initValle({
         position: 'absolute', left: '0', top: '0', padding: '0', margin: '0', border: '0', background: 'none', zIndex: '3',
         cursor: 'pointer', pointerEvents: 'auto', transform: OFF, willChange: 'transform',
       });
-      el.addEventListener('click', (ev) => { ev.stopPropagation(); pick(String(s.predio_id), true); });
+      el.addEventListener('click', (ev) => { ev.stopPropagation(); if (tapOk()) pick(String(s.predio_id), true); });
       layer.appendChild(el); zoneEls.push(el);
       stops.push({ s, d, el, num: el.querySelector('[data-n]'), stem: el.querySelector('[data-stem]'), col: colr, world: llToWorld(+s.lon, +s.lat), reached: null });
     }
@@ -1066,26 +1122,28 @@ export async function initValle({
         + `<span style="display:block;margin-top:7px;white-space:nowrap;padding:3px 6px;background:rgba(5,8,11,.78);border:1px solid rgba(69,214,238,.5);color:${CYAN};letter-spacing:.06em">INICIO · ${esc(String(ruta.inicio.nombre || '').toUpperCase())}${hIni ? ' · ' + esc(hIni) : ''}</span>`;
       Object.assign(el.style, { position: 'absolute', left: '0', top: '0', transform: OFF, textAlign: 'center', zIndex: '1' });
       layer.appendChild(el); zoneEls.push(el);
-      startPin = { el, world: llToWorld(ruta.inicio.lon, ruta.inicio.lat, 0.01) };
+      startPin = { el, cap: el.lastElementChild, world: llToWorld(ruta.inicio.lon, ruta.inicio.lat, 0.01) };
     }
     for (const c of caseList) {
       const el = document.createElement('button');
       el.type = 'button';
+      el.className = 'v-case';
       el.setAttribute('aria-label', `Caso sancionado por la DGA ${c.exp}${c.comuna ? ', ' + titleCase(c.comuna) : ''}`);
       el.title = `${c.exp}${c.comuna ? ' · ' + titleCase(c.comuna) : ''} · caso sancionado por la DGA`;
       el.innerHTML = `<span data-ring style="position:absolute;left:0;top:0;width:18px;height:18px;border-radius:50%;border:2px solid ${CASE_COL};box-shadow:0 0 0 1px rgba(5,8,11,.7),0 0 10px rgba(255,255,255,.55);box-sizing:border-box"></span>`
         + `<span data-stem style="position:absolute;left:9px;top:9px;width:1px;background:rgba(255,255,255,.7);transform-origin:0 0"></span>`
         + `<span data-tag style="position:absolute;left:9px;top:9px;white-space:nowrap;padding:2px 5px;background:rgba(5,8,11,.88);border:1px solid ${CASE_COL};color:#fff;font:600 10px/1.2 'IBM Plex Mono',ui-monospace,monospace;letter-spacing:.06em">`
-        + `<span style="opacity:.7">CASO</span> ${esc(expShort(c.exp))}</span>`;
+        + `<span class="v-casow" style="opacity:.7">CASO </span>${esc(expShort(c.exp))}</span>`;
       Object.assign(el.style, {
         position: 'absolute', left: '0', top: '0', width: '18px', height: '18px', padding: '0', margin: '-9px 0 0 -9px', border: '0', background: 'none',
         cursor: 'pointer', pointerEvents: 'auto', transform: OFF, willChange: 'transform', zIndex: '4',
       });
-      el.addEventListener('click', (ev) => { ev.stopPropagation(); selectCasoInternal(c.exp, { focus: true, notify: true }); });
-      el.addEventListener('pointerenter', () => { el.style.zIndex = '6'; });
-      el.addEventListener('pointerleave', () => { el.style.zIndex = '4'; });
+      el.addEventListener('click', (ev) => { ev.stopPropagation(); if (tapOk()) selectCasoInternal(c.exp, { focus: true, notify: true }); });
+      const rec = { ...c, el };
+      el.addEventListener('pointerenter', (ev) => { el.style.zIndex = '6'; if (ev.pointerType === 'mouse') { hoverCaso = rec; dirty = true; } });
+      el.addEventListener('pointerleave', () => { el.style.zIndex = '4'; if (hoverCaso === rec) { hoverCaso = null; dirty = true; } });
       layer.appendChild(el); zoneEls.push(el);
-      casos.push({ ...c, el, ring: el.querySelector('[data-ring]'), tag: el.querySelector('[data-tag]'), stem: el.querySelector('[data-stem]'), world: llToWorld(c.lon, c.lat, 0.02) });
+      casos.push(Object.assign(rec, { ring: el.querySelector('[data-ring]'), tag: el.querySelector('[data-tag]'), stem: el.querySelector('[data-stem]'), world: llToWorld(c.lon, c.lat, 0.02) }));
     }
 
     drawOverlay();
@@ -1184,36 +1242,57 @@ export async function initValle({
     // case badges: ring on the ground point + tag offset up-left (stacked when close; stops sit up-right)
     // stop badges already placed count as obstacles for the case tags
     const tags = showStops ? placed.map((q) => ({ x: q.x - 13, y: q.y - 13, w: 26, h: 26 })) : [];
+    const maxX = host.clientWidth - Math.min(insets.right, host.clientWidth * 0.6) - 4;
     if (startPin) {
       const g = project(startPin.world);
       const on = showStops && g.ok;
       startPin.el.style.transform = on ? `translate(calc(${g.x.toFixed(1)}px - 50%), ${(g.y - 5).toFixed(1)}px)` : OFF;
-      if (on) { const w = startPin.el.offsetWidth || 200, h = startPin.el.offsetHeight || 30; tags.push({ x: g.x - w / 2, y: g.y - 5, w, h, pin: true }); }
+      if (on) {
+        const w = startPin.el.offsetWidth || 200, h = startPin.el.offsetHeight || 30;
+        // keep the "INICIO · …" caption on screen (the diamond stays on its point)
+        const x0 = g.x - w / 2, sx = clamp(x0, 4, Math.max(4, maxX - w)) - x0;
+        if (startPin.cap) startPin.cap.style.transform = sx ? `translateX(${sx.toFixed(1)}px)` : '';
+        tags.push({ x: x0 + sx, y: g.y - 5, w, h, pin: true });
+      }
     }
-    const maxX = host.clientWidth - Math.min(insets.right, host.clientWidth * 0.6) - 4;
-    const order = casos.map((c) => ({ c, g: project(c.world) })).sort((a, b) => a.g.x - b.g.x);
-    for (const { c, g } of order) {
+    // declutter: the selected / hovered case is placed first and always keeps its tag; any other tag that
+    // cannot find a free spot (up-left / up-right / down-left / down-right) is hidden (its ring stays)
+    const isSel = (c) => (c.predioId ? c.predioId === selectedId : selectedCaso === c.exp);
+    const order = casos.map((c) => ({ c, g: project(c.world), pri: isSel(c) ? 2 : hoverCaso === c ? 1 : 0 }))
+      .sort((a, b) => b.pri - a.pri || a.g.x - b.g.x);
+    const rings = order.filter(({ g }) => entered && g.ok).map(({ c, g }) => ({ c, x: g.x - 10, y: g.y - 10, w: 20, h: 20 }));
+    for (const { c, g, pri } of order) {
       if (!entered || !g.ok) { c.el.style.transform = OFF; continue; }
       const tw = c.tag.offsetWidth || 78, th = c.tag.offsetHeight || 16;
-      let tx = -tw - 14, ty = -th - 22;
-      if (g.x + tx < 8) tx = 14; // flip to the right near the left edge
-      const hitAt = (x, y) => tags.find((q) => g.x + x < q.x + q.w + 4 && g.x + x + tw + 4 > q.x && g.y + y < q.y + q.h + 3 && g.y + y + th + 3 > q.y);
-      // try up-left / up-right / down-left / down-right, then stack upwards
-      const cands = [[tx, ty], [14, ty], [tx, 14], [14, 14]];
-      const free = cands.find(([x, y]) => g.x + x >= 4 && g.x + x + tw <= maxX && !hitAt(x, y))
-        || cands.find(([x, y]) => g.x + x >= 4 && g.x + x + tw <= maxX);
+      const gap = isSmall() ? 8 : 14, up = isSmall() ? th + 14 : th + 22;
+      let tx = -tw - gap, ty = -up;
+      const over = (x, y, q) => g.x + x < q.x + q.w + 4 && g.x + x + tw + 4 > q.x && g.y + y < q.y + q.h + 3 && g.y + y + th + 3 > q.y;
+      const hitAt = (x, y) => tags.find((q) => over(x, y, q));
+      const ringAt = (x, y) => rings.some((q) => q.c !== c && over(x, y, q));
+      const inside = (x) => g.x + x >= 4 && g.x + x + tw <= maxX;
+      const cands = [[tx, ty], [gap, ty], [tx, gap], [gap, gap]];
+      const free = cands.find(([x, y]) => inside(x) && !hitAt(x, y) && !ringAt(x, y))
+        || cands.find(([x, y]) => inside(x) && !hitAt(x, y));
+      let show = true;
       if (free) [tx, ty] = free;
-      else for (let k = 0; k < 8; k++) { const hit = hitAt(tx, ty); if (!hit) break; ty = hit.y - g.y - th - 4; }
-      tags.push({ x: g.x + tx, y: g.y + ty, w: tw, h: th });
+      else if (pri > 0) {
+        // keep it anyway: stack upwards out of the way
+        const c0 = cands.find(([x]) => inside(x)); if (c0) [tx, ty] = c0;
+        for (let k = 0; k < 8; k++) { const hit = hitAt(tx, ty); if (!hit) break; ty = hit.y - g.y - th - 4; }
+      } else show = false;
       c.el.style.transform = `translate(${g.x.toFixed(1)}px, ${g.y.toFixed(1)}px)`;
-      c.tag.style.transform = `translate(${tx.toFixed(1)}px, ${ty.toFixed(1)}px)`;
-      // stem from the ring edge to the tag's bottom-right corner
-      const ex = tx < 0 ? tx + tw : tx, ey = ty < 0 ? ty + th : ty;
-      const len = Math.hypot(ex, ey), ang = Math.atan2(ey, ex);
-      c.stem.style.height = '1px';
-      c.stem.style.width = `${Math.max(0, len - 9).toFixed(1)}px`;
-      c.stem.style.transform = `rotate(${(ang * 180 / Math.PI).toFixed(1)}deg) translateX(9px)`;
-      const sel = c.predioId ? c.predioId === selectedId : selectedCaso === c.exp;
+      if (show !== c.shown) { c.shown = show; c.tag.style.visibility = c.stem.style.visibility = show ? '' : 'hidden'; }
+      if (show) {
+        tags.push({ x: g.x + tx, y: g.y + ty, w: tw, h: th, c: pri ? null : c });
+        c.tag.style.transform = `translate(${tx.toFixed(1)}px, ${ty.toFixed(1)}px)`;
+        // stem from the ring edge to the tag's nearest corner
+        const ex = tx < 0 ? tx + tw : tx, ey = ty < 0 ? ty + th : ty;
+        const len = Math.hypot(ex, ey), ang = Math.atan2(ey, ex);
+        c.stem.style.height = '1px';
+        c.stem.style.width = `${Math.max(0, len - 9).toFixed(1)}px`;
+        c.stem.style.transform = `rotate(${(ang * 180 / Math.PI).toFixed(1)}deg) translateX(9px)`;
+      }
+      const sel = pri === 2;
       if (sel !== c.sel) {
         c.sel = sel;
         c.ring.style.boxShadow = sel ? '0 0 0 3px rgba(255,255,255,.35),0 0 16px rgba(255,255,255,.9)' : '0 0 0 1px rgba(5,8,11,.7),0 0 10px rgba(255,255,255,.55)';
@@ -1242,9 +1321,12 @@ export async function initValle({
         const hits = (x, y, q) => x < q.x + q.w + 6 && x + w + 6 > q.x && y < q.y + q.h + 6 && y + h + 6 > q.y;
         // the route INICIO label must never be covered: hide the selection label if no position clears it
         const pinRect = startPin && showStops && routeAmt > 0 ? tags.find((q) => q.pin) : null;
+        // prefer a spot that covers nothing; else one that only covers ordinary case tags, which then hide
         lp = cands.find(([x, y]) => !tags.some((q) => hits(x, y, q)))
+          || cands.find(([x, y]) => !tags.some((q) => !q.c && hits(x, y, q)))
           || cands.find(([x, y]) => !pinRect || !hits(x, y, pinRect))
           || null;
+        if (lp) for (const q of tags) if (q.c && hits(lp[0], lp[1], q)) { q.c.shown = false; q.c.tag.style.visibility = q.c.stem.style.visibility = 'hidden'; }
       }
     }
     selLabel.style.transform = lp ? `translate(${lp[0].toFixed(1)}px, ${lp[1].toFixed(1)}px)` : OFF;
@@ -1331,8 +1413,9 @@ export async function initValle({
   }
 
   let pendingMove = null;
-  canvas.addEventListener('pointermove', (ev) => { pendingMove = { x: ev.clientX, y: ev.clientY }; });
-  canvas.addEventListener('pointerleave', () => { pendingMove = null; setHover(null); });
+  // hover tooltip: mouse only. On touch / pen (or a (hover:none) device) a tap selects directly.
+  const noHover = window.matchMedia ? window.matchMedia('(hover: none)') : { matches: false };
+  canvas.addEventListener('pointerleave', (ev) => { if (!ptrs.has(ev.pointerId)) { pendingMove = null; setHover(null); } });
   function setHover(f, x, y) {
     const id = f ? String(f.properties.id) : null;
     canvas.style.cursor = f ? 'pointer' : '';
@@ -1348,10 +1431,114 @@ export async function initValle({
     const r = host.getBoundingClientRect();
     tip.style.transform = `translate(${(x - r.left + 14).toFixed(1)}px, ${(y - r.top + 14).toFixed(1)}px)`;
   }
+  // ---------- camera gestures (touch: 1 finger pans, 2 fingers pinch-zoom; mouse: drag pans, wheel zooms) ----------
+  // A tap (< 6 px of travel, one finger) still selects through the click handler below. Gestures interrupt a
+  // focus / home fly-to cleanly (the camera stays where the user leaves it) and are ignored during the
+  // enter / exit descents. Route playback does not move the camera, so gestures work while it plays.
   let downAt = null;
-  canvas.addEventListener('pointerdown', (ev) => { downAt = { x: ev.clientX, y: ev.clientY }; });
+  const ptrs = new Map(); // pointerId -> {x, y}
+  let gest = null;        // {moved, dist, mx, my}
+  let suppressClick = false;
+  const gestureOk = () => active && entered && !!SB && !(anim && (anim.kind === 'enter' || anim.kind === 'exit'));
+  const wppNow = () => (2 * cam.r * Math.tan(THREE.MathUtils.degToRad(camera.fov) / 2)) / Math.max(1, host.clientHeight);
+  function clampCam() {
+    const rLo = Math.max(0.6, minCamR() * 0.75), rHi = Math.max(rLo, home.r * 1.6);
+    cam.r = clamp(cam.r, rLo, rHi);
+    if (camBox) {
+      const pad = cam.r * 0.5;
+      camT.x = clamp(camT.x, Math.min(camBox.x0, camBox.x1) - pad, Math.max(camBox.x0, camBox.x1) + pad);
+      camT.z = clamp(camT.z, Math.min(camBox.z0, camBox.z1) - pad, Math.max(camBox.z0, camBox.z1) + pad);
+    }
+  }
+  function takeCam() {
+    if (anim && (anim.kind === 'focus' || anim.kind === 'home')) { const a = anim; anim = null; a.resolve(); }
+    userCam = true;
+    pendingMove = null; setHover(null);
+  }
+  function panBy(dx, dy) {
+    const w = wppNow();
+    camT.x -= dx * w;
+    camT.z -= (dy * w) / Math.cos(cam.pol);
+  }
+  // zoom by factor f (r *= f) keeping the ground under (cx, cy) roughly in place
+  function zoomBy(f, cx, cy) {
+    const hr = host.getBoundingClientRect();
+    const r0 = cam.r;
+    cam.r = r0 * f; clampCam();
+    const k = 1 - cam.r / r0, w = wppNow() * (r0 / cam.r);
+    camT.x += (cx - hr.left - hr.width / 2) * w * k;
+    camT.z += ((cy - hr.top - hr.height / 2) * w * k) / Math.cos(cam.pol);
+  }
+  function pinchState() {
+    const pts = [...ptrs.values()];
+    if (pts.length < 2) return { dist: 0, mx: pts[0] ? pts[0].x : 0, my: pts[0] ? pts[0].y : 0 };
+    const [a, b] = pts;
+    return { dist: Math.hypot(a.x - b.x, a.y - b.y), mx: (a.x + b.x) / 2, my: (a.y + b.y) / 2 };
+  }
+  // also starts on a case / stop badge (delegated from the HTML layer): the canvas captures the pointer, so a
+  // drag or pinch that begins on a label still moves the camera; the badge's click is then ignored (tapOk)
+  function gestureDown(ev) {
+    if (!ptrs.size) { downAt = { x: ev.clientX, y: ev.clientY }; suppressClick = false; }
+    if (ev.pointerType !== 'mouse') { pendingMove = null; setHover(null); }
+    if (!gestureOk() || (ev.pointerType === 'mouse' && ev.button !== 0)) return;
+    ptrs.set(ev.pointerId, { x: ev.clientX, y: ev.clientY });
+    if (ptrs.size > 1) suppressClick = true; // a second finger: never a tap
+    gest = { moved: ptrs.size > 1 || (gest ? gest.moved : false), ...pinchState() };
+  }
+  canvas.addEventListener('pointerdown', gestureDown);
+  layer.addEventListener('pointerdown', (ev) => { if (ev.target !== layer) gestureDown(ev); });
+  tapOk = () => { if (!suppressClick) return true; suppressClick = false; return false; };
+  // gesture moves are followed on window (a touch stays bound to the element it started on, maybe a badge);
+  // the canvas only takes the pointer capture once the gesture really starts, so a plain tap on a badge
+  // still clicks that badge
+  window.addEventListener('pointermove', (ev) => {
+    const p = ptrs.get(ev.pointerId);
+    if (p && gest) {
+      const px = p.x, py = p.y;
+      p.x = ev.clientX; p.y = ev.clientY;
+      if (!gestureOk()) return;
+      if (!gest.moved) {
+        if (downAt && Math.hypot(ev.clientX - downAt.x, ev.clientY - downAt.y) <= 6) return;
+        gest.moved = true; suppressClick = true;
+        for (const id of ptrs.keys()) { try { canvas.setPointerCapture(id); } catch (_) { /* opcional */ } }
+      }
+      takeCam();
+      if (ptrs.size === 1) panBy(ev.clientX - px, ev.clientY - py);
+      else {
+        const st = pinchState();
+        if (gest.dist > 0 && st.dist > 0) zoomBy(gest.dist / st.dist, st.mx, st.my);
+        panBy(st.mx - gest.mx, st.my - gest.my);
+        Object.assign(gest, st);
+      }
+      clampCam();
+      dirty = true;
+    }
+  });
+  canvas.addEventListener('pointermove', (ev) => {
+    if (ptrs.has(ev.pointerId) && gest && gest.moved) return;
+    if (ev.pointerType !== 'mouse' || noHover.matches) return; // no hover tooltip on touch
+    pendingMove = { x: ev.clientX, y: ev.clientY };
+  });
+  const endPtr = (ev) => {
+    if (!ptrs.delete(ev.pointerId)) return;
+    try { canvas.releasePointerCapture(ev.pointerId); } catch (_) { /* opcional */ }
+    if (ptrs.size) gest = { moved: true, ...pinchState() }; // pinch -> pan with the remaining finger, no jump
+    else gest = null;
+    if (ev.pointerType !== 'mouse') { pendingMove = null; setHover(null); }
+  };
+  window.addEventListener('pointerup', endPtr);
+  window.addEventListener('pointercancel', endPtr);
+  canvas.addEventListener('wheel', (ev) => {
+    if (!gestureOk()) return;
+    ev.preventDefault();
+    takeCam();
+    const d = clamp(ev.deltaY * (ev.deltaMode === 1 ? 16 : ev.deltaMode === 2 ? 400 : 1), -240, 240);
+    zoomBy(Math.exp(d * 0.0015), ev.clientX, ev.clientY);
+    dirty = true;
+  }, { passive: false });
   canvas.addEventListener('click', (ev) => {
     if (!active || anim || !entered) return;
+    if (!tapOk()) return;
     if (downAt && Math.hypot(ev.clientX - downAt.x, ev.clientY - downAt.y) > 6) return;
     const f = predioAtClient(ev.clientX, ev.clientY);
     pick(f ? f.properties.id : null, true);
@@ -1536,6 +1723,8 @@ export async function initValle({
     playRoute({ duration = 9000 } = {}) {
       if (routePlay) { const r = routePlay.resolve; routePlay = null; r(); }
       state.routeOn = true;
+      // the route is framed by the zone view: undo a touch pan / pinch first (the camera never moves on its own)
+      if (userCam && entered && active && !anim) startAnim(homePose(), reduced ? 0 : 700, 'home');
       const from = state.routeT >= 0.999 ? 0 : state.routeT;
       if (reduced || !active) { state.routeT = 1; dirty = true; checkRoute(); return Promise.resolve(); }
       return new Promise((resolve) => {

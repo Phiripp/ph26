@@ -1,5 +1,6 @@
 # caudal-api: FastAPI + DuckDB sobre los Parquet de data/processed/ y el expediente PDF (WeasyPrint).
-# No se construye desde la raíz del repo: scripts/cloud/api/desplegar.sh arma un contexto con api/, scripts/models/
+# No se construye desde la raíz del repo: scripts/cloud/api/desplegar.sh arma un contexto con api/, scripts/models/,
+# scripts/comun/ (rutas de datos que importan los modelos)
 # y los datos (incluido predio.parquet, que no está en git) y escribe data/VERSION.
 FROM python:3.12-slim
 
@@ -15,6 +16,7 @@ WORKDIR /app
 COPY api/requirements.txt api/requirements.txt
 RUN pip install --no-cache-dir -r api/requirements.txt
 
+COPY scripts/comun scripts/comun
 COPY scripts/models scripts/models
 COPY api api
 COPY data data

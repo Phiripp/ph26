@@ -76,7 +76,7 @@ ORIGENES=${ORIGENES:-$(gcloud run services describe "$WEB" --project "$PROYECTO"
 [ -n "$ORIGENES" ] || echo "AVISO: sin ORIGENES y sin $WEB desplegado: la página no podrá llamar a la API hasta fijar CAUDAL_ORIGENES" >&2
 
 gcloud run deploy "$SERVICIO" --project "$PROYECTO" --region "$REGION" --image "$IMAGEN" --allow-unauthenticated \
-  --cpu 2 --memory 2Gi --concurrency 20 --timeout 120 --min-instances 1 --max-instances 2 \
+  --cpu 2 --memory 2Gi --concurrency 20 --timeout 300 --min-instances 1 --max-instances 2 \
   --set-env-vars "^;^CAUDAL_ORIGENES=$ORIGENES"
 URL=$(gcloud run services describe "$SERVICIO" --project "$PROYECTO" --region "$REGION" --format 'value(status.url)')
 echo "Desplegado: $URL"

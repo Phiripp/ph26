@@ -5,12 +5,11 @@
 import { apiUrl, MODO_DEMO } from './config.js';
 import { esc } from './zona-data.js';
 
-// Sin ninguna señal del servidor en este tiempo, se usa el respaldo. El spec (F3) dice 20 s; para la demo va en 5 s,
-// para que la pantalla nunca se quede esperando a un servidor caído: el del candidato sale en ~2 s.
-const CONNECT_MS = 5000;
-// Si el servidor ya informa pasos, está generando uno nuevo (15 a 24 s): se espera mostrando esos pasos. El servidor
-// corta a los 60 s y avisa con `falla`; el margen extra cubre ese aviso.
-const GENERATE_MS = 70000;
+// Sin ninguna señal del servidor en este tiempo, se usa el respaldo (20 s, como pide el spec en F3).
+const CONNECT_MS = 20000;
+// Si el servidor ya informa pasos, está generando uno nuevo: se espera mostrando esos pasos. El servidor corta a los
+// 180 s (CAUDAL_TOPE_S) y avisa con `falla`; el margen extra cubre ese aviso.
+const GENERATE_MS = 190000;
 const BACKUP_DIR = 'data/respaldo/expedientes';
 const PDF_TYPE = 'application/pdf';
 const VIEW_PARAMS = '#toolbar=0&navpanes=0&view=FitH';

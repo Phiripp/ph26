@@ -34,7 +34,7 @@ sys.path.insert(0, str(datos.RAIZ / "scripts" / "models"))
 
 PREGENERADOS = datos.PROC / "expedientes"
 NUEVOS = Path(os.environ.get("CAUDAL_EXPEDIENTES") or PREGENERADOS)
-TOPE_S = 60
+TOPE_S = int(os.environ.get("CAUDAL_TOPE_S") or 180)  # debe quedar bajo el tiempo máximo del servicio en Cloud Run (300 s)
 ID = re.compile(r"^CAU-\d+-\d{12}$")
 
 _cola = ThreadPoolExecutor(max_workers=1, thread_name_prefix="expediente")

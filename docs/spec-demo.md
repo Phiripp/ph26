@@ -114,7 +114,7 @@ Navegador ──► caudal-web (Cloud Run, nginx, estático)
 ```
 
 - Un solo módulo, `api/datos.py`, arma cada recurso del [contrato de datos](#contrato-de-datos) a partir de `data/processed/` y llama a `explicacion.py` para la ficha. La API lo usa en cada solicitud, y `api/respaldo.py` pide cada ruta a la misma aplicación y escribe el respaldo en `frontend-demo/data/respaldo/` (una ruta por endpoint: `/api/zonas/Z2/ranking` → `respaldo/zonas/Z2/ranking.json`). Así la API y el respaldo no se pueden desalinear. Rutas, formas de respuesta y la función `api(ruta)` de ejemplo: [api/README.md](../api/README.md).
-- El frontend pide todo con una sola función, `api(ruta)` en `js/config.js` (la URL del backend va en `API_BASE`). Si la API no responde en 5 segundos o da error, lee el archivo equivalente del respaldo y muestra un aviso discreto: "datos del {fecha}".
+- El frontend pide todo con una sola función, `api(ruta)` en `js/config.js` (la URL del backend va en `API_BASE`). Si la API no responde en 15 segundos o da error, lee el archivo equivalente del respaldo y muestra un aviso discreto: "datos del {fecha}".
 - Para actualizar los datos se vuelve a desplegar `caudal-api`. Cada versión de datos queda en su propia revisión de Cloud Run, y para volver atrás basta con mover el tráfico a la revisión anterior.
 
 Cómo queda cada decisión:
@@ -252,7 +252,7 @@ Reglas:
 
 - Dos solicitudes con los mismos insumos devuelven el mismo expediente. La clave es el `hash_insumos` que ya calcula `expediente.py`. La respuesta lo dice (`reutilizado`), y la interfaz muestra la fecha de creación: no se presenta como recién generado algo que no lo es.
 - Si Earth Search o Esri no responden en 15 segundos, se genera sin imágenes (`con_imagenes: false`) en vez de fallar.
-- Tope de 60 segundos por solicitud. Una generación a la vez por predio.
+- Tope de 180 segundos por solicitud (`CAUDAL_TOPE_S`). Una generación a la vez por predio. Los plazos se subieron el 22-11 (antes 5, 60 y 120 segundos) porque con los datos de todo Chile las consultas y la generación pueden tardar más.
 - Errores: 404 si el predio no tiene puntaje; 422 si la temporada no tiene datos; 503 con detalle si la generación falla.
 - El PDF usa el mismo texto de `explicacion.py` y mantiene las reglas de lenguaje del flujo B: "indicios", rangos, sin nombres.
 
@@ -295,7 +295,7 @@ Reglas:
 | Región | `southamerica-west1` | `southamerica-west1` |
 | CPU y memoria | 1 vCPU, 512 MiB | 2 vCPU, 2 GiB |
 | Concurrencia | 80 | 20 (los `GET` tardan milisegundos; el expediente se limita aparte, una generación por predio) |
-| Tiempo máximo | 60 s | 120 s |
+| Tiempo máximo | 60 s | 300 s |
 | Instancias | mínimo 1, máximo 3 | mínimo 1, máximo 2 |
 | Acceso | Público | Público, CORS solo desde la URL de `caudal-web` |
 

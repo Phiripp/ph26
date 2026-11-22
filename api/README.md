@@ -96,7 +96,7 @@ curl -X POST localhost:8000/api/expediente -H 'content-type: application/json' -
 - `reutilizado: true` significa que ya existía un expediente con los mismos insumos. Muestra `creado`; no lo presentes como recién generado. Con `"regenerar": true` se fuerza uno nuevo.
 - **Rol.** El PDF lleva el rol solo si el predio tiene un caso sancionado por la DGA, que es un dato público. Para el resto identifica el predio por su polígono de CIREN y deja el rol para quien presenta la denuncia (`con_rol: false`). Se fuerza con `"rol": true` o `"rol": false` (`&rol=false` en la ruta de eventos); la página manda `rol=false` en modo demo (`?demo=1`).
 - Uno nuevo tarda cerca de 20 segundos; casi todo es bajar las imágenes. Si las fuentes de imágenes no responden, sale sin imágenes (`con_imagenes: false`).
-- Tope: 60 segundos. Pasado el tope responde 503; la generación termina en segundo plano y la siguiente solicitud la encuentra hecha.
+- Tope: 180 segundos (`CAUDAL_TOPE_S`; el servicio de Cloud Run corta a los 300). Pasado el tope responde 503; la generación termina en segundo plano y la siguiente solicitud la encuentra hecha.
 - Los expedientes del candidato y del caso de `data/demo.json` se generan al construir la imagen, así que en producción abren al instante.
 
 Para mostrar el avance real, en vez del `POST`:

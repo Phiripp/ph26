@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
 <meta charset="utf-8">
-<title>Antecedentes para denuncia · {{ p.comuna_t }} rol {{ p.rol }}</title>
+<title>Antecedentes para denuncia · {{ p.comuna_t }} {% if p.rol %}rol {{ p.rol }}{% else %}predio {{ p.predio_id }}{% endif %}</title>
 <style>
   @page {
     size: A4; margin: 22mm 18mm 20mm 18mm;
@@ -51,7 +51,7 @@
 <body>
 
 <h1>Antecedentes para una denuncia por eventual infracción al Código de Aguas</h1>
-<div class="sub">Predio rol {{ p.rol }}, {{ p.comuna_t }} ({{ p.provincia }}, Región de Valparaíso) · {{ p.area_ha_txt }} ha · Expediente {{ e.id }} · versión {{ e.version }}</div>
+<div class="sub">{% if p.rol %}Predio rol {{ p.rol }}{% else %}Predio CIREN {{ p.predio_id }}{% endif %}, {{ p.comuna_t }} ({{ p.provincia }}, Región de Valparaíso) · {{ p.area_ha_txt }} ha · Expediente {{ e.id }} · versión {{ e.version }}</div>
 
 <div class="banner">
   <b>Este documento es un borrador, no una denuncia presentada.</b> Ordena los antecedentes que pide la
@@ -106,7 +106,7 @@ La DGA decide si la denuncia es admisible y si corresponde fiscalizar.</p>
 <table class="kv">
   <tr><th>Región, provincia y comuna</th><td>Valparaíso, {{ p.provincia }}, {{ p.comuna_t }}</td></tr>
   <tr><th>Sector</th><td>{{ p.sector }}</td></tr>
-  <tr><th>Predio</th><td>Rol {{ p.rol }} · {{ p.area_ha_txt }} ha · polígono CIREN {{ p.predio_id }}<div class="fuente">Fuente: CIREN, Propiedades Rurales.</div></td></tr>
+  <tr><th>Predio</th><td>{% if p.rol %}Rol {{ p.rol }}{% else %}Rol: lo completa quien presenta la denuncia (esta versión no lo muestra){% endif %} · {{ p.area_ha_txt }} ha · polígono CIREN {{ p.predio_id }}<div class="fuente">Fuente: CIREN, Propiedades Rurales.</div></td></tr>
   <tr><th>Coordenadas (centro del predio)</th><td>{{ p.lat_txt }}, {{ p.lon_txt }} (WGS84) · UTM 19S E {{ p.utm_e }} N {{ p.utm_n }}</td></tr>
   <tr><th>Cauce natural más cercano</th><td>{{ c.cauce_txt }}<div class="fuente">Fuente: DGA, red de drenajes.</div></td></tr>
   <tr><th>Cauce artificial (canal) más cercano</th><td>{{ c.canal_txt }}<div class="fuente">Fuente: CNR y CIREN, canales de riego 2020.</div></td></tr>

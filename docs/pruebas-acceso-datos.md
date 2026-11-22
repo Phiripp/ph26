@@ -58,3 +58,50 @@ Decisión: **Sentinel-2 para el análisis y Esri World Imagery solo como fondo v
 - Licencia (según los resultados de búsqueda; falta leer el texto completo): Esri no permite usarla como entrada directa de extracción automática; lo exportado y lo derivado queda para uso no comercial dentro de ArcGIS. Por eso **no se guardan recortes de Esri en el repo ni se procesan con código**.
 - Para el frontend: cargar Esri como capa de tiles raster en el mapa (con su atribución), directo desde Esri, y dibujar encima el polígono del predio y las capas de NDVI/NDMI derivadas de Sentinel-2 (los PNG de `data/processed/imagenes/` se retiraron por baja calidad; hay que generarlas de nuevo).
 - Si hace falta análisis en alta resolución: imágenes comerciales (Planet, Maxar) o una ortofoto pública de CIREN. No se encontró un servicio de CIREN accesible.
+
+## Monitoreo de extracciones de la DGA y WorldCover como secano (D20, probado el 2026-11-21)
+
+Zonas: Z1 Petorca y Z2 Aconcagua bajo. Scripts: `scripts/pruebas_datos/04_mee_dga.py` y `05_worldcover_secano.py`. Todo se verificó corriendo los scripts, salvo lo marcado como inferido.
+
+| Fuente | Resultado | Registro | Cobertura en las zonas | Nota |
+| --- | --- | --- | --- | --- |
+| DGA MEE, series por obra | **Solo sitio** | Token de la aplicación y reCAPTCHA | No se pudo contar ninguna obra de Z1 o Z2 | Sin descarga masiva ni consulta por obra sin esas barreras |
+| DGA MEE, cobertura y plazos (ArcGIS Online) | **Pasa** | No | Z1: 6 territorios subterráneos y 10 superficiales tocan el bbox; Z2: 10 y 7 | Dice quién debe informar, no cuánto extrae. 0,2 a 0,3 s por consulta |
+| ESA WorldCover 2021 v200, AWS | **Pasa** | No | Un solo tile (`S33W072`) cubre Z1 y Z2 | Lectura por ventana: Z1 18,1 s, Z2 2,4 s |
+| ESA WorldCover, Planetary Computer | **Pasa con ajuste** | No | El mismo tile | El asset sin firmar da 409; hay que firmarlo con `/api/sas/v1/sign` (anónimo) |
+
+### Monitoreo de Extracciones Efectivas (MEE)
+
+El MEE es el sistema donde los titulares informan lo que extraen por obra de captación. Sería verdad de terreno directa, pero hoy no se puede bajar de forma automática.
+
+- **Por qué no se llega a las series.** Todos los servicios de `snia.mop.gob.cl/extracciones/data/...` responden 403 sin un token que la página pide con una clave embebida en su JavaScript. No se usó: es una credencial de la aplicación. Además, la búsqueda pública y la descarga de reportes envían un reCAPTCHA (inferido del JavaScript).
+- **API de transmisión** (`apimee.mop.gob.cl`, con OpenAPI público): es para que los titulares envíen mediciones. Leer exige el comprobante de un envío o el RUT y la clave del informante.
+- **Sin datos abiertos.** `datos.gob.cl` no tiene conjuntos del MEE, y los servidores ArcGIS del MOP y de la SMA no tienen capas con mediciones.
+- **Descarga a mano** (inferido, no probado): una persona podría bajar en el navegador un CSV por región, naturaleza y mes.
+- **Llave.** El MEE identifica la obra con un código `OB-RRPP-N` y trae UTM. El cruce con `derecho.parquet` sería por expediente (mismo formato `ND-0501-123`) o por coordenada. En la única capa pública con obras (Limarí, mayo de 2024) solo 56 de 217 traen un expediente legible, así que mandaría la coordenada.
+
+Lo que sí se midió:
+
+- **Plazos vencidos.** Los plazos de aguas subterráneas ya vencieron en las dos provincias: Petorca (resolución 1065 de 2019, último plazo 01-07-2025) y Quillota (resolución 2178 de 2019, último plazo 02-01-2026). Hoy todo derecho subterráneo de Z1 y Z2 debería informar.
+- **Universo que debería informar** (derechos subterráneos sumables de `derecho.parquet`, no obras registradas): 4.848 en Z1 y 2.751 en Z2. En Z1, 427 derechos del estándar mayor concentran el 53 % del caudal; en Z2, 515 concentran el 71 %.
+- **Cumplimiento en Limarí.** De 217 obras, 35 tenían transmisiones completas. De 3.359 derechos subterráneos revisados, 76 estaban en el software.
+- **Ojo con esa capa:** las columnas de enero a diciembre repiten el caudal autorizado, no lo medido. Tiene RUT, nombres y correos; el script solo pide estadísticas y campos sin datos personales.
+
+**Para Caudal:** no adoptar ahora. No hay vía automática y, si Limarí es representativo, pocos pozos transmiten. Sí sirve la capa de cobertura: permite decir en el expediente que el predio está en un territorio con la obligación de informar vencida. Las series quedan para después, por descarga manual o por solicitud de transparencia.
+
+Repetir: `uv run scripts/pruebas_datos/04_mee_dga.py` (19 a 41 s).
+
+### ESA WorldCover como referencia de secano
+
+Pregunta: ¿pueden las clases matorral (20), pradera (30) y suelo desnudo o ralo (60) de WorldCover reemplazar o complementar la referencia de CONAF (`referencia_secano.parquet`, 3.642 polígonos)?
+
+- **Acceso.** Sin registro, desde AWS: `esa-worldcover.s3.eu-central-1.amazonaws.com/v200/2021/map/ESA_WorldCover_10m_2021_v200_S33W072_Map.tif`. El tile completo pesa 110 MB (51 s con curl). La corrida entera tarda 87 s con descarga y 8 s desde caché. No se midió cuánto tarda la extracción de CONAF, así que no se puede decir cuál es más rápida.
+- **Acuerdo con CONAF.** WorldCover clasifica como matorral o pradera el 77,3 % de la superficie de la referencia en Z1 y el 86,4 % en Z2. Sumando suelo desnudo o ralo, 98,2 % y 92,7 %. Árboles: 1,3 % y 6,3 %. Cultivo: 0,4 % y 0,6 %.
+- **Polígonos dudosos de la referencia actual:** 70 con mayoría de árboles (43 en Z1, 27 en Z2) y 68 con 10 % o más de cultivo (50 y 18).
+- **Qué agrega.** Más superficie: WorldCover marca 715.345 ha de esas clases en Z1 y 137.732 ha en Z2, y la referencia de CONAF cubre el 14 % y el 13 %. Parte del extra es cordillera alta, que CONAF excluye a propósito. Además es una sola fuente para todo Chile (inferido).
+- **Qué pierde.** Es una foto de 2021; CONAF exige el mismo uso entre 2001 y 2019. Y no separa riego de secano: WorldCover clasifica como matorral, pradera o ralo el 26,9 % de la superficie de los huertos del Catastro Frutícola 2025 en Z1 y el 21,8 % en Z2 (una parte son huertos plantados después de 2021).
+- **Sin medir:** la vegetación de ribera. Habría que quitarla con un margen a `cauce.parquet`.
+
+**Para Caudal:** no reemplazar CONAF, porque usar las tres clases directo metería riego en la referencia. Sí sirve como filtro barato sobre CONAF: marcar los 70 polígonos con mayoría de árboles y los 68 con cultivo. Para la corrida nacional sirve de respaldo donde falta CONAF, siempre recortando huertos y cauces.
+
+Repetir: `uv run scripts/pruebas_datos/05_worldcover_secano.py [--refrescar] [--tile-completo]`. Los recortes quedan en `data/raw/worldcover/` (fuera de git).

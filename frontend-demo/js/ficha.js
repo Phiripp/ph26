@@ -1,6 +1,7 @@
 // Caudal · ranking list + ficha de predio. "El sistema prioriza, no acusa."
 import { BAND_LABEL, BAND_SHORT, CONF_LABEL, fmtNum, fmtMil, fmtRange, fmtDate, fmtComuna, expShort, dryWindowStats, seriesFailed, SERIES_FAILED_TEXT, esc } from './zona-data.js';
 import { mountSeriesChart, chartLegendHTML } from './chart.js';
+import { mountExplicacion } from './explicacion.js';
 
 const pill = b => `<span class="pn-pill pn-${b}">${esc(BAND_SHORT[b] || b)}</span>`;
 const casoTag = e => `<span class="pn-caso" title="Caso sancionado por la DGA · ${esc(e)}">Caso ${esc(expShort(e))}</span>`;
@@ -205,6 +206,7 @@ export function renderFicha(el, feature, data, { onExpediente, onBack, onCaso } 
       <div><dt>Consumo estimado ${esc(temporada)}</dt><dd class="pn-water">${p.m3_estimado_min == null ? '—' : `${fmtMil(p.m3_estimado_min)}–${fmtMil(p.m3_estimado_max)} <small>mil m³</small>`}</dd></div>
       <div><dt>Derecho del rol · DGA</dt>${derechoHTML(p)}</div>
     </dl>
+    <section class="pn-why" data-why></section>
     <figure class="pn-chart">
       <figcaption>Verdor (NDVI) vs. secano · franjas = sin lluvia</figcaption>
       <svg data-series viewBox="0 0 560 230" role="img" aria-label="Serie NDVI y NDMI del predio ${esc(p.id)} frente a la referencia de secano, con ventanas secas sombreadas"></svg>
@@ -215,6 +217,8 @@ export function renderFicha(el, feature, data, { onExpediente, onBack, onCaso } 
       <button type="button" class="btn primary" data-act="exp"${flagged ? '' : ' disabled'}>Preparar expediente</button>
     </div>`;
   mountSeriesChart(el.querySelector('svg[data-series]'), data, p.id, { W: 560, H: 230, compact: true, marks, highlight: st?.win });
+  if (p.banda === 'sin_dato') el.querySelector('[data-why]').hidden = true;
+  else mountExplicacion(el.querySelector('[data-why]'), `/api/predios/${encodeURIComponent(p.id)}`);
   el.onclick = e => {
     const a = e.target.closest('[data-act]')?.dataset.act;
     if (a === 'back') onBack?.();

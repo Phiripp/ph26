@@ -333,22 +333,23 @@ Si cambian los datos (por ejemplo, la ruta), hay que regenerar en el mismo commi
 | --- | --- | --- | --- | --- | --- |
 | T0 | ~~Decidir almacenamiento y transporte~~ Decidido: API con DuckDB y respaldo estático ([Almacenamiento y transporte](#almacenamiento-y-transporte)) | P0 | — | — | Hecho |
 | T1 | `explicacion.py`: razones, confianza y límites por predio, con fuentes | P0 | Tomás ✅ | — | Devuelve el contrato de la explicación para `5301984` y para el caso FO-0504-95 |
-| T2 | `api/datos.py` (funciones de lectura con DuckDB) y `api/respaldo.py`, que escribe `data/respaldo/` con ellas. Hecho por Tomás ✅; en git está el respaldo del recorrido de la demo (`--predios demo`). Falta: la función `api(ruta)` en la página y decidir si se sube el respaldo completo (26 MB) | P0 | Felipe | T1 | La zona Z2 muestra las bandas de M5 leyendo el respaldo |
+| T2 | `api/datos.py` (funciones de lectura con DuckDB), `api/respaldo.py` (escribe `data/respaldo/`) y la función `api(ruta)` de la página (`js/config.js`). En git está el respaldo del recorrido de la demo (`--predios demo`); el completo pesa 26 MB y no se subió | P0 | Tomás y Felipe ✅ | T1 | La portada lee `/api/health`, `/api/impacto` y `/api/zonas`, con respaldo |
 | T2b | Rutas `GET` de lectura en `caudal-api`, llamando a `api/datos.py` | P0 | Tomás ✅ | T2, T6 | `GET /api/predios/5301984` responde en local lo mismo que su archivo del respaldo |
-| T3 | F1 y F2: página con datos de M5 y ficha con "Por qué está en alerta" | P0 | Nico | T1, T2 | El predio `5301984` muestra sus razones con fuente |
-| T4 | F4: línea de tiempo y adelanto en la ficha del caso | P0 | Nico | T2 | FO-0504-95 muestra su primera alerta y los años de adelanto |
-| T5 | F5 y F6: ruta de M8 y panel de impacto leídos del dato | P0 | Felipe | T2 | `#impacto` muestra las 5 cifras sin números en el código |
+| T3 | F1 y F2: página con datos de M5 y ficha con "Por qué está en alerta" (`js/explicacion.js`, también en la ficha del caso) | P0 | Felipe y Tomás ✅ | T1, T2 | El predio `5301984` muestra sus razones con fuente |
+| T4 | F4: línea de tiempo y adelanto en la ficha del caso | P0 | Felipe ✅ | T2 | FO-0504-95 muestra su primera alerta y los años de adelanto |
+| T5 | F5 y F6: ruta de M8 y panel de impacto leídos del dato | P0 | Felipe y Nico ✅ (F5). F6: el panel se retiró de la página; las cifras quedan en `impacto.json`, en la portada y en el guion | T2 | La pestaña Ruta muestra las paradas de `ruta_z*.json` |
 | T6 | `caudal-api`: `health` y `expediente` | P0 | Tomás ✅ (imagen probada en local con Docker) | — | `POST /api/expediente` devuelve un PDF en local |
 | T7 | Desplegar `caudal-api`: `scripts/cloud/api/desplegar.sh` y luego `EXPEDIENTE=1 scripts/cloud/api/probar.sh URL` (el expediente del candidato se genera al construir) | P0 | Gabi ✅ (revisión `caudal-api-00002-9vc`: `probar.sh` completo, rutas en menos de 0,6 s y expediente en 1,4 s) | T2b | `/api/predios/5301984` y el expediente responden en producción en menos de 2 s |
-| T8 | F3: botón que llama al backend, visor de PDF y respaldo | P0 | Nico | T6 | El clic abre el PDF en producción; con el backend apagado abre el respaldo |
-| T9 | Desplegar `caudal-web` y llenar `platanus-hack-project.jsonc` | P0 | Nico | T3 a T8 | El recorrido completo funciona en la URL pública, también con `caudal-api` apagado |
+| T8 | F3: botón que llama al backend, visor de PDF y respaldo | P0 | Nico ✅ | T6 | El clic abre el PDF en producción; con el backend apagado abre el respaldo |
+| T9 | Desplegar `caudal-web` y llenar `platanus-hack-project.jsonc` | P0 | Nico ✅ | T3 a T8 | El recorrido completo funciona en la URL pública, también con `caudal-api` apagado |
 | T10 | Limpieza para el agente del jurado: quitar lo provisional, `data/demo.json`, documento "en vivo y precalculado". Falta que una persona escriba el README raíz y lo enlace | P0 | Tomás ✅ | T3 | La tabla de la sección anterior no tiene pendientes |
-| T11 | Video de respaldo y 5 ensayos con cronómetro | P0 | Todos | T9 | Video guardado en dos computadores |
-| T12 | F7: modo demo (enlaces, teclas, `?demo=1`) | P1 | Nico | T3 | Las teclas 1 a 5 recorren el guion |
+| T12 | F7: modo demo (enlaces, teclas, `?demo=1`) | P1 | Nico; Tomás ✅ `?demo=1` (oculta todo rol). Faltan las teclas 1 a 5 | T3 | Las teclas 1 a 5 recorren el guion |
 | T13 | Recortes de los predios en alerta en un bucket privado | P1 | Felipe | T7 | La ficha del candidato muestra recortes con fecha y escena |
 | T14 | Filtros del ranking y ruta del escenario conservador | P2 | Tomás | T2 | — |
 
-Estado al 22-11 en la madrugada: T1, T2 (backend), T2b, T6, T7 y T10 están listos. `caudal-api` está en producción: `PROD_API` de `js/config.js` (`https://caudal-api-170658673954.southamerica-west1.run.app`, la misma API que `https://caudal-api-nioa63appa-tl.a.run.app`), con CORS solo para `caudal-web`. Siguen T3, T4, T5 y T8 contra la API en producción, y después T9 y T11.
+Estado al 22-11: T1 a T10 están listos y `caudal-api` y `caudal-web` están en producción (`PROD_API` de `js/config.js`, con CORS solo para `caudal-web`). Falta volver a desplegar los dos servicios con el bloque de razones y la regla del rol (ver abajo), las teclas del modo demo (T12), los recortes (T13) y la ruta conservadora (T14).
+
+**Regla del rol (22-11).** El rol se muestra solo en los predios con un caso sancionado por la DGA, que es un dato público. Para el resto, la página, los archivos que carga y el expediente PDF identifican el predio por su polígono de CIREN. La API entrega el rol si se pide (`?rol=1` en las rutas de lectura, `"rol": true` en el expediente), porque quien presenta la denuncia lo necesita. Con `?demo=1` la página no muestra ningún rol, tampoco el de los casos.
 
 ### Nota para Tomás: serie del año completo en Valparaíso (22-11)
 
@@ -363,13 +364,13 @@ Usos que quedan abiertos (ninguno está hecho):
 ## Criterios de aceptación de la demo
 
 - [ ] El recorrido del guion se completa en producción en menos de 1:40, sin recargar.
-- [ ] Ninguna pantalla dice "provisional" ni muestra una cifra que no esté en `data/processed/`.
+- [x] Ninguna pantalla dice "provisional" ni muestra una cifra que no esté en `data/processed/`.
 - [ ] La ficha del candidato muestra como máximo 4 razones y 2 límites, cada razón con su fuente.
-- [ ] El texto de la ficha y el del PDF coinciden.
+- [x] El texto de la ficha y el del PDF coinciden (los dos salen de `explicacion.py`).
 - [ ] El expediente del candidato se abre en menos de 3 segundos y es un PDF con las 7 secciones de la guía de la DGA.
 - [ ] Con el backend apagado, el recorrido completo funciona con el respaldo estático y el botón abre el PDF de respaldo.
 - [ ] En modo demo no aparece ningún rol ni nombre.
-- [ ] Buscar en `frontend-demo/js/` los números del pitch (501, 2,6, 5301984) no da resultados.
+- [x] Buscar en `frontend-demo/js/` los números del pitch (501, 2,6, 5301984) no da resultados.
 
 ## Fuera de alcance
 

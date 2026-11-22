@@ -51,5 +51,3 @@ Under the hood: Sentinel-2 imagery (Copernicus), FAO-56 crop water use, DGA wate
 ## Team
 
 Nicolás del Valle, Felipe Mellado, Tomás Morales and Gabriela Acuña · Platanus Hack 26 Santiago, Physical World track.
-
-Next step: run it with DGA inspectors in the 2026-27 dry season, which starts in December.

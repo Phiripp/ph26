@@ -1,0 +1,17 @@
+{
+  "valida": {
+    "fecha": "2026-11-13",
+    "escena": "S2B_19HCE_20261113_0_L2A",
+    "predios_con_dato": 9,
+    "predios": 32
+  },
+  "ultima_pasada": {
+    "fecha": "2026-11-20",
+    "escena": "S2A_19HCE_20261120_0_L2A",
+    "predios_con_dato": 0,
+    "nubosidad_pct": 100.0
+  },
+  "muestra_predios": 100,
+  "fuente": "Sentinel-2 L2A (Copernicus), muestra de predios de data/processed/serie_predio.parquet",
+  "generado": "2026-11-21"
+}

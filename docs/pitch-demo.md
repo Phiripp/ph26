@@ -28,7 +28,7 @@ Seguimos las dos guías de Y Combinator para presentar una empresa: [How to Pitc
 
 | Regla de YC | Cómo la aplicamos |
 | --- | --- |
-| La primera frase dice qué haces, en palabras simples. Demorarlo "siempre es un error" | El guion parte con "Soy Tomás, y esto es Caudales" y la slide dice "Si alguien saca agua de más, a otro le falta". Qué hacemos cierra el problema, a los 25 segundos |
+| La primera frase dice qué haces, en palabras simples. Demorarlo "siempre es un error" | El guion parte con "Soy Tomás, y esto es Caudales" y la slide dice "El agua está repartida. No todos respetan su parte.". Qué hacemos cierra el problema, a los 25 segundos |
 | Sin jerga, siglas ni lenguaje de marketing. Que suene "más tonto de lo que crees que debería" | No se nombran satélites, índices ni métodos. "DGA" se dice completo la primera vez |
 | El oyente retiene 3 o 4 ideas. Decirlas y repetirlas al final | Cuatro ideas (abajo); el cierre las repite |
 | El problema, corto | 22 segundos, con dos cifras |
@@ -57,7 +57,7 @@ Toda la demo ocurre en una sola zona (Aconcagua bajo, comuna de Hijuelas) para n
 
 | Tiempo | Segundos | Tramo | Qué se ve |
 | --- | --- | --- | --- |
-| 0:00–0:05 | 5 | Intro | Slide 1: CAUDALES y "Si alguien saca agua de más, a otro le falta" |
+| 0:00–0:05 | 5 | Intro | Slide 1: CAUDALES y "El agua está repartida. No todos respetan su parte." |
 | 0:05–0:27 | 22 | El problema | Slide 2: "50 litros al día". Al terminar se cambia al producto |
 | 0:27–0:43 | 16 | Demo: la zona | Vuelo a Aconcagua bajo; panel "De 3.639 predios, 425 tienen señal alta…" |
 | 0:43–1:18 | 35 | Demo: el caso real | Ficha del caso FO-0504-95: multa, "al menos 2,0 años antes" y el agua estimada |
@@ -149,7 +149,7 @@ Datos de reserva para las preguntas:
 | Comparación con la DGA | Una sola mención, como capacidad: "14 años". El 33 % queda para las preguntas | Abrir con "la DGA acierta 1 de cada 3" | No tenemos datos para decir que acertamos más (7 de 15, intervalo ancho) y la DGA es el cliente. La capacidad muestra que falta una herramienta; no nos presenta como una mejora de algo que ya existe |
 | Equivalencias de volumen | Solo personas, con la dotación de 100 litros al día, y pegada al caso real | Latas de Monster y Torres Costanera | Las comparaciones con latas y edificios le restan seriedad a un problema de gente sin agua. Decidido el 22-11 tras la revisión con espectadores |
 | Apertura | "Soy Tomás, y esto es Caudales" y el problema en 20 segundos | Un tramo aparte para decir qué hacemos | Los tres espectadores pidieron ver el producto antes. Qué hacemos queda en la última frase del problema: "Nosotros lo miramos desde el satélite" |
-| Frase de la portada | "Si alguien saca agua de más, a otro le falta" | "Quién riega sin derechos de agua"; "Buscamos el agua que le falta a la gente" | La primera sonaba a acusación. La idea es de reparto: el agua de un valle está repartida, y cuando alguien saca más de lo que le toca, es injusto para el resto |
+| Frase de la portada | "El agua está repartida. No todos respetan su parte." | "Quién riega sin derechos de agua"; "Si alguien saca agua de más, a otro le falta" | La primera sonaba a acusación. La idea es de reparto: el agua de un valle está repartida en derechos, y cuando alguien saca más de lo que le toca, es injusto para el resto |
 | Cómo se muestra el candidato | Por ID interno, sin rol ni dueño, con la palabra "candidato" | No mostrar ningún predio no multado | El expediente y la ruta necesitan un predio concreto. El equipo debe confirmar esta decisión (ver abajo) |
 
 **Por confirmar con el equipo:** la convención era mostrar a los candidatos solo agregados. La demo en vivo necesita un predio concreto que no ha sido multado, y la ruta ya muestra ubicaciones. La propuesta es mostrarlo sin rol ni dueño y decir en voz alta que Caudales prioriza y no acusa. Si el equipo no está de acuerdo, el expediente en vivo se genera para el caso FO-0504-95 y el paso "candidato de hoy" muestra solo el ranking agregado.

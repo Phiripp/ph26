@@ -504,7 +504,7 @@ export async function initValle({
 
   // ---------- view state ----------
   const reduced = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-  const state = { year: 0, routeT: 0, routeOn: true };
+  const state = { year: 0, routeT: 0, routeOn: true, casosOn: false }; // casosOn: case badges (Casos tab only)
   let dirty = true;
   let overlayAmt = 0, routeAmt = 0;
   let routePlay = null;
@@ -1319,9 +1319,11 @@ export async function initValle({
     const isSel = (c) => (c.predioId ? c.predioId === selectedId : selectedCaso === c.exp);
     const order = casos.map((c) => ({ c, g: project(c.world), pri: isSel(c) ? 2 : hoverCaso === c ? 1 : 0 }))
       .sort((a, b) => b.pri - a.pri || a.g.x - b.g.x);
-    const rings = order.filter(({ g }) => entered && g.ok).map(({ c, g }) => ({ c, x: g.x - 10, y: g.y - 10, w: 20, h: 20 }));
+    // case badges only while the Casos tab is open (the selected case always shows)
+    const caseVis = ({ pri }) => state.casosOn || pri === 2;
+    const rings = order.filter((o) => entered && o.g.ok && caseVis(o)).map(({ c, g }) => ({ c, x: g.x - 10, y: g.y - 10, w: 20, h: 20 }));
     for (const { c, g, pri } of order) {
-      if (!entered || !g.ok) { c.el.style.transform = OFF; continue; }
+      if (!entered || !g.ok || !caseVis({ pri })) { c.el.style.transform = OFF; continue; }
       const tw = c.tag.offsetWidth || 78, th = c.tag.offsetHeight || 16;
       const gap = isSmall() ? 8 : 14, up = isSmall() ? th + 14 : th + 22;
       let tx = -tw - gap, ty = -up;
@@ -1983,6 +1985,8 @@ export async function initValle({
       return new Promise((resolve) => { startChase(duration, resolve); });
     },
     showRoute(on) { state.routeOn = !!on; dirty = true; },
+    /** case badges on the scene: only while the Casos tab is open (a selected case always shows) */
+    showCasos(on) { state.casosOn = !!on; dirty = true; },
     setYear(y) {
       if (!years.length) return;
       state.year = clamp(Number(y) || lastYear, years[0], lastYear);

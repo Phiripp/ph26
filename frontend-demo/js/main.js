@@ -321,6 +321,7 @@ function setupZonaPanel({ getValle, onFocusChange }) {
     if (render && tab === 'casos') { if (st.selectedCaso) showCaso(st.selectedCaso); else showCasos(); }
     if (render && tab === 'predios' && st.view === 'ranking') showRanking();
     valleCall('showRoute', tab === 'ruta' || st.playing);
+    valleCall('showCasos', tab === 'casos');
     if (focus) tabs[tab].focus();
   }
 

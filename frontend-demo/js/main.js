@@ -21,7 +21,7 @@ const MOBILE = matchMedia('(max-width: 760px)');
 const ZONA_IDS = ['z1', 'z2'];
 const HASH_ALIAS = { petorca: 'z1', aconcagua: 'z2' };
 const ENTER_MS = 2200, EXIT_MS = 1400;
-const ROUTE_MS = 20000; // intro swoop + drive + a short stop at each predio + rise back (valle.js chase)
+const ROUTE_MS = 14000; // intro swoop + drive + a short stop at each predio + rise back (valle.js chase)
 const BACK_LABEL = { chile: 'Volver a Chile', zona: 'Ver toda la zona' };
 const TITLE_FOCUS_DELAY_MS = 250;  // map flight to the zones, after the click that dismissed the title
 const MAX_VALLES = 3;             // 3D zone scenes kept built at once (one WebGL context each)
@@ -321,6 +321,7 @@ function setupZonaPanel({ getValle, onFocusChange }) {
     if (render && tab === 'casos') { if (st.selectedCaso) showCaso(st.selectedCaso); else showCasos(); }
     if (render && tab === 'predios' && st.view === 'ranking') showRanking();
     valleCall('showRoute', tab === 'ruta' || st.playing);
+    valleCall('showCasos', tab === 'casos');
     if (focus) tabs[tab].focus();
   }
 

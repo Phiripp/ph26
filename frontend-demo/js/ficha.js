@@ -116,7 +116,7 @@ function storyHTML(data, groups, sinInd, routeN) {
     const what = [p.cultivo && p.cultivo !== 'sin catastro' ? p.cultivo : null, `${fmtNum(p.area_ha, 1)} ha`, fmtComuna(p.comuna)].filter(Boolean).map(esc).join(' · ');
     return `<li><button type="button" class="pn-row pn-top pn-r-${p.banda}" data-id="${esc(p.id)}" title="Predio ${esc(p.id)}">
         <span class="pn-top-n">${i + 1}</span>
-        <span class="pn-top-main"><b class="pn-id">Rol ${esc(p.rol || p.id)}</b>${p.caso ? casoTag(p.caso) : ''}<small>${what}</small><span class="pn-top-vs">${vsDerecho(p)}</span></span>
+        <span class="pn-top-main"><b class="pn-id">${p.rol ? `Rol ${esc(p.rol)}` : `Predio ${esc(p.id)}`}</b>${p.caso ? casoTag(p.caso) : ''}<small>${what}</small><span class="pn-top-vs">${vsDerecho(p)}</span></span>
         <span class="pn-top-go" aria-hidden="true">›</span>
       </button></li>`;
   };

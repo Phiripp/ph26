@@ -48,7 +48,7 @@ Cuatro ideas que el jurado debe recordar:
 
 1. **Qué es y para quién.** Le dice al fiscalizador de aguas a dónde ir mañana.
 2. **Funciona con un caso real.** Caudal tenía en alerta, dos años antes de la inspección, un predio que la DGA multó.
-3. **Está medido y no exagera.** En alerta alta hay 2,6 veces más infractores que al azar. Todo va en rango.
+3. **Está medido y no exagera.** Partiendo por los predios que marca Caudal, un inspector encuentra más del doble de infracciones. Todo va en rango.
 4. **El problema es grande y hoy nadie lo mira.** 501 predios en alerta sin fiscalizar; revisarlos uno por uno tomaría 14 años.
 
 ## Guion
@@ -90,15 +90,15 @@ El tono es hablado. No se nombran satélites, índices ni métodos (Sentinel-2, 
 "Y esto es lo que importa: a dónde va el inspector mañana. Cinco predios, cuatro horas, 71 kilómetros. Se abre en Google Maps, y en cada predio le dice dónde mirar: el parche regado, el tranque, el pozo."
 
 **2:05 Qué tan bien funciona.**
-"Lo probamos contra las fiscalizaciones reales de la DGA. Donde Caudal marca alerta alta, hay 2,6 veces más infractores que eligiendo al azar."
+"Lo comprobamos con los casos que la DGA ya multó. Un inspector que parte por los predios que marca Caudal encuentra más del doble de infracciones que uno que elige sin esa lista."
 
 **2:15 De qué tamaño es.**
 "Un solo predio como el que vieron se toma al año el agua de casi 3.000 personas. O 220 millones de latas de Monster. Como ese hay 501 que nadie ha ido a mirar. Juntos son entre 5 y 20 Torres Costanera llenas de agua, todos los años. Revisarlos uno por uno tomaría 14 años."
 
 **2:38 Cierre.**
-"Caudal vio un caso real dos años antes, encuentra 2,6 veces más que el azar y termina en una ruta para mañana. Con datos públicos, para cualquier valle de Chile. Somos Nicolás, Felipe, Gabriela y Tomás, y queremos probarlo con la DGA este verano."
+"Caudal vio un caso real dos años antes, encuentra más del doble de infracciones y termina en una ruta para mañana. Con datos públicos, para cualquier valle de Chile. Somos Nicolás, Felipe, Gabriela y Tomás, y queremos probarlo con la DGA este verano."
 
-El texto tiene 399 palabras: 2:40 hablando a 150 palabras por minuto. Los 15 segundos que sobran son los clics y los vuelos de la demo.
+El texto tiene 408 palabras: 2:43 hablando a 150 palabras por minuto. Los 12 segundos que sobran son los clics y los vuelos de la demo.
 
 Tres cuidados al decirlo:
 
@@ -117,7 +117,7 @@ Tres cuidados al decirlo:
 | Fiscalizó en 2021; alerta alta desde 2019, dos años antes | Temporada 2019-20; inspección el 23-11-2021 (1,98 años); resolución de multa el 29-11-2023 | `impacto.md`, `/api/casos/FO-0504-95` | La serie parte en 2019-20: es una cota inferior. La multa se resolvió en 2023: decir "fiscalizó en 2021 y lo multó", no "multó en 2021" |
 | Diecinueve hectáreas, sin derechos inscritos, sin un canal cerca, nunca fiscalizado | 18,8 ha, 89 % palto, sin derechos a 500 m, canal a 1,2 km, sin fiscalización a 500 m desde 2018 | `puntaje.parquet`, predio `5301984` | No mostrar rol ni dueño |
 | Cinco predios, cuatro horas, 71 km | Ruta de Z2 (5 paradas, 08:30 a 12:28, 71,3 km) | `ruta_z2.json` | Cambia si se regenera la ruta. Con tope de 5 paradas desde el 21-11; antes eran 12 predios, 8 horas y 91 km |
-| 2,6 veces más infractores | IC 95 %: 1,3–4,4 | `validacion.md` | Usar 2,6 y no 3,7: el 3,7 se midió con los mismos casos que calibraron los umbrales |
+| Más del doble de infracciones | 2,6 veces (IC 95 %: 1,3–4,4). De 19 infractores confirmados, 6 estaban en alerta alta (32 %); la alerta alta reúne el 12 % de los predios | `validacion.md` | "Más del doble" y no "casi el triple". Si preguntan, la cifra es 2,6. No usar 3,7: se midió con los mismos casos que calibraron los umbrales |
 | El agua de casi 3.000 personas | 105.000 m³ al año ÷ 36,5 m³ por persona = 2.877 | `puntaje.parquet`; dotación de 100 litros al día ([Corte Suprema, 2021](https://www.24horas.cl/regiones/valparaiso/corte-suprema-determina-100-litros-de-agua-por-habitantes-de-petorca-4708851)) | 105.000 m³ es el mínimo del rango del candidato |
 | 220 millones de latas de Monster | 105.000 m³ ÷ 473 ml = 222 millones | Lata de 473 ml | — |
 | 501 predios que nadie ha ido a mirar | Banda alta sin fiscalización a 500 m desde 2018 | `impacto.md` | — |

@@ -24,7 +24,7 @@ Every alert says why it exists, where each number comes from, and what Caudal do
 ## Does it work?
 
 - **A real case, two years early.** In November 2021 the DGA inspected an avocado farm in Hijuelas and later fined it 1,983.9 UTM (about CLP 144 million at today's UTM) for taking water without rights. Caudal has that farm on high alert from the 2019-20 season, the first one we analyzed.
-- **2.6 times better than chance.** We tested Caudal against the DGA's own inspection records. Farms on high alert hold 2.6 times more confirmed infractions than a random pick (95% interval: 1.3 to 4.4; 19 cases, so the interval is wide).
+- **More than twice the hits.** We checked Caudal against the farms the DGA has already fined. An inspector who starts with the farms Caudal flags finds 2.6 times more infractions than one who picks without that list (95% interval: 1.3 to 4.4; 19 cases, so the interval is wide).
 
 ## How big is it?
 

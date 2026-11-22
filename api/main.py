@@ -36,6 +36,7 @@ SIN_CACHE = ("/api/health", "/api/expediente")
 @asynccontextmanager
 async def arranque(app: FastAPI):
     await run_in_threadpool(datos.casos)  # abre la base, marca las fechas y deja listos los casos antes de atender
+    await run_in_threadpool(datos.nacional_estado)  # registra la corrida nacional si está montada; si no, sigue sin ella
     yield
 
 
@@ -53,7 +54,10 @@ app.add_middleware(
 async def cache(request: Request, call_next):
     """Los GET de lectura llevan Cache-Control y un ETag igual a la versión de los datos; con If-None-Match, 304."""
     cacheable = request.method == "GET" and request.url.path.startswith("/api/") and not request.url.path.startswith(SIN_CACHE)
-    etag = f'"{datos.version().get("commit") or "local"}"' if cacheable else None
+    base = datos.version().get("commit") or "local"
+    if cacheable and request.url.path.startswith("/api/chile"):
+        base += "-" + datos.nacional_firma()  # la corrida nacional cambia sin redesplegar
+    etag = f'"{base}"' if cacheable else None
     if cacheable and request.headers.get("if-none-match") == etag:
         return Response(status_code=304, headers={"ETag": etag, "Cache-Control": CACHE})
     r = await call_next(request)
@@ -72,6 +76,11 @@ async def sin_datos(_, err):
     return JSONResponse({"detail": str(err)}, status_code=422)
 
 
+@app.exception_handler(datos.NoDisponible)
+async def no_disponible(_, err):
+    return JSONResponse({"detail": str(err)}, status_code=503)
+
+
 @app.exception_handler(expedientes.FallaGeneracion)
 async def falla_generacion(_, err):
     return JSONResponse({"detail": str(err)}, status_code=503)
@@ -82,7 +91,8 @@ async def falla_generacion(_, err):
 @app.get("/api/health", tags=["servicio"])
 def health():
     """Estado del servicio y versión de los datos (commit, fecha de cálculo, última imagen, número de predios)."""
-    return {"estado": "ok", "con_geometria": datos.con_geometria(), **datos.version()}
+    return {"estado": "ok", "con_geometria": datos.con_geometria(), **datos.version(),
+            "nacional": datos.nacional_estado()}
 
 
 @app.get("/api/demo", tags=["servicio"])
@@ -142,6 +152,27 @@ def zona_ruta_gpx(zona: str):
 def zona_ruta_geojson(zona: str):
     """Trazado de la ruta por caminos (OSRM, guardado; la API no llama a OSRM)."""
     return FileResponse(datos.ruta_archivo(zona, "geojson"), media_type="application/geo+json")
+
+
+# ---------------------------------------------------------------- corrida nacional
+
+@app.get("/api/chile", tags=["chile"])
+def chile():
+    """Regiones de la corrida nacional con conteo por banda y aplicabilidad. Exploratorio fuera de Z1 y Z2. 503 sin el bucket montado."""
+    return datos.chile()
+
+
+@app.get("/api/chile/{zona}/ranking", tags=["chile"])
+def chile_ranking(zona: str, banda: str | None = Query(None, description="alta, media, baja o sin_alerta; varias con coma"),
+                  limite: int = Query(200, ge=1, le=5000), desde: int = Query(0, ge=0)):
+    """Predios de la región (RXX) por rank_zona, de la corrida nacional."""
+    return datos.ranking_chile(zona, banda, limite, desde)
+
+
+@app.get("/api/chile/predios/{predio_id}", tags=["chile"])
+def chile_predio(predio_id: int, rol: bool = Query(False, description="incluir el rol (no pedir en modo demo)")):
+    """Puntaje nacional del predio. Exploratorio si no está en Z1 o Z2; para esos, la ficha completa es /api/predios/{id}."""
+    return datos.predio_chile(predio_id, rol)
 
 
 # ---------------------------------------------------------------- predios y casos

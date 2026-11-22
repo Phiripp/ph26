@@ -17,9 +17,13 @@ Privacidad: ningún recurso devuelve nombres de titulares (no se leen). El rol s
 Los casos son los 10 de data/casos_validacion.geojson, todos resueltos por la DGA: un expediente en trámite no se sirve.
 """
 
+import hashlib
 import json
+import logging
 import math
 import os
+import re
+import time
 import subprocess
 import sys
 import threading
@@ -38,6 +42,7 @@ sys.path.insert(0, str(RAIZ / "scripts" / "models"))
 from detector_riego import DIAS_MIN, FRAC_MIN, UMBRAL_HUMEDAD, UMBRAL_VERDOR, en_ventana, marcar_senal  # noqa: E402
 from explicacion import explicacion, lista_motivos  # noqa: E402
 
+log = logging.getLogger("caudal.datos")
 BANDAS = ["alta", "media", "baja", "sin_alerta"]
 BANDAS_MAPA = ["alta", "media"]  # las que llevan polígono en el mapa
 SIMPLIFICAR_M = 5
@@ -124,6 +129,10 @@ def con_geometria() -> bool:
     return (PROC / "predio.parquet").exists()
 
 
+class NoDisponible(LookupError):
+    """La corrida nacional no está montada o no tiene regiones (503)."""
+
+
 def _limpio(v):
     """Valor listo para JSON: NaN y NaT a None, fechas a texto, numpy a Python."""
     if v is None or v is pd.NaT:
@@ -178,6 +187,167 @@ def zonas_def() -> dict:
 @lru_cache(maxsize=1)
 def temporada_actual() -> str:
     return una("select max(temporada) t from puntaje")["t"]
+
+
+# ---------------------------------------------------------------- corrida nacional
+
+# Salidas del modelo por región, en el bucket montado (CAUDAL_NACIONAL=/datos/modelo/chile-2025-26): una carpeta
+# region=RXX con puntaje.parquet. Se registra una vista con la lista explícita de archivos (no un glob por consulta:
+# listar en GCS FUSE es lento) y la lista se vuelve a mirar como mucho cada TTL_NACIONAL segundos, para tomar las
+# regiones que terminen de calcularse sin reiniciar.
+TTL_NACIONAL = int(os.environ.get("CAUDAL_NACIONAL_TTL", "300"))
+_nac: dict = {"raiz": None, "regiones": (), "revisado": 0.0, "conteo": {}, "temporada": None}
+_candado_nac = threading.Lock()
+RE_REGION = re.compile(r"^R\d{2}$")
+
+
+def _raiz_nacional() -> Path | None:
+    v = os.environ.get("CAUDAL_NACIONAL")
+    return Path(v) if v else None
+
+
+def _regiones_en_disco(raiz: Path) -> tuple[str, ...]:
+    try:
+        return tuple(sorted(d.name[len("region="):] for d in raiz.glob("region=*")
+                            if RE_REGION.match(d.name[len("region="):]) and (d / "puntaje.parquet").exists()))
+    except OSError as e:
+        log.warning("No se pudo listar %s: %s", raiz, e)
+        return ()
+
+
+def _sin_regiones(raiz: Path):
+    raise NoDisponible(f"La corrida nacional no está disponible: {raiz} no existe o no tiene regiones")
+
+
+def _nacional() -> dict:
+    """Estado de la corrida nacional, con la vista `puntaje_nac` registrada. Lanza NoDisponible si no hay datos."""
+    raiz = _raiz_nacional()
+    if raiz is None:
+        raise NoDisponible("La corrida nacional no está configurada (falta CAUDAL_NACIONAL)")
+    ahora = time.monotonic()
+    if _nac["raiz"] == raiz and ahora - _nac["revisado"] < TTL_NACIONAL:
+        return _sin_regiones(raiz) if not _nac["regiones"] else _nac
+    with _candado_nac:
+        if _nac["raiz"] == raiz and time.monotonic() - _nac["revisado"] < TTL_NACIONAL:
+            return _sin_regiones(raiz) if not _nac["regiones"] else _nac
+        regiones = _regiones_en_disco(raiz) if raiz.is_dir() else ()
+        if not regiones:
+            _nac.update(raiz=raiz, regiones=(), revisado=time.monotonic())  # reintenta en el próximo TTL
+            return _sin_regiones(raiz)
+        if regiones != _nac["regiones"] or _nac["raiz"] != raiz:
+            archivos = ", ".join(f"'{raiz / f'region={r}' / 'puntaje.parquet'}'" for r in regiones)
+            c = con()
+            c.execute(f"create or replace view puntaje_nac as select * from read_parquet([{archivos}], "
+                      "union_by_name=true, hive_partitioning=false)")
+            conteo = {}
+            for f in c.execute("select zona, aplicabilidad, banda, count(*) n from puntaje_nac group by all").fetchall():
+                z = conteo.setdefault(f[0], {"aplicabilidad": {}, "bandas": {b: 0 for b in BANDAS}})
+                z["aplicabilidad"][f[1]] = z["aplicabilidad"].get(f[1], 0) + f[3]
+                z["bandas"][f[2]] = z["bandas"].get(f[2], 0) + f[3]
+            _nac.update(conteo=conteo, temporada=c.execute("select max(temporada) from puntaje_nac").fetchone()[0])
+            log.info("Corrida nacional: %d regiones (%s)", len(regiones), ", ".join(regiones))
+        _nac.update(raiz=raiz, regiones=regiones, revisado=time.monotonic())
+        return _nac
+
+
+def nacional_estado() -> dict:
+    """Para /api/health: nunca falla."""
+    try:
+        n = _nacional()
+        return {"disponible": True, "regiones": list(n["regiones"])}
+    except Exception as e:  # el servicio sigue sin la corrida nacional
+        log.warning("Corrida nacional no disponible: %s", e)
+        return {"disponible": False, "regiones": []}
+
+
+def nacional_firma() -> str:
+    """Identifica el conjunto de regiones servido, para el ETag de /api/chile (los datos cambian sin redesplegar)."""
+    try:
+        return hashlib.sha1(",".join(_nacional()["regiones"]).encode()).hexdigest()[:8]
+    except NoDisponible:
+        return ""
+
+
+def chile() -> dict:
+    """Regiones disponibles con conteo por banda y por aplicabilidad. Todo es exploratorio fuera de Z1 y Z2."""
+    n = _nacional()
+    regs = [{"zona": z, "predios": sum(v["bandas"].values()), "bandas": v["bandas"], "aplicabilidad": v["aplicabilidad"],
+             "exploratorio": True} for z, v in sorted(n["conteo"].items())]
+    return {"corrida": n["raiz"].name, "temporada": n["temporada"], "regiones": regs,
+            "predios": sum(r["predios"] for r in regs), "exploratorio": True,
+            "nota": "Corrida nacional exploratoria: solo Z1 y Z2 están validadas. Para Z1 y Z2 use /api/zonas y /api/predios.",
+            **sello_nacional(n)}
+
+
+def sello_nacional(n: dict) -> dict:
+    return {"calculado": version().get("calculado"), "version_modelo": version().get("commit")}
+
+
+def ranking_chile(zona: str, banda: str | None = None, limite: int = 200, desde: int = 0) -> dict:
+    n = _nacional()
+    z = str(zona).upper()
+    if z not in n["conteo"]:
+        raise NoExiste(f"Región desconocida: {zona}. Hay: {', '.join(sorted(n['conteo']))}")
+    donde, params = ["zona = ?"], [z]
+    if banda:
+        bs = [b.strip() for b in banda.split(",") if b.strip()]
+        malas = [b for b in bs if b not in BANDAS]
+        if malas:
+            raise SinDatos(f"Banda desconocida: {', '.join(malas)}. Hay: {', '.join(BANDAS)}")
+        donde.append(f"banda in ({', '.join('?' * len(bs))})")
+        params += bs
+    w = " where " + " and ".join(donde)
+    total = una(f"select count(*) n from puntaje_nac {w}", params)["n"]
+    fs = filas(f"""select predio_id, rank_zona, banda, puntaje, confianza, motivos, comuna, area_ha, especie_principal,
+                   frac_senal, n_fechas_validas, m3_exceso_min, m3_exceso_central, m3_exceso_max, aplicabilidad
+                   from puntaje_nac {w} order by rank_zona limit ? offset ?""", params + [limite, desde])
+    return {"zona": z, "corrida": n["raiz"].name, "temporada": n["temporada"], "total": total, "desde": desde,
+            "limite": limite, "filtros": {"banda": banda}, "exploratorio": True,
+            "predios": [{"predio_id": f["predio_id"], "rank_zona": f["rank_zona"], "banda": f["banda"],
+                         "puntaje": red(f["puntaje"], 2), "confianza": f["confianza"],
+                         "motivos": lista_motivos(f["motivos"]), "comuna": f["comuna"], "area_ha": red(f["area_ha"], 2),
+                         "especie": _titulo(f["especie_principal"]), "frac_senal": red(f["frac_senal"], 3),
+                         "n_fechas": f["n_fechas_validas"],
+                         "exceso_m3": [red(f["m3_exceso_min"]), red(f["m3_exceso_central"]), red(f["m3_exceso_max"])],
+                         "aplicabilidad": f["aplicabilidad"]} for f in fs],
+            **sello_nacional(n)}
+
+
+def predio_chile(predio_id: int, rol: bool = False) -> dict:
+    """Fila nacional de puntaje del predio. Sin nombres de titulares; el rol solo con rol=True."""
+    n = _nacional()
+    f = una("select * from puntaje_nac where predio_id = ? order by temporada desc limit 1", [predio_id])
+    if f is None:
+        raise NoExiste(f"El predio {predio_id} no está en la corrida nacional")
+    en_zonas = una("select 1 x from puntaje where predio_id = ? union all select 1 from puntaje_validacion "
+                   "where predio_id = ? limit 1", [predio_id, predio_id]) is not None
+    r = {"predio_id": predio_id, "region": f["zona"], "comuna": f["comuna"], "temporada": f["temporada"],
+         "aplicabilidad": f["aplicabilidad"], "exploratorio": not en_zonas,
+         "puntaje": {"banda": f["banda"], "puntaje": red(f["puntaje"], 2), "confianza": f["confianza"],
+                     "motivos": lista_motivos(f["motivos"]), "rank_zona": f["rank_zona"]},
+         "senal": {"senal_riego": f["senal_riego"], "frac_senal": red(f["frac_senal"], 3),
+                   "n_fechas": f["n_fechas_validas"], "ndvi_mediana": red(f["ndvi_mediana"], 3),
+                   "ndmi_mediana": red(f["ndmi_mediana"], 3)},
+         "predio": {"area_ha": red(f["area_ha"], 2), "especie": _titulo(f["especie_principal"]),
+                    "frac_fruticola": red(f["frac_fruticola"], 3), "predio_grande": f["predio_grande"]},
+         "agua": {"consumo_m3": [red(f["m3_consumo_bruto_min"]), red(f["m3_consumo_bruto_central"]),
+                                 red(f["m3_consumo_bruto_max"])],
+                  "derecho_m3": red(f["m3_derecho_asignado"]),
+                  "derecho_ajeno_500m_m3": red(f["m3_derecho_ajeno_disponible_500m"]),
+                  "exceso_m3": [red(f["m3_exceso_min"]), red(f["m3_exceso_central"]), red(f["m3_exceso_max"])],
+                  "estado_derechos": f["estado_derechos"], "confianza_cruce": f["confianza_cruce"],
+                  "confianza_m3": f["confianza_m3"]},
+         "contexto": {"canal_300m": f["canal_300m"], "canal_m": red(f["dist_canal_m"]),
+                      "fiscalizado_dga": f["fiscalizado_dga"]},
+         "corrida": n["raiz"].name, **sello_nacional(n)}
+    if not en_zonas:
+        r["nota"] = "Predio fuera de Z1 y Z2: resultado exploratorio, sin validar."
+    else:
+        r["nota"] = "Predio de Z1 o Z2: la ficha completa, con explicación, está en /api/predios/" + str(predio_id)
+        r["ficha"] = f"/api/predios/{predio_id}"
+    if rol:
+        r["predio"]["rol"] = f["rol_id"]
+    return r
 
 
 # ---------------------------------------------------------------- versión

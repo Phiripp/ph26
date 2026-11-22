@@ -78,7 +78,8 @@ def enlazar(predios: pd.DataFrame) -> pd.DataFrame:
     return enlazar_estacion(predios, DATA / "processed" / "estacion_clima.parquet")
 
 
-def pedir_lote(celdas: pd.DataFrame, inicio: str, fin: str) -> list[dict]:
+def pedir_lote(celdas: pd.DataFrame, inicio: str, fin: str, modelo: str | None = None) -> list[dict]:
+    """`modelo` fija el reanálisis de Open-Meteo (p. ej. era5_seamless); sin él, la API elige (best_match)."""
     params = {
         "latitude": ",".join(f"{v:.2f}" for v in celdas["celda_lat"]),
         "longitude": ",".join(f"{v:.2f}" for v in celdas["celda_lon"]),
@@ -87,6 +88,8 @@ def pedir_lote(celdas: pd.DataFrame, inicio: str, fin: str) -> list[dict]:
         "daily": "precipitation_sum,et0_fao_evapotranspiration",
         "timezone": "America/Santiago",
     }
+    if modelo:
+        params["models"] = modelo
     for intento in range(6):
         r = requests.get(URL, params=params, timeout=120)
         if r.status_code == 200:

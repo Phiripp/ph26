@@ -98,7 +98,7 @@ El tono es hablado. No se nombran satélites, índices ni métodos (Sentinel-2, 
 **2:38 Cierre.**
 "Caudal vio un caso real dos años antes, encuentra más del doble de infracciones y termina en una ruta para mañana. Con datos públicos, para cualquier valle de Chile. Somos Nicolás, Felipe, Gabriela y Tomás. Gracias."
 
-El texto tiene 398 palabras: 2:39 hablando a 150 palabras por minuto. Los 16 segundos que sobran son los clics y los vuelos de la demo.
+El texto tiene 397 palabras: 2:39 hablando a 150 palabras por minuto. Los 16 segundos que sobran son los clics y los vuelos de la demo.
 
 Tres cuidados al decirlo:
 

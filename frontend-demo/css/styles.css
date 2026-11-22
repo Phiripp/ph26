@@ -60,9 +60,6 @@ a{color:inherit;text-decoration:none}
   /* static: the looping jitter forced a full-stage blend recomposite over the WebGL canvases every 0.2 s, forever */
   }
 @keyframes grain{0%{transform:translate(0,0)}20%{transform:translate(-3%,2%)}40%{transform:translate(2%,-3%)}60%{transform:translate(-2%,-1%)}80%{transform:translate(3%,3%)}100%{transform:translate(0,0)}}
-.hud-meta{position:absolute;top:calc(env(safe-area-inset-top,0px) + 66px);left:0;right:0;z-index:4;font-family:var(--f-mono);font-size:11px;letter-spacing:.07em;color:var(--dim);text-transform:uppercase;pointer-events:none}
-.hud-meta .wrap{display:flex;justify-content:space-between;gap:6px 16px;flex-wrap:wrap}
-.hud-meta b{color:var(--ink);font-weight:500}
 
 /* per-mode visibility: landing / lagoon / zona UI (transitions hide all) */
 .for-landing,.for-lagoon,.for-zona{transition:opacity .4s var(--ease),visibility 0s linear .4s}
@@ -70,10 +67,10 @@ a{color:inherit;text-decoration:none}
 .stage:not([data-mode="lagoon"]) .for-lagoon{opacity:0;visibility:hidden;pointer-events:none}
 .stage:not([data-mode="zona"]) .for-zona{opacity:0;visibility:hidden;pointer-events:none}
 .stage[data-mode="landing"] .for-landing,.stage[data-mode="lagoon"] .for-lagoon,.stage[data-mode="zona"] .for-zona{transition-delay:0s}
-.hud-meta .for-landing,.hud-meta .for-lagoon,.hud-meta .for-zona{display:none}
-.stage[data-mode="landing"] .hud-meta .for-landing,.stage[data-mode="lagoon"] .hud-meta .for-lagoon,.stage[data-mode="zona"] .hud-meta .for-zona{display:inline}
 
-.stage-top{position:absolute;left:0;right:0;top:calc(env(safe-area-inset-top,0px) + 96px);z-index:5;pointer-events:none}
+/* back button: pinned left under the brand (same left edge as the nav), not centred in .wrap */
+.stage-top{position:absolute;left:0;right:0;top:calc(env(safe-area-inset-top,0px) + 88px);z-index:5;pointer-events:none}
+.stage-top.wrap{max-width:none;margin:0;padding-left:max(clamp(16px,2vw,28px),env(safe-area-inset-left,0px))}
 .stage-top>*{pointer-events:auto}
 .back{animation:rise .45s var(--ease)}
 .stage-bottom{position:absolute;left:0;right:0;bottom:0;z-index:5;padding-bottom:max(clamp(20px,4vh,34px),env(safe-area-inset-bottom,0px));pointer-events:none}
@@ -89,7 +86,11 @@ a{color:inherit;text-decoration:none}
 .hint:hover{border-color:var(--water);color:var(--ink)}
 .stage:is([data-mode="lagoon"],[data-mode="zona"]) .stage-bottom .for-landing{display:none}
 
-/* floating site card */
+/* floating site card (fallback when the 3D zone view fails) */
+.site-card{display:flex;flex-direction:column;gap:8px;width:min(340px,100%);margin-left:auto;padding:16px 18px;background:rgba(8,13,17,.93);backdrop-filter:blur(10px);border:1px solid var(--rule-2)}
+.site-card h3{margin:0;padding-right:28px;font:760 22px/1.1 var(--f-display);font-stretch:110%}
+.site-card .x{position:absolute;top:2px;right:2px;width:32px;height:32px;display:grid;place-items:center;background:none;border:0;color:var(--dim);font-size:22px;line-height:1;cursor:pointer}
+.site-card .x:hover{color:var(--ink)}
 @media (min-width:700px){.site-card{right:max(28px,env(safe-area-inset-right,0px))}}
 .stage:not([data-mode="landing"]) .site-card{display:none}
 .c-meta{margin:0;font:11px var(--f-mono);letter-spacing:.06em;text-transform:uppercase;color:var(--dim)}
@@ -327,9 +328,7 @@ figure.chart{margin:28px 0 0;border:1px solid var(--rule);background:linear-grad
   .vp-head{padding-top:4px}
   .vp-kicker,.vp-principle{display:none}
   .valle-panel.expanded .vp-principle{display:block}
-  .stage[data-mode="zona"] .hud-meta{display:none}
   .nav nav a{display:none}
-  .hud-coords{display:none!important}
   .map-legend span:last-child{display:none}
   .hint{width:100%}
   .mini{margin-left:0;width:100%;justify-content:space-between}

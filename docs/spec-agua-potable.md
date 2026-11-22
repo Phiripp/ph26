@@ -100,6 +100,7 @@ La etapa `base` de la corrida nacional ya bajó los derechos y los sectores de a
 | # | Tarea | Prioridad | Quién | Depende de | Hecho cuando |
 | --- | --- | --- | --- | --- | --- |
 | AP1 | `scripts/models/agua_potable.py`: escribe `data/processed/predio_agua_potable.parquet` y `data/processed/pozo_agua_potable.geojson` (ver el contrato) | P0 | — | — | Da 72 candidatos cerca con 1.000 m |
+| AP1b | `scripts/extract/apr_mop.py`: baja la [capa APR del MOP](https://rest-sit.mop.gob.cl/arcgis/rest/services/DOH/APR/MapServer/0) con `scripts/comun/arcgis.py`, deduplica por `ID_IDE` (la paginación devuelve cada sistema dos veces) y escribe `data/processed/apr.parquet`. `agua_potable.py` le asigna a cada pozo de agua potable los APR a `RADIO_APR_M` (2.000 m) o menos | P0 | — | — | 90 APR y 93.489 beneficiarios en las comunas de Z1 y Z2; 22 APR y unos 23.800 beneficiarios cerca de los 26 pozos con candidatos |
 | AP2 | `impacto.py`: bloque `agua_potable` en `impacto.json` y sección "Agua potable" en `impacto.md`, con el mismo universo de candidatos (`candidatos()`) | P0 | — | AP1 | `impacto.md` muestra los candidatos cerca, por zona, sin canal cerca, en m³ y en personas |
 | AP3 | `explicacion.py`: en `_contexto`, agregar la frase y el campo `dist_agua_potable_m`. No se agrega una razón nueva: se mantienen las 4 | P0 | — | AP1 | `/api/predios/5301325` dice "Pozo de agua potable del mismo acuífero a 853 m" |
 | AP4 | `build_m5_web.py`: campos `agua_potable` y `dist_agua_potable_m` en `scores.lite.json`, y copia de `pozo_agua_potable.geojson` a `data/zonas/` | P0 | — | AP1 | Los archivos exportados traen los campos |
@@ -108,7 +109,7 @@ La etapa `base` de la corrida nacional ya bajó los derechos y los sectores de a
 | AP7 | Pitch: agregar la frase y cortar la de las latas de Monster | P0 | — | AP2 | El guion sigue bajo 430 palabras y la cifra calza con `impacto.md` |
 | AP8 | Filtro "solo cerca de agua potable" en la lista de la zona, y `?agua_potable=1` en `/api/zonas/{zona}/ranking` | P1 | — | AP4 | Z2 muestra solo los 49 |
 
-Orden sugerido: AP1 y AP7 en paralelo (el guion se escribe con la cifra de la exploración y se ajusta después). Luego AP2, AP3 y AP4 a la vez, después AP5, y AP6 al final. Hay que congelar el código 1 hora antes de la demo para AP6 y para ensayar.
+Orden sugerido: AP1, AP1b y AP7 en paralelo (el guion se escribe con la cifra de la exploración y se ajusta después). Luego AP2, AP3 y AP4 a la vez, después AP5, y AP6 al final. Hay que congelar el código 1 hora antes de la demo para AP6 y para ensayar.
 
 ## Contrato de datos
 
@@ -127,6 +128,24 @@ Orden sugerido: AP1 y AP7 en paralelo (el guion se escribe con la cifra de la ex
 
 **`pozo_agua_potable.geojson`:** son puntos con `derecho_id`, `zona`, `comuna`, `caudal_ls`, `m3_anual`, `cod_shac` y `n_candidatos_cerca` (candidatos de los 467 a `RADIO_M` o menos). No lleva titular.
 
+**`apr.parquet`:** una fila por sistema de agua potable rural (SSR, ex APR).
+
+| Campo | Origen en la capa del MOP | Nota |
+| --- | --- | --- |
+| `apr_id` | `ID_IDE` | Clave única |
+| `nombre` | `NOMBRE_SSR` | Nombre del sistema. Se puede mostrar |
+| `region`, `comuna` | `REGION`, `COMUNA` | — |
+| `beneficiarios` | `BENEF_EST` | Estimación de la SSR |
+| `arranques` | `CANT_ARR` | Conexiones |
+| `captaciones` | `CANT_CAPT` | Número de captaciones (no trae su ubicación) |
+| `telemetria` | `TELEMETRIA` | Sí, No o sin información |
+| `actualizado` | `FECHA_ACTUALIZACION` | 30-06-2026 en las comunas de Z1 y Z2 |
+| `geometry` | `LATITUD`, `LONGITUD` | Punto de referencia de la localidad, no la captación |
+
+No se guarda `RUT`. Se descartan `CAMION_ALJ` y `DAA`, que en Z1 y Z2 vienen vacíos ("sin información").
+
+En `pozo_agua_potable.geojson` se agregan `apr_cercanos` (lista de `nombre`) y `beneficiarios_cercanos` (suma de los APR a `RADIO_APR_M` o menos).
+
 **`impacto.json` → `agua_potable`:**
 
 - Con los mismos nombres de los escenarios:
@@ -138,6 +157,8 @@ Orden sugerido: AP1 y AP7 en paralelo (el guion se escribe con la cifra de la ex
   - `m3_exceso_min`
   - `personas`
   - `pozos_afectados`
+  - `apr_cercanos`
+  - `beneficiarios_cercanos`: cada APR se cuenta una sola vez, aunque esté cerca de varios pozos
 - `casos_esperados`: los candidatos cerca multiplicados por el acierto de la DGA.
 
 ## Textos
@@ -147,7 +168,8 @@ Orden sugerido: AP1 y AP7 en paralelo (el guion se escribe con la cifra de la ex
   - Si no hay: "Sin pozos de agua potable registrados en su acuífero."
 - **Límite**, en la ficha cuando `agua_potable` es verdadero: "La cercanía no prueba que el predio afecte ese pozo: es una prioridad, no un hallazgo."
 - **Etiqueta** en la lista y en la ficha: "Cerca de agua potable". Va con un ícono de gota y un color que no se confunda con las bandas.
-- **Panel de impacto:** "72 candidatos riegan a menos de 1 km de un pozo de agua potable de su mismo acuífero".
+- **Panel de impacto:** "72 candidatos riegan a menos de 1 km de un pozo de agua potable de su mismo acuífero". Debajo: "Cerca de esos pozos hay 22 sistemas de agua potable rural, con unos 23.800 beneficiarios".
+- **Ficha, si hay APR cerca del pozo:** "APR cercanos al pozo: `<nombre>` (`<N>` beneficiarios)". Va el nombre del sistema y nunca un RUT.
 
 ## Pitch
 
@@ -159,6 +181,21 @@ Opcional en la ruta (1:35), si sobra tiempo: "Y la quinta parada está a 850 met
 
 Respuesta lista para el jurado. Pregunta: "¿Cómo saben que afecta al pozo?". Respuesta: "No lo sabemos. Usamos el mismo acuífero y un kilómetro como criterio para priorizar. Medir el efecto requiere niveles de pozos, que la DGA tiene y nosotros no".
 
+## Datos buscados para un plan de acceso
+
+Para decir cuánta agua le falta a cada comunidad hacen falta datos que no siempre son públicos. Esto es lo que se encontró el 21-11:
+
+| Dato | Fuente | ¿Se puede bajar? | Uso |
+| --- | --- | --- | --- |
+| Sistemas APR: ubicación, beneficiarios, arranques | [Capa APR del MOP (DOH/SSR)](https://rest-sit.mop.gob.cl/arcgis/rest/services/DOH/APR/MapServer/0), 2.500 sistemas en el país | ✅ Sí, sin registro | AP1b |
+| Si el APR recibe camión aljibe o tiene derechos | Misma capa (`CAMION_ALJ`, `DAA`) | ⚠️ Vacíos en Z1 y Z2 | No se usan |
+| Hogares abastecidos por camión aljibe | Censo 2017 del INE, pregunta P05, [capa por unidad vecinal](https://sig.ine.cl/server/rest/services/Open_Data/Censos/MapServer/5) | ❌ El servidor SIG del INE no respondió; falta probar microdatos o REDATAM | Después de la demo |
+| Niveles de pozos | [Red hidrométrica de la DGA](https://rest-sit.mop.gob.cl/arcgis/rest/services/DGA/Red_Hidrometrica/MapServer/0): 68 pozos de nivel en las comunas de Z1 y Z2, entre ellos "Agua Potable Hierro Viejo" (BNA 05110005) | ⚠️ Solo la lista. Las series están en el portal BNA, que respondió 403 | Después de la demo, con descarga manual |
+| Decretos de escasez | [Capa de la DGA](https://rest-sit.mop.gob.cl/arcgis/rest/services/DGA/Decretos_Escasez_Hidrica/MapServer/0) y [página de decretos](https://dga.mop.gob.cl/derechos-de-agua/proteccion-de-las-fuentes/decretos-de-escasez-2/) | ✅ El historial; ⚠️ el campo `VIGENTE` está desactualizado | Dato de contexto: Petorca, La Ligua, Aconcagua y Quillota tuvieron decreto cada año entre 2008 y 2022, salvo 2009 |
+| Extracción real por pozo (MEE) | Monitoreo de extracciones de la DGA | ❌ Token y captcha (prueba D20, [pruebas-acceso-datos.md](pruebas-acceso-datos.md)) | No |
+
+Sin datos de demanda ni de déficit por APR, Caudal no propone un plan de acceso. Propone prioridades de fiscalización y dice a qué comunidades afectan.
+
 ## Riesgos
 
 | Riesgo | Mitigación |
@@ -167,10 +204,12 @@ Respuesta lista para el jurado. Pregunta: "¿Cómo saben que afecta al pozo?". R
 | La cifra del guion no calza con el dato | AP7 usa la cifra que sale de AP2, y se revisa en el último ensayo |
 | Que se lea como acusación | La palabra es "prioridad" y la ficha trae el límite. No se muestran titulares de los pozos |
 | Pozos de APR sin uso declarado | Es una cota inferior, y la cifra se presenta así |
+| Leer los beneficiarios como "personas afectadas" | Se dice "cerca" y "del mismo acuífero". El punto del APR es la localidad y los 2.000 m son un criterio de asociación, no una conexión medida |
 
 ## Criterios de aceptación
 
 - `uv run scripts/models/agua_potable.py` da 72 candidatos cerca con 1.000 m. Si cambia, se actualizan esta tabla y el guion.
 - `impacto.md` tiene la sección "Agua potable", generada por el script y sin cifras escritas a mano.
+- `apr.parquet` no trae `RUT`, y cada APR aparece una sola vez.
 - En producción, en Z2 se ven los pozos de agua potable y la parada 5 de la ruta lleva la etiqueta y la distancia.
 - Con `caudal-api` apagado, el respaldo muestra lo mismo.

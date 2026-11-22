@@ -21,7 +21,7 @@ Live: <https://caudal-web-170658673954.southamerica-west1.run.app> · Full descr
 
 ## What it does
 
-1. **Spots irrigation.** If it has not rained for 10 days and a farm is still greener and wetter than the dry hill next to it, someone is watering it.
+1. **Spots irrigation.** In summer, when the hills are dry, a farm that stays green and moist is being watered.
 2. **Compares with water rights.** It estimates the water the crop needs and compares it with the rights registered for that farm.
 3. **Ranks 7,911 farms** in Petorca and lower Aconcagua, and plans a one-day inspection route.
 4. **Builds the complaint file.** A PDF with the fields of the DGA's official complaint form, generated on the server.

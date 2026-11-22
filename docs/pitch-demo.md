@@ -78,7 +78,7 @@ El tono es hablado. No se nombran satélites, índices ni métodos (Sentinel-2, 
 "En Petorca hay 40 mil personas que han tenido que vivir con 50 litros de agua al día, que les llega en camión aljibe. Solo en 2023 y 2024, el Estado contrató más de 5.700 millones de pesos en esos camiones. Y ahí mismo hay huertos verdes en pleno verano, regando sin derechos. ¿Cómo se pilla eso hoy? Solo si un vecino denuncia."
 
 **0:35 Demo: cómo funciona.**
-"Esto es Caudal, funcionando. Casi 8 mil predios. Si lleva diez días sin llover y un predio sigue más verde que el cerro de al lado, alguien lo está regando. Y si riega más de lo que sus derechos le permiten, queda en alerta."
+"Esto es Caudal, funcionando. Casi 8 mil predios. En verano, cuando el cerro está seco, un predio que sigue verde es porque alguien lo está regando. Y si riega más de lo que sus derechos le permiten, queda en alerta."
 
 **0:52 Demo: el caso real.**
 "Esto es Hijuelas. En 2021 la DGA fiscalizó este predio de paltos y lo multó con más de 140 millones de pesos por sacar agua sin derechos. La línea gris es el cerro seco; la celeste, el predio. Caudal lo tenía en alerta alta desde 2019: dos años antes de que llegara un inspector."
@@ -98,7 +98,7 @@ El tono es hablado. No se nombran satélites, índices ni métodos (Sentinel-2, 
 **2:38 Cierre.**
 "Caudal vio un caso real dos años antes, encuentra más del doble de infracciones y termina en una ruta para mañana. Con datos públicos, para cualquier valle de Chile. Somos Nicolás, Felipe, Gabriela y Tomás. Gracias."
 
-El texto tiene 401 palabras: 2:40 hablando a 150 palabras por minuto. Los 15 segundos que sobran son los clics y los vuelos de la demo.
+El texto tiene 398 palabras: 2:39 hablando a 150 palabras por minuto. Los 16 segundos que sobran son los clics y los vuelos de la demo.
 
 Tres cuidados al decirlo:
 
@@ -156,7 +156,7 @@ Datos de reserva para las preguntas:
 | ¿Cuántos falsos positivos tiene? | Entre los fiscalizados en alerta alta, 7 de 15 tuvieron infracción (47 %; la DGA tiene 33 %). Son pocos casos y lo decimos. Por eso Caudal prioriza y entrega rangos; la infracción la constata el inspector |
 | ¿Cómo saben que es agua ilegal y no de un canal? | No lo sabemos con certeza. El agua de canal no está en el registro de derechos. Por eso el escenario conservador excluye a todo predio con un canal a 300 m, y la ficha lo avisa |
 | ¿Qué es en vivo y qué es precalculado? | Las series satelitales, el puntaje y la ruta se precalculan (7.911 predios, en GCP y en los scripts del repo). En vivo: el expediente PDF y las consultas de la API. Detalle en [en-vivo-y-precalculado.md](en-vivo-y-precalculado.md) |
-| ¿Por qué diez días sin lluvia? ¿Lo midieron? | Sí. En verano casi todas las imágenes ya cumplen esa condición, y quitarla deja el ranking igual (99,4 % de los predios en la misma banda). Lo que importa es la época: cuando el cerro reverdece, en primavera, el contraste se pierde. Por eso usamos diciembre a marzo. Detalle en [ablacion-ventana.md](ablacion-ventana.md) |
+| ¿Por qué solo en verano? ¿Importa la lluvia? | Lo medimos. El modelo exige diez días sin lluvia, pero en verano casi todas las imágenes ya cumplen esa condición, y quitarla deja el ranking igual (99,4 % de los predios en la misma banda). Lo que importa es la época: cuando el cerro reverdece, en primavera, el contraste se pierde. Por eso usamos diciembre a marzo. Detalle en [ablacion-ventana.md](ablacion-ventana.md) |
 | ¿Qué tan bien detecta riego? | Marca riego en el 83 % de los huertos del catastro frutícola (1.008 de 1.210), que son riego seguro. Eso mide riego, no infracción: la infracción se valida con los casos de la DGA |
 | ¿La DGA no hace esto ya? | En el caso de Hijuelas dijo que usó imágenes, pero su fiscalización parte casi siempre de una denuncia. Caudal lo hace para todos los predios y todas las temporadas |
 | ¿El satélite es "mundo físico"? | La entrada son mediciones físicas (reflectancia, lluvia, evapotranspiración) y la salida es una inspección en terreno con ruta y puntos a revisar |

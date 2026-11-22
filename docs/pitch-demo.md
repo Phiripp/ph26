@@ -81,7 +81,7 @@ El tono es hablado. No se nombran satélites, índices ni métodos (Sentinel-2, 
 "Esto es Caudal, funcionando. Casi 8 mil predios. Si lleva diez días sin llover y un predio sigue más verde que el cerro de al lado, alguien lo está regando. Y si riega más de lo que sus derechos le permiten, queda en alerta."
 
 **0:52 Demo: el caso real.**
-"Esto es Hijuelas. En 2021 la DGA fiscalizó este predio de paltos y lo multó con más de 140 millones de pesos por sacar agua sin derechos. La línea gris es el cerro seco; la verde, el predio. Caudal lo tenía en alerta alta desde 2019: dos años antes de que llegara un inspector."
+"Esto es Hijuelas. En 2021 la DGA fiscalizó este predio de paltos y lo multó con más de 140 millones de pesos por sacar agua sin derechos. La línea gris es el cerro seco; la celeste, el predio. Caudal lo tenía en alerta alta desde 2019: dos años antes de que llegara un inspector."
 
 **1:17 Demo: un candidato de hoy.**
 "Ahora, el verano pasado, en la misma comuna. Diecinueve hectáreas de paltos, verdes todo el verano. Sin derechos de agua inscritos, sin un canal cerca, nunca fiscalizado. Ojo: Caudal no acusa, prioriza. Y con un clic, el expediente: lo arma el servidor, con el formato oficial de denuncias de la DGA."
@@ -178,4 +178,4 @@ Datos de reserva para las preguntas:
 - [x] Llenar `platanus-hack-project.jsonc` con el nombre, la descripción y la URL de producción.
 - [ ] Prueba del correo (Seibel): mandar las dos frases del mensaje a alguien de fuera del equipo y pedirle que las repita con sus palabras. Si pregunta algo, se reescriben.
 - [ ] Correr el recorrido completo en producción, en el computador de la demo.
-- [ ] Revisar que las cifras del guion coincidan con `impacto.md`, `validacion.md` y lo que muestra la pantalla (ruta, multa, fecha del expediente).
+- [x] Revisar que las cifras del guion coincidan con `impacto.md`, `validacion.md` y lo que muestra la pantalla (ruta, multa, fecha del expediente). Revisado el 22-11 contra la API de producción: ruta de 5 predios, 4 horas y 71 km; multa de 1.983,9 UTM, unos $143,7 millones; expediente del candidato reutilizado, con su fecha.

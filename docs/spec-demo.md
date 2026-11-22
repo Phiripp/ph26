@@ -343,7 +343,7 @@ Si cambian los datos (por ejemplo, la ruta), hay que regenerar en el mismo commi
 | T8 | F3: botón que llama al backend, visor de PDF y respaldo | P0 | Nico ✅ | T6 | El clic abre el PDF en producción; con el backend apagado abre el respaldo |
 | T9 | Desplegar `caudal-web` y llenar `platanus-hack-project.jsonc` | P0 | Nico ✅ | T3 a T8 | El recorrido completo funciona en la URL pública, también con `caudal-api` apagado |
 | T10 | Limpieza para el agente del jurado: quitar lo provisional, `data/demo.json`, documento "en vivo y precalculado". Falta que una persona escriba el README raíz y lo enlace | P0 | Tomás ✅ | T3 | La tabla de la sección anterior no tiene pendientes |
-| T12 | F7: modo demo (enlaces, teclas, `?demo=1`) | P1 | Nico; Tomás ✅ `?demo=1` (oculta todo rol). Faltan las teclas 1 a 5 | T3 | Las teclas 1 a 5 recorren el guion |
+| T12 | F7: modo demo (enlaces, teclas, `?demo=1`) | P1 | Nico y Tomás ✅ | T3 | Las teclas 1 a 5 recorren el guion |
 | T13 | Recortes de los predios en alerta en un bucket privado | P1 | Felipe | T7 | La ficha del candidato muestra recortes con fecha y escena |
 | T14 | Filtros del ranking y ruta del escenario conservador | P2 | Tomás | T2 | — |
 
@@ -363,13 +363,13 @@ Usos que quedan abiertos (ninguno está hecho):
 
 ## Criterios de aceptación de la demo
 
-- [ ] El recorrido del guion se completa en producción en menos de 1:40, sin recargar.
+- [ ] El recorrido del guion se completa en producción en menos de 1:40, sin recargar. Sin cronometrar: el recorrido se probó el 22-11 con las teclas 1 a 5, en la página de desarrollo contra la API de producción.
 - [x] Ninguna pantalla dice "provisional" ni muestra una cifra que no esté en `data/processed/`.
-- [ ] La ficha del candidato muestra como máximo 4 razones y 2 límites, cada razón con su fuente.
+- [x] La ficha del candidato muestra como máximo 4 razones y 2 límites, cada razón con su fuente.
 - [x] El texto de la ficha y el del PDF coinciden (los dos salen de `explicacion.py`).
-- [ ] El expediente del candidato se abre en menos de 3 segundos y es un PDF con las 7 secciones de la guía de la DGA.
-- [ ] Con el backend apagado, el recorrido completo funciona con el respaldo estático y el botón abre el PDF de respaldo.
-- [ ] En modo demo no aparece ningún rol ni nombre.
+- [x] El expediente del candidato se abre en menos de 3 segundos y es un PDF con las 7 secciones de la guía de la DGA (0,5 s desde la página).
+- [x] Con el backend apagado, el recorrido completo funciona con el respaldo estático y el botón abre el PDF de respaldo.
+- [x] En modo demo no aparece ningún rol ni nombre (portada, zona, caso, candidato, expediente y ruta).
 - [x] Buscar en `frontend-demo/js/` los números del pitch (501, 2,6, 5301984) no da resultados.
 
 ## Fuera de alcance

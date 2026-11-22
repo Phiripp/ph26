@@ -37,6 +37,19 @@ const CYAN = '#45d6ee';
 const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
 const easeInOutCubic = (t) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2);
 const easeInOutSine = (t) => -(Math.cos(Math.PI * t) - 1) / 2;
+/**
+ * One leg of the route drive: speed up quickly (first 15 %), cruise fast, brake visibly into the stop
+ * (last 30 %). Position for a trapezoidal speed profile, 0..1 -> 0..1.
+ */
+const DRIVE_ACC = 0.15, DRIVE_BRK = 0.3, DRIVE_VMAX = 1 / (1 - DRIVE_ACC / 2 - DRIVE_BRK / 2);
+const driveEase = (k) => {
+  if (k <= 0) return 0;
+  if (k >= 1) return 1;
+  if (k < DRIVE_ACC) return (DRIVE_VMAX * k * k) / (2 * DRIVE_ACC);
+  if (k < 1 - DRIVE_BRK) return DRIVE_VMAX * (DRIVE_ACC / 2 + (k - DRIVE_ACC));
+  const u = 1 - k;
+  return 1 - (DRIVE_VMAX * u * u) / (2 * DRIVE_BRK);
+};
 /** signed shortest turn from angle a to angle b (radians, -PI..PI) */
 const angDiff = (a, b) => { let d = (b - a) % (2 * Math.PI); if (d > Math.PI) d -= 2 * Math.PI; if (d < -Math.PI) d += 2 * Math.PI; return d; };
 const hhmm = (s) => { const m = /^(\d{1,2}):(\d{2})/.exec(String(s || '')); return m ? +m[1] * 60 + +m[2] : null; };
@@ -1596,7 +1609,7 @@ export async function initValle({
   // timeline: swoop to the start (INTRO) -> drive leg by leg, easing into each stop and pausing on it (DWELL)
   // -> rise back to the zone view with the whole route drawn (OUTRO). The camera stays north-up and only travels.
   const CHASE_POL = THREE.MathUtils.degToRad(58);
-  const INTRO = 1300, OUTRO = 1700, DWELL = 900;
+  const INTRO = 1100, OUTRO = 1500, DWELL = 650;
   function chaseR() {
     const want = clamp(home.r * (isSmall() ? 0.36 : 0.27), 2.2, 60);
     return Math.max(want, minCamR());
@@ -1743,14 +1756,14 @@ export async function initValle({
         return;
       }
       const k = clamp((e - seg.t0) / ((seg.t1 - seg.t0) || 1), 0, 1);
-      const d = seg.type === 'drive' ? seg.d0 + (seg.d1 - seg.d0) * easeInOutSine(k) : seg.d0;
+      const d = seg.type === 'drive' ? seg.d0 + (seg.d1 - seg.d0) * driveEase(k) : seg.d0;
       state.routeT = clamp(d / routeLen, 0, 1);
       if (seg.type === 'dwell' && chase.stopShown !== seg.stop.i) { chase.stopShown = seg.stop.i; ripple(seg.stop.st); arrive.innerHTML = arriveHTML(seg.stop.st, tl.n); }
       // camera: behind the vehicle, heading smoothed; a slight push-in while it stops at a predio
       const rWant = seg.type === 'dwell' ? chase.r * 0.82 : chase.r;
       chase.rNow += (rWant - chase.rNow) * (1 - Math.exp(-dt * 3));
       const tgt = chaseTarget(d, chase.rNow);
-      if (tgt) chase.t.lerp(tgt, 1 - Math.exp(-dt * 6));
+      if (tgt) chase.t.lerp(tgt, 1 - Math.exp(-dt * 8));
       cam.az = chase.az; cam.pol = CHASE_POL; cam.r = chase.rNow; camT.copy(chase.t);
       placeVehicle(d, dt, false);
       placeArrive(seg.type === 'dwell');

@@ -14,6 +14,12 @@
 #   SOLO_IMAGEN=1 scripts/cloud/api/desplegar.sh         solo construye la imagen local `caudal-api`, para probar:
 #       docker run --rm -p 8080:8080 caudal-api          y luego  curl localhost:8080/api/health
 #   ORIGENES=https://caudal-web-xxxx.run.app scripts/cloud/api/desplegar.sh    fija el origen de CORS a mano
+#   REGION=us-central1 CONSTRUIR=cloud scripts/cloud/api/desplegar.sh          otra región, construyendo con Cloud Build
+#
+# Corrida nacional: el servicio monta el bucket privado BUCKET (solo lectura, GCS FUSE, requiere gen2) en /datos y
+# lee CAUDAL_NACIONAL=/datos/modelo/$CORRIDA para servir /api/chile. La cuenta de servicio de Cloud Run necesita
+# roles/storage.objectViewer en el bucket. Si el montaje falta, el resto de la API responde igual y /api/chile da 503.
+#   BUCKET=otro-bucket CORRIDA=chile-2025-26 scripts/cloud/api/desplegar.sh    cambia el bucket o la corrida
 #
 # Para actualizar los datos se corre de nuevo: cada despliegue es una revisión, y se vuelve atrás con
 #   gcloud run services update-traffic caudal-api --region southamerica-west1 --to-revisions=REVISION=100
@@ -22,6 +28,8 @@ PROYECTO=${PROYECTO:-ph-26-caudal}
 REGION=${REGION:-southamerica-west1}
 SERVICIO=${SERVICIO:-caudal-api}
 WEB=${WEB:-caudal-web}
+BUCKET=${BUCKET:-ph-26-caudal-chile}
+CORRIDA=${CORRIDA:-chile-2025-26}
 REPO=${REPO:-caudal}
 RAIZ=$(cd "$(dirname "$0")/../../.." && pwd)
 cd "$RAIZ"
@@ -77,7 +85,9 @@ ORIGENES=${ORIGENES:-$(gcloud run services describe "$WEB" --project "$PROYECTO"
 
 gcloud run deploy "$SERVICIO" --project "$PROYECTO" --region "$REGION" --image "$IMAGEN" --allow-unauthenticated \
   --cpu 2 --memory 2Gi --concurrency 20 --timeout 300 --min-instances 1 --max-instances 2 \
-  --set-env-vars "^;^CAUDAL_ORIGENES=$ORIGENES"
+  --execution-environment gen2 \
+  --add-volume "name=datos,type=cloud-storage,bucket=$BUCKET,readonly=true" --add-volume-mount "volume=datos,mount-path=/datos" \
+  --set-env-vars "^;^CAUDAL_ORIGENES=$ORIGENES;CAUDAL_NACIONAL=/datos/modelo/$CORRIDA"
 URL=$(gcloud run services describe "$SERVICIO" --project "$PROYECTO" --region "$REGION" --format 'value(status.url)')
 echo "Desplegado: $URL"
 curl -fsS "$URL/api/health" && echo

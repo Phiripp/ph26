@@ -41,6 +41,8 @@ Desde Cloud Run, el bucket se monta en `/datos`: ver [`infra/README.md`](../infr
 
 `caudal-api` sirve `modelo/chile-2025-26/` en `/api/chile`, `/api/chile/{región}/ranking` y `/api/chile/predios/{id}` (solo lectura, todo exploratorio fuera de Z1 y Z2) una vez desplegada con el montaje: ver [api/README.md](../api/README.md#corrida-nacional-apichile).
 
+Valparaíso fuera de Z1 y Z2 ya se midió con las fiscalizaciones históricas: la banda alta no supera al azar (0,5 veces; IC 95 % 0,2–1,2), así que el rótulo "exploratorio" se mantiene. Ver [validacion-r05.md](validacion-r05.md) (`scripts/models/validacion_region.py`).
+
 - **Imagen de los jobs:** `caudal-jobs/pipeline:e6d5ad0315fe`.
 - **API de la demo:** `caudal-api` está en producción (T7 en [spec-demo.md](spec-demo.md)) y sigue con los datos de Z1 y Z2.
 - **Ranking:** no cambia con el año completo de Valparaíso. Ver [Año completo en Valparaíso](#año-completo-en-valparaíso).

@@ -1594,7 +1594,7 @@ export async function initValle({
   let lastT = 0, lastReached = 0;
   // ---------- route playback: the camera follows a vehicle along the road ----------
   // timeline: swoop to the start (INTRO) -> drive leg by leg, easing into each stop and pausing on it (DWELL)
-  // -> rise back to the zone view with the whole route drawn (OUTRO). Same total duration as before.
+  // -> rise back to the zone view with the whole route drawn (OUTRO). The camera stays north-up and only travels.
   const CHASE_POL = THREE.MathUtils.degToRad(58);
   const INTRO = 1300, OUTRO = 1700, DWELL = 900;
   function chaseR() {
@@ -1607,8 +1607,8 @@ export async function initValle({
     return Math.atan2(b.x - a.x, b.z - a.z);
   }
   function chaseTarget(d, r) {
-    // a little ahead of the vehicle so the road it is about to take stays in view
-    const p = pointAt(Math.min(routeLen, d + r * 0.18)) || pointAt(d);
+    // slightly ahead of the vehicle (smoothed in stepChase) so the road it is about to take stays in view
+    const p = pointAt(Math.min(routeLen, d + r * 0.08)) || pointAt(d);
     return p;
   }
   function buildTimeline(duration) {
@@ -1655,7 +1655,7 @@ export async function initValle({
   function startChase(duration, resolve) {
     pick(null, false); focus = null;
     const r = chaseR();
-    const az = headingAt(0) + Math.PI;
+    const az = 0; // north-up the whole way: the camera only travels, it never turns (turns read as jerky)
     const target = chaseTarget(0, r);
     chase = { az, t: target.clone(), r, rNow: r, live: false, stopShown: -1 };
     routePlay = { chase: true, t0: performance.now(), dur: duration, tl: buildTimeline(duration), resolve, phase: 'intro' };
@@ -1747,8 +1747,6 @@ export async function initValle({
       state.routeT = clamp(d / routeLen, 0, 1);
       if (seg.type === 'dwell' && chase.stopShown !== seg.stop.i) { chase.stopShown = seg.stop.i; ripple(seg.stop.st); arrive.innerHTML = arriveHTML(seg.stop.st, tl.n); }
       // camera: behind the vehicle, heading smoothed; a slight push-in while it stops at a predio
-      const az = headingAt(d) + Math.PI;
-      chase.az += angDiff(chase.az, az) * (1 - Math.exp(-dt * 2.2));
       const rWant = seg.type === 'dwell' ? chase.r * 0.82 : chase.r;
       chase.rNow += (rWant - chase.rNow) * (1 - Math.exp(-dt * 3));
       const tgt = chaseTarget(d, chase.rNow);

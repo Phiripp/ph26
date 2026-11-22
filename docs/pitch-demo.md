@@ -63,7 +63,7 @@ Toda la demo ocurre en una sola zona (Aconcagua bajo, comuna de Hijuelas) para n
 | 0:47–1:22 | 35 | Demo: el caso real | Ficha del caso FO-0504-95: multa, "al menos 2,0 años antes" y el agua estimada |
 | 1:22–1:58 | 36 | Demo: un candidato de hoy | Ficha del candidato; se abre el expediente PDF |
 | 1:58–2:12 | 14 | Demo: la ruta de mañana | Pestaña Ruta: "5 predios · 4 horas · 71 km" |
-| 2:12–2:28 | 16 | Qué tan bien funciona | La zona completa, con los predios en alerta |
+| 2:12–2:28 | 16 | Qué tan bien funciona | Sigue la pestaña Ruta: no se cambia de pantalla |
 | 2:28–2:44 | 16 | Cierre | Slide 3: 2 años, 2,6× y 501; caudales.dev y equipo. Se queda durante las preguntas |
 
 Termina a los 2:44: quedan 16 segundos de margen antes del corte. El reparto sale de la revisión del 22-11 con tres espectadores simulados (alguien cansado en la quinta fila, un jurado técnico y un coach de demo day) y de los tiempos medidos en producción: la zona carga en 2,6 segundos, el caso y el candidato abren al instante y el expediente en menos de 2. No hay esperas que cubrir hablando.

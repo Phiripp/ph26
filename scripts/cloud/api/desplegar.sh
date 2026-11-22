@@ -36,6 +36,7 @@ trap 'rm -rf "$CTX"' EXIT
 mkdir -p "$CTX/scripts" "$CTX/data/processed"
 cp -R api "$CTX/api"
 cp -R scripts/models "$CTX/scripts/models"
+cp -R scripts/comun "$CTX/scripts/comun"   # los modelos importan comun.rutas
 find "$CTX" -name __pycache__ -type d -prune -exec rm -rf {} +
 cp data/zonas.json data/demo.json data/casos_validacion.geojson "$CTX/data/"
 for f in data/processed/*.parquet data/processed/ruta_z?.* data/processed/impacto.json data/processed/calibracion_grilla.csv \

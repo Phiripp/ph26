@@ -16,6 +16,7 @@ COPY api/requirements.txt api/requirements.txt
 RUN pip install --no-cache-dir -r api/requirements.txt
 
 COPY scripts/models scripts/models
+COPY scripts/comun scripts/comun
 COPY api api
 COPY data data
 

@@ -24,6 +24,18 @@ for r in /api/health /api/demo /api/impacto /api/zonas /api/casos "/api/casos/$C
          "/api/predios/$PREDIO" "/api/predios/$PREDIO/serie"; do
   prueba 200 "$r"
 done
+# Corrida nacional: estrictas solo si /api/health dice nacional.disponible; si no, 503 es lo esperado.
+if python3 -c "import json,sys; sys.exit(0 if json.load(sys.stdin).get('nacional', {}).get('disponible') else 1)" < <(curl -s -m 30 "$API/api/health"); then
+  REGION_N=$(curl -s -m 30 "$API/api/chile" | python3 -c "import json,sys; print(json.load(sys.stdin)['regiones'][0]['zona'])")
+  prueba 200 /api/chile
+  prueba 200 "/api/chile/$REGION_N/ranking?banda=alta&limite=5"
+  prueba 200 "/api/chile/predios/$PREDIO"
+  prueba 404 /api/chile/predios/1
+  prueba 404 /api/chile/R99/ranking
+else
+  echo "aviso: corrida nacional no disponible (sin CAUDAL_NACIONAL o sin montaje): /api/chile debe dar 503"
+  prueba 503 /api/chile
+fi
 prueba 404 /api/predios/1
 prueba 404 /api/zonas/Z9/resumen
 prueba 404 /api/casos/NO-EXISTE

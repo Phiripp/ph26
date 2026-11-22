@@ -49,4 +49,14 @@ if [ -n "${EXPEDIENTE:-}" ]; then
   [ -n "${url:-}" ] && prueba 200 "$url"
 fi
 
+# CORS: la página pública debe poder llamar a la API (ORIGEN=https://otro.dominio para probar otro)
+ORIGEN=${ORIGEN:-https://caudales.dev}
+if curl -s -m 30 -D - -o /dev/null -H "Origin: $ORIGEN" "$API/api/health" | grep -qi "^access-control-allow-origin: $ORIGEN"; then
+  echo "ok    CORS acepta $ORIGEN"
+elif [[ "$API" == http://localhost* || "$API" == http://127.0.0.1* ]]; then
+  echo "aviso CORS no acepta $ORIGEN (normal en local)"
+else
+  echo "FALLA CORS no acepta $ORIGEN: la página en ese dominio usará solo el respaldo"; fallas=$((fallas + 1))
+fi
+
 [ "$fallas" = 0 ] && echo "Todo bien: $API" || { echo "$fallas fallas en $API"; exit 1; }

@@ -13,7 +13,8 @@
 #   scripts/cloud/api/desplegar.sh                       construye, sube y despliega
 #   SOLO_IMAGEN=1 scripts/cloud/api/desplegar.sh         solo construye la imagen local `caudal-api`, para probar:
 #       docker run --rm -p 8080:8080 caudal-api          y luego  curl localhost:8080/api/health
-#   ORIGENES=https://caudal-web-xxxx.run.app scripts/cloud/api/desplegar.sh    fija el origen de CORS a mano
+#   ORIGENES=https://a.cl,https://b.cl scripts/cloud/api/desplegar.sh    fija los orígenes de CORS a mano (por defecto,
+#       https://caudales.dev y la URL de Cloud Run de caudal-web)
 #   REGION=us-central1 CONSTRUIR=cloud scripts/cloud/api/desplegar.sh          otra región, construyendo con Cloud Build
 #
 # Corrida nacional: el servicio monta el bucket privado BUCKET (solo lectura, GCS FUSE, requiere gen2) en /datos y
@@ -79,8 +80,11 @@ else
   gcloud builds submit "$CTX" --project "$PROYECTO" --region "$REGION" --tag "$IMAGEN" --timeout 1200s
 fi
 
-# CORS: solo la página. Si caudal-web ya está desplegado, se toma su URL; si no, se pasa con ORIGENES=...
-ORIGENES=${ORIGENES:-$(gcloud run services describe "$WEB" --project "$PROYECTO" --region "$REGION" --format 'value(status.url)' 2>/dev/null || true)}
+# CORS: solo la página. Sus dos direcciones: el dominio público (DOMINIO) y la URL de Cloud Run de caudal-web, si ya
+# está desplegado. Sin el dominio, la página en caudales.dev no puede llamar a la API y muestra todo desde el respaldo.
+DOMINIO=${DOMINIO:-https://caudales.dev}
+URL_WEB=$(gcloud run services describe "$WEB" --project "$PROYECTO" --region "$REGION" --format 'value(status.url)' 2>/dev/null || true)
+ORIGENES=${ORIGENES:-$DOMINIO${URL_WEB:+,$URL_WEB}}
 [ -n "$ORIGENES" ] || echo "AVISO: sin ORIGENES y sin $WEB desplegado: la página no podrá llamar a la API hasta fijar CAUDAL_ORIGENES" >&2
 
 gcloud run deploy "$SERVICIO" --project "$PROYECTO" --region "$REGION" --image "$IMAGEN" --allow-unauthenticated \

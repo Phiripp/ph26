@@ -32,8 +32,7 @@
         document.getElementById('top').classList.add('is-intro', 'intro-pending');
     } catch (_) {}
   </script>
-  <div id="map" aria-label="Mapa satelital 3D de Chile. Las zonas Z1 Petorca y Z2 Aconcagua bajo abren la priorización de predios; los 10 casos sancionados por la DGA abren su ficha; la Laguna de Aculeo abre una vista 3D de contexto."></div>
-  <canvas id="hero-canvas" aria-label="Vista satelital 3D de la Laguna de Aculeo, Sentinel-2, año a año"></canvas>
+  <div id="map" aria-label="Mapa satelital 3D de Chile. Las zonas Z1 Petorca y Z2 Aconcagua bajo abren la priorización de predios; los 10 casos sancionados por la DGA abren su ficha."></div>
   <canvas id="valle-canvas" aria-label="Vista 3D de la zona con los predios priorizados por banda, los casos sancionados por la DGA y la ruta de inspección"></canvas>
   <div class="stage-scrim" aria-hidden="true"></div>
   <div class="stage-grain" aria-hidden="true"></div>
@@ -46,9 +45,7 @@
 
   <div class="hud-meta">
     <div class="wrap">
-      <span class="for-lagoon">Contexto · Laguna de Aculeo · EOX Sentinel-2 cloudless · <b id="scene">Escena 2018 · Sentinel-2 L2A</b></span>
       <span class="for-zona"><span id="hz-name">Zona</span> · <b id="hz-count">— predios</b> · Sentinel-2 + DMC/Open-Meteo</span>
-      <span class="hud-coords for-lagoon">33°50′35″S 70°54′50″O · 10 m/px</span>
       <span class="hud-coords for-zona" id="hz-coords">Valparaíso · 10 m/px</span>
     </div>
   </div>
@@ -101,25 +98,6 @@
         <div class="c-row"><span class="c-loss" id="c-loss">—</span><span class="c-since" id="c-since">—</span></div>
         <p class="c-note" id="c-note">Cifras ilustrativas en este prototipo.</p>
         <div class="c-actions">
-          <button class="btn primary" id="c-enter" type="button" hidden>Ver laguna en 3D</button>
-        </div>
-      </div>
-
-      <!-- lagoon -->
-      <div class="lagoon-bar" id="lagoon-bar" hidden>
-        <button class="btn" id="play" type="button" aria-pressed="false"><span class="ico" aria-hidden="true"></span><span class="txt">Reproducir</span></button>
-        <div class="timeline">
-          <input type="range" id="scrub" min="2018" max="2024" step="0.01" value="2024" aria-label="Año de la imagen" aria-valuetext="2024">
-          <div class="ticks" id="scrub-ticks" aria-hidden="true"></div>
-        </div>
-        <figure class="wh" id="wh" title="Superficie de agua por año (km²)">
-          <svg id="wh-svg" viewBox="0 0 220 40" width="220" height="40" role="img" aria-label="Superficie de agua por año (km²)"></svg>
-          <figcaption class="wh-yrs" id="wh-yrs" aria-hidden="true"></figcaption>
-        </figure>
-        <div class="mini" aria-live="off">
-          <span><small>Año</small><b id="yr">2018</b></span>
-          <span><small>Agua</small><b><span id="area">—</span> km²</b></span>
-          <span><small>vs <span id="base-yr">2018</span></small><b class="loss" id="delta">0%</b></span>
         </div>
       </div>
     </div>

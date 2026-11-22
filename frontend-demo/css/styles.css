@@ -32,7 +32,8 @@ a{color:inherit;text-decoration:none}
 :focus-visible{outline:2px solid var(--water);outline-offset:3px}
 
 /* ---------- nav ---------- */
-.nav{position:absolute;inset:0 0 auto;z-index:5;padding-top:calc(env(safe-area-inset-top,0px) + 20px)}
+.nav{position:absolute;inset:0 0 auto;z-index:5;padding-top:calc(env(safe-area-inset-top,0px) + 20px);pointer-events:none}
+.nav .brand{pointer-events:auto}
 .nav .wrap{display:flex;align-items:center;max-width:none;margin:0;padding-left:max(clamp(16px,2vw,28px),env(safe-area-inset-left,0px))}
 .brand{font-family:var(--f-display);font-weight:800;font-stretch:125%;letter-spacing:.2em;font-size:26px;display:flex;align-items:center;gap:16px}
 .brand svg{width:56px;height:56px;flex:none;color:var(--water);filter:drop-shadow(0 0 8px rgba(69,214,238,.45))}
@@ -145,7 +146,7 @@ a{color:inherit;text-decoration:none}
 input[type=range]{flex:1;min-width:0;accent-color:var(--water);height:24px;background:transparent;cursor:pointer}
 
 /* MapLibre chrome */
-.maplibregl-ctrl-top-right{top:calc(env(safe-area-inset-top,0px) + 92px)!important;right:clamp(10px,2vw,22px)!important}
+.maplibregl-ctrl-top-right{top:calc(env(safe-area-inset-top,0px) + 12px)!important;right:clamp(10px,2vw,22px)!important}
 .stage:not([data-mode="landing"]) .maplibregl-ctrl-top-right{opacity:0;pointer-events:none}
 .maplibregl-ctrl-group{background:var(--scrim)!important;border:1px solid var(--rule-2);border-radius:0!important}
 .maplibregl-ctrl-group button+button{border-top:1px solid var(--rule-2)!important}

@@ -180,9 +180,13 @@
 }
 .it-sub:empty{display:none}
 
-/* leaving (first map interaction) */
-.intro-title.is-leaving{opacity:0;transform:translateX(-28px);filter:blur(6px)}
+/* leaving (first map interaction): js/intro-title.js flies the logo and the word to the corner brand and
+   fades the rest; .no-flight is the plain fade-out when that is not possible */
+.intro-title.is-leaving.no-flight{opacity:0;transform:translateX(-28px);filter:blur(6px)}
 .intro-title.is-leaving::before{opacity:0;transition:opacity .4s}
+/* the corner brand stays out while the title carries the logo and the name */
+.stage .brand{transition:opacity .3s var(--ease,ease)}
+.stage.title-on .brand{opacity:0;pointer-events:none}
 
 /* narrow screens: Chile occupies the centre column, so the title goes to the
    top, smaller, with a top-down scrim */

@@ -10,7 +10,10 @@
 //     across the word once, a thin cyan line draws under it, then the tagline types in.
 //     Everything plays ONCE (~3 s) and then stays still (no loops after the intro).
 //   - prefers-reduced-motion: static end state (CSS drops every animation).
-//   - Hides itself (fade/slide out ~400 ms, then removed from the DOM) on the first
+//   - While it is on screen the corner brand (.brand in the stage nav) stays hidden: the logo and the
+//     name live in the title only. On leaving, both fly and shrink into the brand's place (~750 ms),
+//     the brand takes over there and the rest of the block fades.
+//   - Hides itself (that flight, then removed from the DOM) on the first
 //     USER interaction with the map: user-initiated movestart/zoomstart/rotatestart/
 //     pitchstart (event has originalEvent), wheel / pointerdown / touchstart on the map
 //     container (covers marker clicks), arrow/+/- keys, a hash change, or the stage
@@ -20,12 +23,17 @@
 /** PLACEHOLDER copy — edit here. */
 export const TITLE_CONFIG = {
   name: 'CAUDAL',                                   // PLACEHOLDER project name
-  kicker: 'Platanus Hack 26 · Physical World',      // PLACEHOLDER kicker
-  tagline: 'Agua vista desde el espacio',           // PLACEHOLDER tagline
+  kicker: '',                                       // optional mono line above the name ('' = none)
+  tagline: '',                                      // optional line under the name ('' = none)
   sub: '',                                          // optional mono line under the tagline ('' = none)
 };
 
-const HIDE_MS = 400;
+const HIDE_MS = 400;            // plain fade-out, when the flight to the corner is not possible
+const FLIGHT_MS = 750;          // logo + name travelling to the corner brand
+const FLIGHT_EASE = 'cubic-bezier(.6,0,.2,1)';
+const FLIGHT_LAND = 0.72;       // fraction of the flight after which the corner brand takes over
+const FADE_REST_MS = 220;       // underline, tagline and the like
+const TITLE_ON = 'title-on';    // class on the stage while the title carries the brand (css/intro.css)
 const NAV_KEYS = new Set(['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', '+', '-', '=', '_', 'PageUp', 'PageDown']);
 
 const reducedMotion = () => {
@@ -107,7 +115,36 @@ function buildDom(cfg) {
 
   wrap.append(block);
   root.append(wrap);
-  return { root, block, name };
+  return { root, block, name, logo };
+}
+
+/** Screen box of the brand's text (the bare text node after its mark). */
+function textBox(el) {
+  const node = [...el.childNodes].reverse().find((n) => n.nodeType === Node.TEXT_NODE && n.textContent.trim());
+  if (!node) return null;
+  const range = document.createRange();
+  range.selectNodeContents(node);
+  const r = range.getBoundingClientRect();
+  return r.width > 0 && r.height > 0 ? r : null;
+}
+
+/** Animates `el` from where it is to `to` (uniform scale by width, centred vertically), fading at the end. */
+function flyTo(el, to) {
+  const from = el.getBoundingClientRect();
+  if (!(from.width > 0 && from.height > 0)) return null;
+  const s = to.width / from.width;
+  const dx = to.left - from.left;
+  const dy = (to.top + to.height / 2) - (from.top + (from.height * s) / 2);
+  const end = `translate(${dx}px, ${dy}px) scale(${s})`;
+  el.style.transformOrigin = '0 0';
+  return el.animate(
+    [
+      { transform: 'none', opacity: 1, easing: FLIGHT_EASE },   // the easing covers the trip only
+      { transform: end, opacity: 1, offset: FLIGHT_LAND },
+      { transform: end, opacity: 0 },
+    ],
+    { duration: FLIGHT_MS, easing: 'linear', fill: 'forwards' },
+  );
 }
 
 /**
@@ -119,7 +156,8 @@ function buildDom(cfg) {
  * @param {number} [opts.delay=0]    ms before the animation starts
  * @param {boolean} [opts.autoHide=true] wire "hide on first user interaction"
  * @param {(reason:string)=>void} [opts.onHide]
- * @returns {{ el: HTMLElement, hide: (reason?: string) => Promise<void>, hidden: Promise<void> }}
+ * @returns {{ el: HTMLElement, hide: (reason?: string) => Promise<void>, hidden: Promise<void>, leaving: Promise<void> }}
+ *   leaving resolves when the title starts to go; hidden, once it is out of the DOM
  */
 export function showTitle({ stage, map = null, config = {}, delay = 0, autoHide = true, onHide } = {}) {
   stage = stage || document.getElementById('top') || document.body;
@@ -128,12 +166,14 @@ export function showTitle({ stage, map = null, config = {}, delay = 0, autoHide 
   // only one title at a time
   stage.querySelectorAll('[data-intro-title]').forEach((n) => n.remove());
 
-  const { root, block, name } = buildDom(cfg);
+  const { root, block, name, logo } = buildDom(cfg);
   root.style.setProperty('--it-d', `${Math.max(0, delay | 0)}ms`);
   stage.append(root);
+  stage.classList.add(TITLE_ON);
 
-  let resolveHidden;
+  let resolveHidden, resolveLeaving;
   const hidden = new Promise((r) => { resolveHidden = r; });
+  const leaving = new Promise((r) => { resolveLeaving = r; });
   let state = 'shown';
   const cleanups = [];
   const on = (target, type, fn, opts) => {
@@ -168,18 +208,47 @@ export function showTitle({ stage, map = null, config = {}, delay = 0, autoHide 
     if (state !== 'shown') return hidden;
     state = 'leaving';
     cleanups.splice(0).forEach((fn) => { try { fn(); } catch { /* ignore */ } });
+    resolveLeaving();
+    const showBrand = () => stage.classList.remove(TITLE_ON);
     const finish = () => {
       if (state === 'gone') return;
       state = 'gone';
+      showBrand();
       root.remove();
       try { onHide?.(reason); } catch (e) { console.error(e); }
       resolveHidden();
     };
     if (reducedMotion()) { finish(); return hidden; }
     root.classList.add('is-leaving');
+    if (flyToBrand()) {
+      setTimeout(showBrand, FLIGHT_MS * FLIGHT_LAND);
+      setTimeout(finish, FLIGHT_MS + 60);
+      return hidden;
+    }
+    // no corner brand to land on (or no Web Animations): plain fade-out
+    root.classList.add('no-flight');
     root.addEventListener('transitionend', (e) => { if (e.target === root) finish(); });
     setTimeout(finish, HIDE_MS + 120); // safety net
     return hidden;
+  }
+
+  /** Logo and name travel to the corner brand; the rest of the block fades. false if it cannot be done. */
+  function flyToBrand() {
+    try {
+      const brand = stage.querySelector('.brand');
+      const mark = brand?.querySelector('svg');
+      const word = brand ? textBox(brand) : null;
+      if (!mark || !word || typeof name.animate !== 'function') return false;
+      const flights = [flyTo(name, word), logo.isConnected ? flyTo(logo, mark.getBoundingClientRect()) : null];
+      if (!flights[0]) return false;
+      for (const el of block.children) {
+        if (el !== name && el !== logo) el.animate([{ opacity: 0 }], { duration: FADE_REST_MS, fill: 'forwards' });
+      }
+      return true;
+    } catch (e) {
+      console.error('[intro-title] flight:', e);
+      return false;
+    }
   }
 
   // ---- auto-hide on first user interaction ----------------------------------
@@ -219,7 +288,7 @@ export function showTitle({ stage, map = null, config = {}, delay = 0, autoHide 
     } catch { /* ignore */ }
   }
 
-  return { el: root, hide, hidden };
+  return { el: root, hide, hidden, leaving };
 }
 
 export default showTitle;

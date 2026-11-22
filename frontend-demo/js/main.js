@@ -1,8 +1,7 @@
 // Caudal · landing orchestration.
-// Modes on #stage: landing | to-lagoon | lagoon | to-zona | zona | to-landing.
+// Modes on #stage: landing | to-zona | zona | to-landing.
 // Zones (spec v2): Z1 Petorca, Z2 Aconcagua bajo, with the 10 validation cases (resolved DGA cases).
 // Every module is imported dynamically so a failure in one (or in its CDN deps) cannot take down the page.
-const initHero = async opts => (await import('./hero.js')).initHero(opts);
 const initMap = async opts => (await import('./map.js')).initMap(opts);
 const initValle = async opts => (await import('./valle.js')).initValle(opts);
 const Zmod = () => import('./zona-data.js');
@@ -19,18 +18,14 @@ const panels = () => (panelsCache ??= Promise.all([
 const $ = id => document.getElementById(id);
 const RM = matchMedia('(prefers-reduced-motion: reduce)').matches;
 const MOBILE = matchMedia('(max-width: 760px)');
-const MANIFEST_URL = 'assets/aculeo/manifest.json';
-const ASSET_DIR = 'assets/aculeo/';
-const LAGOON_ID = 'aculeo';
 const ZONA_IDS = ['z1', 'z2'];
 const HASH_ALIAS = { petorca: 'z1', aconcagua: 'z2' };
-const LAGOON_CAM = { center: [-70.914, -33.843], zoom: 11.3, pitch: 50, bearing: 0, duration: 2600 };
 const ENTER_MS = 2200, EXIT_MS = 1400;
 const ROUTE_MS = 16000;
 const BACK_LABEL = { chile: 'Volver a Chile', zona: 'Ver toda la zona' };
+const TITLE_FOCUS_DELAY_MS = 250;  // map flight to the zones, after the click that dismissed the title
 const MAX_VALLES = 3;             // 3D zone scenes kept built at once (one WebGL context each)
 const SW_URL = 'sw.js';
-const HERO_TIMEOUT_MS = 20000;   // max wait for the lagoon scene before giving the stage back
 const nf1 = new Intl.NumberFormat('es-CL', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
 const nf0 = new Intl.NumberFormat('es-CL', { maximumFractionDigits: 0 });
 const MINUS = '−';
@@ -87,158 +82,6 @@ function showFallback(host, text) {
   d.setAttribute('role', 'status');
   d.innerHTML = `<span>${text}</span>`;
   host.appendChild(d);
-}
-
-/* ---------- manifest (shared by hero labels + Aculeo thumbnails) ---------- */
-let manifestP = null;
-const getManifest = () => (manifestP ??= fetch(MANIFEST_URL).then(r => {
-  if (!r.ok) throw new Error('manifest ' + r.status);
-  return r.json();
-}));
-
-/* ---------- hero (3D lagoon): created on first use (boot -> getHero), not at startup ---------- */
-async function setupHero() {
-  const canvas = $('hero-canvas');
-  const play = $('play'), scrub = $('scrub');
-  const elYr = $('yr'), elArea = $('area'), elDelta = $('delta'), elScene = $('scene');
-  let ctl;
-  try {
-    ctl = await initHero({ canvas, manifestUrl: MANIFEST_URL, autoplay: false });
-    if (!ctl || !Array.isArray(ctl.years) || !ctl.years.length) throw new Error('controlador inválido');
-    if (typeof ctl.enter !== 'function' || typeof ctl.exit !== 'function') throw new Error('hero sin enter()/exit()');
-  } catch (err) {
-    console.error('[Caudal] hero:', err);
-    canvas.style.display = 'none';
-    [play, scrub].forEach(el => { el.disabled = true; });
-    $('wh').hidden = true;
-    play.querySelector('.txt').textContent = 'Sin imagen';
-    return null;
-  }
-
-  const years = ctl.years;
-  const y0 = years[0], y1 = years[years.length - 1];
-  scrub.min = y0; scrub.max = y1;
-  scrub.value = y1;   // opens on the latest year; the user scrubs back
-  getManifest().then(m => { if (m.baselineYear) $('base-yr').textContent = m.baselineYear; }).catch(() => { $('base-yr').textContent = y0; });
-
-  /* year ticks under the slider */
-  const ticks = $('scrub-ticks');
-  const tickEls = years.map(y => {
-    const t = document.createElement('span');
-    t.textContent = y;
-    t.style.left = (y1 > y0 ? (y - y0) / (y1 - y0) * 100 : 0) + '%';
-    ticks.appendChild(t);
-    return t;
-  });
-
-  const goYear = y => {
-    if (ctl.isAutoplay()) { ctl.setAutoplay(false); setPlayUI(false); }
-    ctl.setYear(y);
-    scrub.value = y;
-  };
-  const wh = setupWaterHistory(years, goYear);
-
-  let last = '';
-  const setPlayUI = auto => {
-    play.setAttribute('aria-pressed', String(auto));
-    play.querySelector('.txt').textContent = auto ? 'Pausar' : 'Reproducir';
-  };
-  ctl.onUpdate(st => {
-    const yr = Math.round(st.year);
-    const loss = Math.max(0, Math.round(st.lossPct || 0));
-    const area = Number.isFinite(st.areaKm2) ? nf1.format(st.areaKm2) : '—';
-    const key = `${yr}|${area}|${loss}`;
-    if (key !== last) {
-      last = key;
-      elYr.textContent = yr;
-      scrub.setAttribute('aria-valuetext', String(yr));
-      tickEls.forEach((t, i) => t.classList.toggle('on', years[i] === yr));
-      elArea.textContent = area;
-      elDelta.textContent = loss <= 0 ? '0%' : `${MINUS}${loss}%`;
-      elScene.textContent = `Escena ${yr} · Sentinel-2 L2A`;
-    }
-    if (st.autoplay && document.activeElement !== scrub) scrub.value = st.year;
-    wh.update(st.year);
-    setPlayUI(!!st.autoplay);
-  });
-
-  scrub.addEventListener('input', () => ctl.setYear(parseFloat(scrub.value)));
-  play.addEventListener('click', () => {
-    const next = !ctl.isAutoplay();
-    ctl.setAutoplay(next);
-    setPlayUI(next);
-  });
-  setPlayUI(ctl.isAutoplay());
-  wh.update(y1);
-  return ctl;
-}
-
-/* ---------- water history mini-chart (km² per year, in the lagoon bar) ---------- */
-function setupWaterHistory(years, onPick) {
-  const svg = $('wh-svg'), labels = $('wh-yrs'), fig = $('wh');
-  const W = 220, H = 40, PAD = 2, n = years.length;
-  const slot = (W - PAD * 2) / n, bw = Math.min(18, slot * 0.62);
-  const cx = i => PAD + slot * (i + 0.5);
-  const el = (tag, attrs) => { const e = document.createElementNS(SVGNS, tag); for (const k in attrs) e.setAttribute(k, attrs[k]); return e; };
-  svg.setAttribute('preserveAspectRatio', 'none');
-  let bars = [], yrEls = [], marker = null, curYr = null, km = [];
-
-  const yrPct = i => cx(i) / W * 100 + '%';
-  years.forEach((y, i) => {
-    const s = document.createElement('span');
-    s.textContent = "'" + String(y).slice(-2);
-    s.style.left = yrPct(i);
-    labels.appendChild(s);
-    yrEls.push(s);
-  });
-
-  getManifest().then(m => {
-    const val = y => { const w = m.water?.[y]; if (!w) return NaN; return Number.isFinite(w.km2Clean) ? w.km2Clean : w.km2; };
-    const base = m.baselineYear ?? years[0];
-    const baseKm = val(base);
-    km = years.map(val);
-    const max = Math.max(...km.filter(Number.isFinite), 0.001);
-    svg.appendChild(el('line', { class: 'axis', x1: 0, x2: W, y1: H - 0.5, y2: H - 0.5 }));
-    years.forEach((y, i) => {
-      const v = km[i];
-      const h = Number.isFinite(v) ? Math.max(1.5, (v / max) * (H - 4)) : 0;
-      const kind = y === base ? 'base' : (Number.isFinite(v) && Number.isFinite(baseKm) && v < baseKm * BIG_LOSS ? 'lost' : 'ok');
-      const r = el('rect', { class: 'bar ' + kind, x: cx(i) - bw / 2, y: H - 1 - h, width: bw, height: h });
-      r.dataset.kind = kind;
-      const hit = el('rect', { class: 'hit', x: cx(i) - slot / 2, y: 0, width: slot, height: H, tabindex: '0', role: 'button' });
-      const label = `${y}: ${Number.isFinite(v) ? nf1.format(v) + ' km²' : 'sin dato'}`;
-      hit.setAttribute('aria-label', 'Ir a ' + label);
-      const t = el('title', {}); t.textContent = label; hit.appendChild(t);
-      hit.addEventListener('click', () => onPick(y));
-      hit.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onPick(y); } });
-      svg.appendChild(r); svg.appendChild(hit);
-      bars.push(r);
-    });
-    marker = el('line', { class: 'mk', x1: 0, x2: 0, y1: 0, y2: H, 'vector-effect': 'non-scaling-stroke' });
-    svg.appendChild(marker);
-    svg.setAttribute('aria-label', 'Superficie de agua por año (km²): ' + years.map((y, i) => `${y} ${Number.isFinite(km[i]) ? nf1.format(km[i]) : '—'}`).join(', '));
-    curYr = null;
-    update(lastFloat);
-  }).catch(err => { console.error('[Caudal] water history:', err); fig.hidden = true; });
-
-  let lastFloat = years[n - 1];
-  function update(yf) {
-    if (!Number.isFinite(yf)) return;
-    lastFloat = yf;
-    const f = Math.min(Math.max(yf - years[0], 0), years[n - 1] - years[0]);
-    let i = 0;
-    while (i < n - 2 && years[i + 1] - years[0] <= f) i++;
-    const span = n > 1 ? (years[i + 1] - years[i]) : 1;
-    const t = n > 1 ? (f - (years[i] - years[0])) / span : 0;
-    const x = n > 1 ? cx(i) + (cx(i + 1) - cx(i)) * Math.min(Math.max(t, 0), 1) : cx(0);
-    if (marker) { marker.setAttribute('x1', x); marker.setAttribute('x2', x); }
-    const yr = Math.round(yf);
-    if (yr === curYr || !bars.length) return;
-    curYr = yr;
-    bars.forEach((b, k) => { b.setAttribute('class', 'bar ' + (years[k] === yr ? 'cur' : b.dataset.kind)); });
-    yrEls.forEach((s, k) => s.classList.toggle('on', years[k] === yr));
-  }
-  return { update };
 }
 
 /* ---------- zone side panel: Predios (ranking -> ficha -> expediente) | Casos (lista -> caso) | Ruta ---------- */
@@ -567,15 +410,14 @@ function setupZonaPanel({ getValle, onFocusChange }) {
   };
 }
 
-/* ---------- stage: landing (national map) <-> lagoon (Aculeo) <-> zona (Z1 / Z2) ---------- */
-function setupStage({ getHero }) {
-  const stage = $('top'), heroCanvas = $('hero-canvas'), firstValleCanvas = $('valle-canvas');
-  const back = $('back'), bar = $('lagoon-bar'), hint = $('hint');
+/* ---------- stage: landing (national map) <-> zona (Z1 / Z2) ---------- */
+function setupStage() {
+  const stage = $('top'), firstValleCanvas = $('valle-canvas');
+  const back = $('back'), hint = $('hint');
   const card = $('site-card');
   const sites = sitesJson.sites || [];
   const byId = new Map(sites.map(s => [s.id, s]));
   let mapCtl = null;
-  let hero = null, heroFailed = false;
   // one built 3D scene per zone (up to MAX_VALLES), each on its own canvas: switching zone is free
   const valles = new Map();   // zone id -> { ctl, canvas }
   let valle = null, valleCanvas = firstValleCanvas, valleFailed = false;
@@ -583,17 +425,6 @@ function setupStage({ getHero }) {
   let curZona = null;
 
   const zp = setupZonaPanel({ getValle: () => valle, onFocusChange: () => syncBack() });
-
-  // Aculeo is a side view: its scene (7 satellite images, DEM, a WebGL context) loads on first use,
-  // or a moment earlier when the pointer/focus reaches one of its entry points.
-  const ensureHero = () => getHero().then(h => {
-    hero = h; heroFailed = !h;
-    // the card may already be up offering "Ver laguna en 3D": redraw it without the button
-    if (!h && !card.hidden && mode === 'landing') { const s = byId.get(LAGOON_ID); if (s) showCard(s); }
-    return h;
-  });
-  const preloadHero = () => { ensureHero().catch(() => {}); };
-  $('map').addEventListener('pointerover', e => { if (e.target.closest?.(`[data-id="${LAGOON_ID}"]`)) preloadHero(); });
 
   function updateHint() {
     hint.innerHTML = '<span class="rec" aria-hidden="true"></span>' + (valleFailed
@@ -606,8 +437,7 @@ function setupStage({ getHero }) {
   function setMode(m) {
     mode = m;
     stage.dataset.mode = m;
-    back.hidden = m !== 'lagoon' && m !== 'zona';
-    bar.hidden = m !== 'lagoon';
+    back.hidden = m !== 'zona';
     syncBack();
   }
   // Inside a zone, while the 3D view is zoomed on a predio or a case, "back" first returns to the
@@ -686,97 +516,28 @@ function setupStage({ getHero }) {
       return data;
     } catch (err) { console.warn('[Caudal] warm-up zona:', err?.message || err); return null; }
   }
-  /** Background warm-up of the lagoon: scene + every year's imagery already on the GPU. */
-  async function warmHero() {
-    const h = await ensureHero().catch(() => null);
-    if (h && typeof h.prewarm === 'function') await h.prewarm();
-    return !!h;
-  }
-
-  /* --- floating card (Aculeo, or a zone whose 3D failed) --- */
+  /* --- floating card (a zone whose 3D view failed) --- */
   function showCard(s) {
     const bd = $('c-badge');
-    const isZona = s.kind === 'zona';
-    const isLagoon = s.id === LAGOON_ID;
-    bd.textContent = isZona ? `Zona ${s.codigo || ''}` : 'Contexto · lo que ya pasó';
-    bd.className = 'badge ' + (isZona ? 'water' : 'warn');
+    bd.textContent = `Zona ${s.codigo || ''}`;
+    bd.className = 'badge water';
     $('c-name').textContent = s.name;
-    $('c-meta').textContent = isZona ? (s.comunas || []).map(comunaFmt).join(' · ') : `${s.type} · ${s.region}`;
+    $('c-meta').textContent = (s.comunas || []).map(comunaFmt).join(' · ');
     const loss = $('c-loss');
-    loss.textContent = isZona ? `${s.casos ?? '—'} casos DGA` : (Number.isFinite(+s.loss) ? `${MINUS}${s.loss}%` : '');
-    loss.className = 'c-loss' + (isZona ? '' : ' crit');
-    $('c-since').textContent = !isZona && s.since ? `desde ${s.since}` : '';
-    const enter = $('c-enter');
-    enter.hidden = !(isLagoon && !heroFailed);
-    enter.textContent = 'Ver laguna en 3D';
-    $('c-note').textContent = isLagoon
-      ? (heroFailed ? 'Vista satelital 3D no disponible en este momento.' : 'Contexto: lo que ya pasó. ' + (s.note ? s.note + '.' : ''))
-      : 'Vista 3D de la zona no disponible en este momento. Revisa el resumen de zonas más abajo.';
+    loss.textContent = `${s.casos ?? '—'} casos DGA`;
+    loss.className = 'c-loss';
+    $('c-since').textContent = '';
+    $('c-note').textContent = 'Vista 3D de la zona no disponible en este momento.';
     card.hidden = false;
     hint.hidden = true;
-    if (isLagoon && !heroFailed) preloadHero();
   }
   function hideCard() { card.hidden = true; hint.hidden = false; }
-
-  /* ---- lagoon (Aculeo, context hook) ---- */
-  async function enterLagoon() {
-    if (mode !== 'landing' || heroFailed) return;
-    setMode('to-lagoon');
-    hideCard();
-    try {
-      if (mapCtl) { mapCtl.select(LAGOON_ID); mapCtl.setLagoon(true); }
-      const fly = mapCtl ? mapCtl.flyToSite(LAGOON_ID, { ...LAGOON_CAM, duration: RM ? 0 : LAGOON_CAM.duration }) : Promise.resolve();
-      // the scene now loads here (not at boot): never keep the stage locked in "to-lagoon" on a hung download
-      const [, h] = await Promise.all([fly, Promise.race([ensureHero(), sleep(HERO_TIMEOUT_MS).then(() => null)])]);
-      if (!h) throw new Error('hero no disponible');
-      try {
-        const latest = h.years[h.years.length - 1];
-        h.setYear(latest);
-        $('scrub').value = latest;
-      } catch (_) { /* opcional */ }
-      heroCanvas.classList.add('on');
-      await h.enter({ duration: ENTER_MS });
-      setMode('lagoon');
-      back.focus({ preventScroll: true });
-    } catch (err) {
-      console.error('[Caudal] lagoon enter:', err);
-      heroCanvas.classList.remove('on');
-      if (mapCtl) mapCtl.setLagoon(false);
-      setMode('landing');
-      const s = byId.get(LAGOON_ID); if (s) showCard(s);
-    }
-  }
-
-  async function exitLagoon({ home = true } = {}) {
-    if (mode !== 'lagoon') return;
-    setMode('to-landing');
-    try {
-      const ex = Promise.resolve().then(() => hero.exit({ duration: EXIT_MS })).catch(e => console.error('[Caudal] hero.exit:', e));
-      await sleep(RM ? 0 : EXIT_MS * 0.55);
-      heroCanvas.classList.remove('on');
-      let fly = Promise.resolve();
-      if (mapCtl) {
-        mapCtl.setLagoon(false);
-        mapCtl.select(null);
-        if (home) fly = mapCtl.flyHome({ duration: RM ? 0 : 2400 });
-      }
-      await Promise.all([ex, fly]);
-    } catch (err) {
-      console.error('[Caudal] lagoon exit:', err);
-      heroCanvas.classList.remove('on');
-      if (mapCtl) mapCtl.setLagoon(false);
-    }
-    clearHash(h => h === LAGOON_ID);
-    setMode('landing');
-    if (home) hint.focus({ preventScroll: true });
-  }
 
   /* ---- zona (Z1 / Z2, main flow) ---- */
   const mapSetValley = on => {
     if (!mapCtl) return;
     try {
       if (typeof mapCtl.setValley === 'function') mapCtl.setValley(on);
-      else if (typeof mapCtl.setLagoon === 'function') mapCtl.setLagoon(on);
     } catch (e) { console.error('[Caudal] map.setValley:', e); }
   };
   const validBbox = b => Array.isArray(b) && b.length === 4 && b.every(Number.isFinite);
@@ -870,8 +631,7 @@ function setupStage({ getHero }) {
   }
 
   async function exitAny(opts) {
-    if (mode === 'lagoon') await exitLagoon(opts);
-    else if (mode === 'zona') await exitZona(opts);
+    if (mode === 'zona') await exitZona(opts);
   }
 
   /* ---- public navigation ---- */
@@ -898,21 +658,11 @@ function setupStage({ getHero }) {
     return goZona(z, { caso: exp, scroll });
   }
 
-  async function goLagoon({ scroll = false } = {}) {
-    if (busy()) return;
-    if (scroll) window.scrollTo({ top: 0, behavior: RM ? 'auto' : 'smooth' });
-    if (heroFailed) { if (mode === 'landing') { const s = byId.get(LAGOON_ID); if (s) showCard(s); } return; }
-    if (mode === 'lagoon') return;
-    await exitAny({ home: false });
-    if (mode === 'landing') await enterLagoon();
-  }
-
-  /** Map marker → navigation. site = {kind:"zona", zona} | {kind:"caso", expediente, zona} | {id:"aculeo"} */
+  /** Map marker → navigation. site = {kind:"zona", zona} | {kind:"caso", expediente, zona} */
   function onMapSelect(site) {
     if (!site) return;
     if (site.kind === 'zona') goZona(site.zona || site.id);
     else if (site.kind === 'caso') goCaso(site.expediente, { zona: site.zona });
-    else if (site.id === LAGOON_ID) goLagoon();
     else if (ZONA_IDS.includes(zkey(site.id))) goZona(site.id);
   }
 
@@ -925,24 +675,21 @@ function setupStage({ getHero }) {
   }
 
   function goBack() {
-    if (mode === 'lagoon') exitLagoon();
-    else if (zoomedIn()) zp.stepBack();
+    if (zoomedIn()) zp.stepBack();
     else if (mode === 'zona') exitZona();
   }
 
   hint.addEventListener('click', () => {
     if (!valleFailed) goZona('z1');
-    else if (!heroFailed) goLagoon();
   });
   back.addEventListener('click', goBack);
-  $('c-enter').addEventListener('click', () => enterLagoon());
   $('card-close').addEventListener('click', closeCard);
   document.addEventListener('keydown', e => {
     if (e.key !== 'Escape' || e.defaultPrevented) return;
     const t = e.target;
     // never throw away what the person is typing in the expediente
     if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT' || t.isContentEditable)) return;
-    if (mode === 'lagoon' || mode === 'zona') goBack();
+    if (mode === 'zona') goBack();
     else if (mode === 'landing' && !card.hidden) closeCard();
   });
 
@@ -950,7 +697,7 @@ function setupStage({ getHero }) {
   if ('IntersectionObserver' in window) {
     new IntersectionObserver(es => {
       const vis = es.some(e => e.isIntersecting);
-      const ctl = mode === 'lagoon' ? hero : mode === 'zona' ? valle : null;
+      const ctl = mode === 'zona' ? valle : null;
       if (ctl && typeof ctl.setActive === 'function') {
         try { ctl.setActive(vis); } catch (e) { console.error(e); }
       }
@@ -960,7 +707,7 @@ function setupStage({ getHero }) {
   updateHint();
 
   return {
-    goZona, goCaso, goLagoon, onMapSelect, warm, warmHero,
+    goZona, goCaso, onMapSelect, warm,
     get busy() { return busy(); },
     setMap(ctl) { mapCtl = ctl; },
     get mode() { return mode; },
@@ -1022,12 +769,7 @@ async function boot() {
     showFallback($('map'), 'No se pudieron cargar los sitios. Sirve la carpeta con un servidor local (python3 -m http.server).');
   }
 
-  // The lagoon scene is not part of the landing: it used to load here (3.7 MB of imagery + a WebGL
-  // context) for a view most visits never open.
-  let heroP = null;
-  const getHero = () => (heroP ??= setupHero().catch(err => { console.error('[Caudal] hero setup:', err); return null; }));
-
-  const stage = setupStage({ getHero });
+  const stage = setupStage();
 
   // intro controller (null until/unless the intro runs). hideTitle(): navigation removes the title;
   // if it happens mid-flight (e.g. browser back to a #z1 link) the intro is skipped first.
@@ -1047,7 +789,7 @@ async function boot() {
     }).catch(() => {});
   }
 
-  // In-page links (#z1 / #z2 / #caso-… / #aculeo) enter the 3D views; keep them from jumping the scroll.
+  // In-page links (#z1 / #z2 / #caso-…) enter the 3D views; keep them from jumping the scroll.
   document.addEventListener('click', e => {
     const a = e.target.closest('a[href^="#"]');
     if (!a) return;
@@ -1081,11 +823,9 @@ async function boot() {
   function preloadAll(scenesAfter) {
     Promise.all([import('./preload.js'), Zmod(), getIndex()]).then(([pre, Z, index]) => pre.startPreload({
       zonas: (index.zonas || []).map(z => ({ id: zkey(z.id), bbox: z.bbox_escena || null, base: z.base || `assets/zonas/${zkey(z.id)}/` })),
-      lagoon: { bbox: pre.bboxAround(LAGOON_CAM.center), base: ASSET_DIR },
       loadZona: loadZonaData,
       ensureSeries: Z.ensureSeries,
       warmZona: id => stage.warm(id),
-      warmLagoon: () => stage.warmHero(),
       isBusy: () => stage.busy,
       tileUrl: mapCtl && typeof mapCtl.satTileUrl === 'function' ? mapCtl.satTileUrl : null,
       scenesAfter,
@@ -1104,7 +844,12 @@ async function boot() {
         .catch(err => console.warn('[Caudal] vista de zonas:', err?.message || err));
     };
     Promise.resolve(introCtl?.done)
-      .then(r => { const t = r?.title || introCtl?.title; return t?.hidden ? t.hidden.then(focus) : focus(); })
+      .then(r => {
+        const t = r?.title || introCtl?.title;
+        // start with the title's exit, but after the click that dismissed it: a pointer press on the map stops any flight
+        if (t?.leaving) return t.leaving.then(() => sleep(TITLE_FOCUS_DELAY_MS)).then(focus);
+        return t?.hidden ? t.hidden.then(focus) : focus();
+      })
       .catch(err => { console.warn('[Caudal] título:', err?.message || err); focus(); });
   }
 
@@ -1163,14 +908,12 @@ async function boot() {
     const k = zkey(h);
     if (ZONA_IDS.includes(k)) return { kind: 'zona', zona: k };
     if (/^caso-/i.test(h)) return { kind: 'caso', expediente: decodeURIComponent(h.slice(5)) };
-    if (k === LAGOON_ID) return { kind: 'lagoon' };
     return null;
   }
   function go(t, opts) {
     hideTitle();
     if (t.kind === 'zona') return stage.goZona(t.zona, opts);
     if (t.kind === 'caso') return stage.goCaso(t.expediente, opts);
-    if (t.kind === 'lagoon') return stage.goLagoon(opts);
   }
   addEventListener('hashchange', () => { const t = parseHash(location.hash.slice(1)); if (t) go(t, { scroll: true }); });
 }

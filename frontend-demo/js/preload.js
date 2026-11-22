@@ -1,12 +1,12 @@
 // Caudal · precarga en segundo plano: deja listo todo lo que la demo puede tocar mientras la portada
-// está en pantalla, para que entrar a una zona, a un caso o a Aculeo no espere red, decodificación ni GPU.
+// está en pantalla, para que entrar a una zona o a un caso no espere red, decodificación ni GPU.
 //
 // Dos fases:
 //   1. bytes (parte apenas existe el mapa, con prioridad baja): imágenes de las escenas 3D y tiles
 //      satelitales de los vuelos. Solo llena la caché del navegador (y la del service worker): no se
 //      analiza ni decodifica nada en el hilo principal, así que puede correr durante la intro.
 //   2. datos y escenas (parten cuando termina la intro): código de las vistas, datos y series de cada
-//      zona, imágenes de los casos; y se construye la escena 3D de cada zona y la de Aculeo, de a una y
+//      zona, imágenes de los casos; y se construye la escena 3D de cada zona, de a una y
 //      solo mientras la portada está quieta (nunca durante un vuelo).
 //
 // Estado en <html data-warm="loading | done" data-warm-failures="n">, y un evento `caudal:warm` en
@@ -18,7 +18,6 @@ const TILE_ZOOMS = [10, 11, 12];        // sobre el encuadre con margen (lo que 
 const TILE_ZOOM_DETAIL = 13;            // solo sobre el encuadre final
 const TILE_PAD = { lon: 0.15, lat: 0.12 };
 const TILE_PAD_DETAIL = { lon: 0.04, lat: 0.03 };
-const POINT_HALF = { lon: 0.19, lat: 0.1 };   // encuadre de una vista centrada en un punto (Aculeo)
 const MAX_TILES_PER_VIEW = 400;
 const MAX_SERIES_BLOCKS = 12;           // zonas con más bloques: solo los de casos y predios de banda alta
 const MAX_SERIES_IDS = 150;
@@ -55,7 +54,6 @@ export function tilesForView(bbox) {
   return tiles.slice(0, MAX_TILES_PER_VIEW);
 }
 
-export const bboxAround = ([lon, lat]) => [lon - POINT_HALF.lon, lat - POINT_HALF.lat, lon + POINT_HALF.lon, lat + POINT_HALF.lat];
 
 /** Download a URL into the browser cache; resolves false (never rejects) when it cannot. */
 async function pull(url) {
@@ -90,7 +88,7 @@ async function getJSON(url) {
   return r.json();
 }
 
-/** Files a 3D scene downloads: its manifest, DEM and yearly imagery (+ water masks for the lagoon). */
+/** Files a 3D scene downloads: its manifest, DEM and the latest year's imagery. */
 async function sceneAssetUrls(base, { allYears }) {
   const dir = base.endsWith('/') ? base : base + '/';
   const man = await getJSON(dir + 'manifest.json');
@@ -118,17 +116,15 @@ const caseImageUrls = (data) => (data.casos || []).flatMap((c) => (c.imagenes ||
 /**
  * @param {object} o
  * @param {{id: string, bbox: number[]|null, base: string}[]} o.zonas      zones, in the order they should get ready
- * @param {{bbox: number[], base: string}|null} o.lagoon                 Aculeo view (null = skip)
  * @param {(id: string) => Promise<object>} o.loadZona                    zone data (shared with the page)
  * @param {(data: object, ids: string[]) => Promise<unknown>} o.ensureSeries
  * @param {(id: string) => Promise<unknown>} o.warmZona                   builds the zone's 3D scene
- * @param {() => Promise<unknown>} o.warmLagoon                           builds the lagoon scene
  * @param {() => boolean} o.isBusy                                        true while the stage is mid-transition
  * @param {((z: number, x: number, y: number) => string|null)|null} o.tileUrl
  * @param {Promise<unknown>} o.scenesAfter                                the scene phase waits for this (the intro)
  * @returns {Promise<{ok: boolean, failures: number}>}
  */
-export function startPreload({ zonas, lagoon, loadZona, ensureSeries, warmZona, warmLagoon, isBusy, tileUrl, scenesAfter }) {
+export function startPreload({ zonas, loadZona, ensureSeries, warmZona, isBusy, tileUrl, scenesAfter }) {
   const root = document.documentElement;
   root.dataset.warm = 'loading';
 
@@ -151,17 +147,13 @@ export function startPreload({ zonas, lagoon, loadZona, ensureSeries, warmZona, 
       await step(`escena ${z.id}`, async () => pulls(await sceneAssetUrls(z.base, { allYears: false })));
       await step(`tiles ${z.id}`, () => pulls(tileUrls(z.bbox)));
     }
-    if (lagoon) {
-      await step('escena laguna', async () => pulls(await sceneAssetUrls(lagoon.base, { allYears: true })));
-      await step('tiles laguna', () => pulls(tileUrls(lagoon.bbox)));
-    }
   }
 
   // Code and data: parsing them costs main-thread time, so they wait for the intro to finish.
   async function data() {
     await Promise.resolve(scenesAfter).catch(() => {});
     await step('módulos', () => Promise.all([
-      import('./valle.js'), import('./hero.js'), import('./ficha.js'), import('./caso.js'),
+      import('./valle.js'), import('./ficha.js'), import('./caso.js'),
       import('./expediente.js'), import('./ruta-panel.js'),
     ]));
     for (const z of zonas) {
@@ -178,11 +170,6 @@ export function startPreload({ zonas, lagoon, loadZona, ensureSeries, warmZona, 
       await calm();
       await sleep(SCENE_GAP_MS);
       await step(`construir ${z.id}`, async () => { if (!(await warmZona(z.id))) throw new Error('escena no disponible'); });
-    }
-    if (lagoon) {
-      await calm();
-      await sleep(SCENE_GAP_MS);
-      await step('construir laguna', async () => { if (!(await warmLagoon())) throw new Error('escena no disponible'); });
     }
   }
 

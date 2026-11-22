@@ -16,9 +16,10 @@ ETAPA=${1:?uso: ejecutar.sh base|plan|satelite|region|nacional [TAREAS]}
 CORRIDA=${CORRIDA:-$(date +%Y%m%d)}
 g() { gcloud --project="$PROYECTO" --account="$CUENTA" "$@"; }
 
-ENV="ETAPA=$ETAPA,CORRIDA=$CORRIDA"
+# Separador ";" (sintaxis ^;^ de gcloud): REGIONES lleva comas (R04,R05) y con "," gcloud no la parsea.
+ENV="^;^ETAPA=$ETAPA;CORRIDA=$CORRIDA"
 for v in REGIONES PARTES HILOS REHACER_PLAN; do
-  if [ -n "${!v:-}" ]; then ENV="$ENV,$v=${!v}"; fi
+  if [ -n "${!v:-}" ]; then ENV="$ENV;$v=${!v}"; fi
 done
 
 ejecutar() {  # job región tareas

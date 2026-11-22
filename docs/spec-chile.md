@@ -2,17 +2,45 @@
 
 21-11-2026 · plazo: 12 horas · complementa [spec-v2.md](spec-v2.md) y [spec-demo.md](spec-demo.md)
 
-## Estado de la corrida (21-11, 23:30)
+## Estado de la corrida (22-11, 23:50)
 
 | Etapa | Estado |
 | --- | --- |
-| `base` | ✅ 14 de 14 regiones (`caudal-chile-datos-l4dth`), sin fallas. Antes hubo dos arreglos: columnas de especie por capa en `cultivos_ciren.py`, y la paginación de ArcGIS cortaba en una página repetida (el servidor de la DGA ignora `resultOffset`) |
-| `plan` | ✅ Solo Valparaíso, con el año completo (abril de 2025 a hoy): 8 tiles, 1.198 escenas y 40 partes de carga pareja (reparto por escena). Las demás regiones se planifican después |
-| `satelite` | ▶ En curso: 40 tareas en us-west1, us-west2, us-west4 y us-central1. Estimado: ~1 h (el piloto midió ~0,47 escenas por minuto por tarea) |
-| `region` y `nacional` | Pendiente. Valparaíso primero |
+| `base` | ✅ 14 de 14 regiones (`caudal-chile-datos-l4dth`), sin fallas |
+| `plan` | ✅ Solo Valparaíso, con el año completo (abril de 2025 a hoy): 8 tiles, 1.198 escenas, 40 partes |
+| `satelite` | ✅ Valparaíso: 40 de 40 tareas en 4 regiones de Cloud Run, sin fallas, en unos 20 min (~60 escenas por minuto en total) |
+| `region` | ▶ Valparaíso en curso (`caudal-chile-prediccion-shzbz`): M1–M5 y la exportación web |
+| Resto de Chile | Pendiente: `plan` y `satelite` de las otras 13 regiones (solo temporada seca), luego `region` y `nacional` |
+
+### Qué datos ya están disponibles
+
+**Datos base de todo Chile (14 regiones):** están en el bucket privado `gs://ph-26-caudal-chile/base/<tabla>/region=RXX.parquet`, unos 3,1 GB. Las regiones son `R15`, `R01`, `R03`, `R04`, `R05`, `R13`, `R06`, `R07`, `R16`, `R08`, `R09`, `R14`, `R10` y `R11`; no hay Antofagasta ni Magallanes.
+
+| Tabla | Contenido |
+| --- | --- |
+| `predio` | Capa CIREN completa de la región, con `elegible` y `rol_valido` |
+| `referencia_secano` | Matorral y pradera de CONAF (referencia de M2) |
+| `cultivo` | Especie y superficie frutícola por predio elegible (Catastro Frutícola) |
+| `derecho`, `derecho_predio`, `predio_derecho` | Derechos de agua de la DGA y su cruce con predios |
+| `canal`, `cauce`, `predio_cauce` | Canales CNR/CIREN, cauces de la DGA y el más cercano a cada predio |
+| `restriccion`, `predio_restriccion` | Sectores SHAC de la DGA (prohibición o restricción) por predio |
+| `fiscalizacion` | Expedientes de fiscalización de la DGA |
+| `clima`, `predio_clima` | ERA5-Land diario (lluvia y ET0 FAO-56) por celda de 0,1°, de marzo de 2025 a marzo de 2026 |
+| `derecho_titulares` | **Nombres de titulares: no se exporta ni se muestra** |
+
+**Serie Sentinel-2 y ranking:** por ahora solo de Valparaíso. Las escenas están en `s2/cache/<tile>/`. Cuando termine `region`, los resultados quedan en `modelo/chile-2025-26/region=R05/`: `puntaje.parquet`, `serie_anual.parquet`, etc. La web de la región queda en `web/chile-2025-26/R05/`.
+
+Cómo leerlos (con acceso al proyecto `ph-26-caudal`):
+
+```bash
+gcloud storage ls gs://ph-26-caudal-chile/base/predio/
+gcloud storage cp gs://ph-26-caudal-chile/base/predio/region=R13.parquet data/processed/
+```
+
+Desde Cloud Run, el bucket se monta en `/datos`: ver [`infra/README.md`](../infra/README.md).
 
 - **Imagen de los jobs:** `caudal-jobs/pipeline:e6d5ad0315fe`.
-- **API de la demo:** `caudal-api` está en producción (T7 en [spec-demo.md](spec-demo.md)) y no depende de esta corrida.
+- **API de la demo:** `caudal-api` está en producción (T7 en [spec-demo.md](spec-demo.md)) y sigue con los datos de Z1 y Z2.
 - **Ranking:** no cambia con el año completo de Valparaíso. Ver [Año completo en Valparaíso](#año-completo-en-valparaíso).
 
 ## Objetivo

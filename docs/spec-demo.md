@@ -340,7 +340,7 @@ Ya corregido: la cifra de validación del pitch (2,6) y las equivalencias (perso
 | T7 | Desplegar `caudal-api`: `scripts/cloud/api/desplegar.sh` y luego `EXPEDIENTE=1 scripts/cloud/api/probar.sh URL` (el expediente del candidato se genera al construir) | P0 | Gabi | T2b | `/api/predios/5301984` y el expediente responden en producción en menos de 2 s |
 | T8 | F3: botón que llama al backend, visor de PDF y respaldo | P0 | Nico | T6 | El clic abre el PDF en producción; con el backend apagado abre el respaldo |
 | T9 | Desplegar `caudal-web` y llenar `platanus-hack-project.jsonc` | P0 | Nico | T3 a T8 | El recorrido completo funciona en la URL pública, también con `caudal-api` apagado |
-| T10 | Limpieza para el agente del jurado: quitar lo provisional, `data/demo.json`, README raíz con "en vivo y precalculado" | P0 | Tomás | T3 | La tabla de la sección anterior no tiene pendientes |
+| T10 | Limpieza para el agente del jurado: quitar lo provisional, `data/demo.json`, README raíz con "en vivo y precalculado" | P0 | Tomás 🟡 | T3 | La tabla de la sección anterior no tiene pendientes |
 | T11 | Video de respaldo y 5 ensayos con cronómetro | P0 | Todos | T9 | Video guardado en dos computadores |
 | T12 | F7: modo demo (enlaces, teclas, `?demo=1`) | P1 | Nico | T3 | Las teclas 1 a 5 recorren el guion |
 | T13 | Recortes de los predios en alerta en un bucket privado | P1 | Felipe | T7 | La ficha del candidato muestra recortes con fecha y escena |

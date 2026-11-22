@@ -16,11 +16,36 @@ function alertaPorZona(impacto, zonas) {
     .join(' · ');
 }
 
+const IMAGEN_URL = 'data/zonas/ultima_imagen.json'; // scripts/build_ultima_imagen.py
+
+/** Most recent Sentinel-2 image we hold (sample series), or null: the page then shows the ranking's date. */
+async function ultimaImagen() {
+  try {
+    const res = await fetch(IMAGEN_URL);
+    if (!res.ok) throw new Error(`${res.status} en ${IMAGEN_URL}`);
+    return await res.json();
+  } catch (err) {
+    console.warn('[Caudal] sin fecha de la última imagen:', err.message);
+    return null;
+  }
+}
+
+const fmtDiaMes = (iso) => fmtDia(iso).replace(/\s\d{4}$/, '');
+
+/** "última pasada 20 nov, nublada" when the newest pass has no usable data; '' when it is the valid one. */
+function notaPasada(imagen) {
+  const p = imagen?.ultima_pasada;
+  if (!p?.fecha || p.fecha === imagen.valida?.fecha) return '';
+  return ` · última pasada ${fmtDiaMes(p.fecha)}${p.predios_con_dato === 0 ? ', nublada' : ''}`;
+}
+
 /** The facts to show; one that cannot be computed from the data is left out. */
-function facts({ health, impacto, zonas }) {
+function facts({ health, impacto, zonas, imagen }) {
   const list = [];
-  if (health?.dato_al) list.push({ k: 'Última imagen satelital', ks: 'Última imagen', v: fmtDia(health.dato_al), d: 'Sentinel-2 · el satélite pasa cada 5 días' });
-  if (Number.isFinite(health?.predios)) list.push({ k: 'Predios analizados', ks: 'Predios', v: nf.format(health.predios), d: `Temporada ${health.temporada || ''}`.trim() });
+  const temporada = health?.temporada ? `Temporada de riego ${health.temporada}` : '';
+  if (imagen?.valida?.fecha) list.push({ k: 'Última imagen satelital', ks: 'Última imagen', v: fmtDia(imagen.valida.fecha), d: `Sentinel-2${notaPasada(imagen)}` });
+  else if (health?.dato_al) list.push({ k: 'Imágenes analizadas hasta', ks: 'Imágenes hasta', v: fmtDia(health.dato_al), d: `Sentinel-2 · ${temporada}` });
+  if (Number.isFinite(health?.predios)) list.push({ k: 'Predios analizados', ks: 'Predios', v: nf.format(health.predios), d: temporada });
   if (Number.isFinite(impacto?.candidatos)) list.push({ k: 'En alerta alta, sin fiscalizar', ks: 'En alerta', v: nf.format(impacto.candidatos), d: alertaPorZona(impacto, zonas) });
   return list;
 }
@@ -35,8 +60,8 @@ const itemHTML = (f) => `<div class="fact"><dt><span class="k-long">${esc(f.k)}<
 export async function mountPortadaDatos(el) {
   if (!el) return;
   try {
-    const [health, impacto, zonas] = await Promise.all(['/api/health', '/api/impacto', '/api/zonas'].map((r) => api(r)));
-    const list = facts({ health: health.data, impacto: impacto.data, zonas: zonas.data });
+    const [health, impacto, zonas, imagen] = await Promise.all([api('/api/health'), api('/api/impacto'), api('/api/zonas'), ultimaImagen()]);
+    const list = facts({ health: health.data, impacto: impacto.data, zonas: zonas.data, imagen });
     if (!list.length) return;
     const calculado = health.data?.calculado ? `Calculado el ${fmtDia(health.data.calculado)}` : '';
     const aviso = [health, impacto].some((r) => r.respaldo) ? 'datos de respaldo' : '';

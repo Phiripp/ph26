@@ -7,7 +7,8 @@
 #             viene en la definición de cada job: 0, 10, 20 y 30); TAREAS es por región
 #   region    caudal-chile-prediccion, 14 tareas
 #   nacional  caudal-chile-prediccion, 1 tarea
-# Variables opcionales (se pasan al job con --update-env-vars): CORRIDA (por defecto la fecha), REGIONES, PARTES, HILOS.
+# Variables opcionales (se pasan al job con --update-env-vars): CORRIDA (por defecto la fecha), REGIONES, PARTES, HILOS,
+# REHACER_PLAN=1 (rehace plan/ aunque exista).
 set -euo pipefail
 PROYECTO=${PROYECTO:-ph-26-caudal}
 CUENTA=${CUENTA:-gacuna.latam.challenge@gmail.com}
@@ -15,9 +16,10 @@ ETAPA=${1:?uso: ejecutar.sh base|plan|satelite|region|nacional [TAREAS]}
 CORRIDA=${CORRIDA:-$(date +%Y%m%d)}
 g() { gcloud --project="$PROYECTO" --account="$CUENTA" "$@"; }
 
-ENV="ETAPA=$ETAPA,CORRIDA=$CORRIDA"
-for v in REGIONES PARTES HILOS; do
-  if [ -n "${!v:-}" ]; then ENV="$ENV,$v=${!v}"; fi
+# Separador ";" (sintaxis ^;^ de gcloud): REGIONES lleva comas (R04,R05) y con "," gcloud no la parsea.
+ENV="^;^ETAPA=$ETAPA;CORRIDA=$CORRIDA"
+for v in REGIONES PARTES HILOS REHACER_PLAN; do
+  if [ -n "${!v:-}" ]; then ENV="$ENV;$v=${!v}"; fi
 done
 
 ejecutar() {  # job región tareas

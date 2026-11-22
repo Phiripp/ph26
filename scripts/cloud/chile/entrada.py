@@ -11,7 +11,7 @@ Variables de entorno:
 - ETAPA: base | plan | satelite | region | nacional.
 - CAUDAL_DATA: el bucket montado (/datos). CORRIDA: nombre de la corrida de predicción (modelo/<corrida>, web/<corrida>).
 - HILOS: hilos por tarea (satelite: escenas en paralelo; base: lectura de ERA5-Land). PARTE_BASE: primera parte del
-  plan que corre esta región de Cloud Run (satelite). PARTES: N del plan (40). REGIONES: lista separada por comas para
+  plan que corre esta región de Cloud Run (satelite). PARTES: N del plan (40). REHACER_PLAN=1: rehace un plan existente. REGIONES: lista separada por comas para
   correr solo algunas regiones (plan, region, nacional).
 - CDS_API_KEY: clave de ERA5-Land (Secret Manager); con el valor `PENDIENTE` falla el paso de clima, solo ese.
 
@@ -198,7 +198,10 @@ def etapa_plan(cfg: dict) -> None:
     if pendientes:
         print(f"Aviso: base no terminó en {pendientes} (por ejemplo, sin clima); el plan usa los predios que ya están")
     archivo_zonas = config_de(cfg, zonas, TRABAJO / "regiones_plan.json")
-    correr("scripts/cloud/chile/plan.py", ["--partes", os.environ.get("PARTES", "40")], DATOS, archivo_zonas)
+    args = ["--partes", os.environ.get("PARTES", "40")]
+    if os.environ.get("REHACER_PLAN") == "1":  # el plan no se repite si plan/escenas.parquet existe
+        args.append("--rehacer")
+    correr("scripts/cloud/chile/plan.py", args, DATOS, archivo_zonas)
 
 
 def etapa_satelite() -> None:

@@ -31,7 +31,7 @@ Seguimos las dos guías de Y Combinator para presentar una empresa: [How to Pitc
 | La primera frase dice qué haces, en palabras simples. Demorarlo "siempre es un error" | El guion parte con "Soy Tomás, y esto es Caudales" y la slide dice "El agua está repartida. No todos respetan su parte.". Qué hacemos cierra el problema, a los 25 segundos |
 | Sin jerga, siglas ni lenguaje de marketing. Que suene "más tonto de lo que crees que debería" | No se nombran satélites, índices ni métodos. "DGA" se dice completo la primera vez |
 | El oyente retiene 3 o 4 ideas. Decirlas y repetirlas al final | Cuatro ideas (abajo); el cierre las repite |
-| El problema, corto | 22 segundos, con dos cifras |
+| El problema, corto | 24 segundos, con dos cifras |
 | Si hay resultados, no esconderlos. Sin exagerar: exagerar es un error fatal | El caso real y el 2,6 van con su fuente. Usamos 2,6 y no 3,7. No decimos "en vivo" de algo que ya estaba generado |
 | Tamaño del problema desde abajo, con números concretos | 425 en la zona que se muestra y 501 entre las dos |
 | Terminar con lo que quieres, sin rodeos | No la usamos: no le pedimos nada al jurado. El cierre repite las ideas y nombra al equipo |
@@ -53,20 +53,20 @@ Cuatro ideas que el jurado debe recordar:
 
 ## Guion
 
-Toda la demo ocurre en una sola zona (Aconcagua bajo, comuna de Hijuelas) para no gastar tiempo en vuelos entre zonas. El producto está en pantalla desde el 0:27 hasta el 2:27; el recorrido en vivo dura 1:43. La apertura y el cierre van con el deck ([deck/index.html](deck/index.html), 3 slides y 4 de reserva): se abre en el navegador, con las flechas se avanza y con F se pone en pantalla completa.
+Toda la demo ocurre en una sola zona (Aconcagua bajo, comuna de Hijuelas) para no gastar tiempo en vuelos entre zonas. El producto está en pantalla desde el 0:29 hasta el 2:28; el recorrido en vivo dura 1:43. La apertura y el cierre van con el deck ([deck/index.html](deck/index.html), 3 slides y 4 de reserva): se abre en el navegador, con las flechas se avanza y con F se pone en pantalla completa.
 
 | Tiempo | Segundos | Tramo | Qué se ve |
 | --- | --- | --- | --- |
 | 0:00–0:05 | 5 | Intro | Slide 1: CAUDALES y "El agua está repartida. No todos respetan su parte." |
-| 0:05–0:27 | 22 | El problema | Slide 2: "50 litros al día". Al terminar se cambia al producto |
-| 0:27–0:43 | 16 | Demo: la zona | Vuelo a Aconcagua bajo; panel "De 3.639 predios, 425 tienen señal alta…" |
-| 0:43–1:18 | 35 | Demo: el caso real | Ficha del caso FO-0504-95: multa, "al menos 2,0 años antes" y el agua estimada |
-| 1:18–1:56 | 38 | Demo: un candidato de hoy | Ficha del candidato; se abre el expediente PDF |
-| 1:56–2:10 | 14 | Demo: la ruta de mañana | Pestaña Ruta: "5 predios · 4 horas · 71 km" |
-| 2:10–2:27 | 17 | Qué tan bien funciona | La zona completa, con los predios en alerta |
-| 2:27–2:43 | 16 | Cierre | Slide 3: 2 años, 2,6× y 501; caudales.dev y equipo. Se queda durante las preguntas |
+| 0:05–0:29 | 24 | El problema | Slide 2: "50 litros al día". Al terminar se cambia al producto |
+| 0:29–0:47 | 18 | Demo: la zona | Vuelo a Aconcagua bajo; panel "De 3.639 predios, 425 tienen señal alta…" |
+| 0:47–1:22 | 35 | Demo: el caso real | Ficha del caso FO-0504-95: multa, "al menos 2,0 años antes" y el agua estimada |
+| 1:22–1:58 | 36 | Demo: un candidato de hoy | Ficha del candidato; se abre el expediente PDF |
+| 1:58–2:12 | 14 | Demo: la ruta de mañana | Pestaña Ruta: "5 predios · 4 horas · 71 km" |
+| 2:12–2:28 | 16 | Qué tan bien funciona | La zona completa, con los predios en alerta |
+| 2:28–2:44 | 16 | Cierre | Slide 3: 2 años, 2,6× y 501; caudales.dev y equipo. Se queda durante las preguntas |
 
-Termina a los 2:43: quedan 17 segundos de margen antes del corte. El reparto sale de la revisión del 22-11 con tres espectadores simulados (alguien cansado en la quinta fila, un jurado técnico y un coach de demo day) y de los tiempos medidos en producción: la zona carga en 2,6 segundos, el caso y el candidato abren al instante y el expediente en menos de 2. No hay esperas que cubrir hablando.
+Termina a los 2:44: quedan 16 segundos de margen antes del corte. El reparto sale de la revisión del 22-11 con tres espectadores simulados (alguien cansado en la quinta fila, un jurado técnico y un coach de demo day) y de los tiempos medidos en producción: la zona carga en 2,6 segundos, el caso y el candidato abren al instante y el expediente en menos de 2. No hay esperas que cubrir hablando.
 
 ### Texto
 
@@ -76,27 +76,27 @@ El tono es hablado. No se nombran satélites, índices ni métodos (Sentinel-2, 
 "Soy Tomás, y esto es Caudales."
 
 **0:05 El problema.**
-"En Petorca hay gente que ha vivido con 50 litros de agua al día, traídos en camión. En dos años, el Estado gastó 5.700 millones en esos camiones. Al lado hay paltos verdes en pleno verano, regados sin derechos. Hoy eso se pilla solo si un vecino denuncia. Nosotros lo miramos desde el satélite."
+"En Petorca hay gente que ha vivido con 50 litros de agua al día, traída en camión. En dos años, el Estado gastó 5.700 millones en llevarla. Y ahí mismo hay paltos verdes en pleno verano, con más agua de la que les toca. Hoy eso se pilla solo si un vecino denuncia. Nosotros lo miramos desde el satélite."
 
-**0:27 Demo: la zona.**
-"Este es el valle del Aconcagua. En verano el cerro está seco: un predio que sigue verde es porque alguien lo riega. Si riega más de lo que sus derechos permiten, queda en alerta. En esta zona son 425."
+**0:29 Demo: la zona.**
+"Este es el valle del Aconcagua, vecino de Petorca. En verano el cerro está seco: un predio que sigue verde es porque alguien lo está regando. Y si usa más agua de la que tiene por derecho, queda en alerta. En esta zona son 425."
 
-**0:43 Demo: el caso real.**
-"Este predio de paltos, en Hijuelas. La Dirección General de Aguas lo fiscalizó en 2021 y lo multó con más de 140 millones de pesos por sacar agua sin derechos. Caudales lo tenía en alerta desde 2019: al menos dos años antes de que llegara un inspector. En esos dos años, según nuestra estimación, usó más de 100 mil metros cúbicos sin derecho. Es el agua de 1.500 personas, durante dos años."
+**0:47 Demo: el caso real.**
+"Miren este predio de paltos, en Hijuelas. La Dirección General de Aguas lo fiscalizó en 2021 y lo multó con más de 140 millones de pesos por sacar agua sin derechos. Caudales lo tenía en alerta desde 2019: al menos dos años antes de que llegara un inspector. En ese tiempo, según nuestra estimación, sacó más de 100 mil metros cúbicos sin derecho. Lo que consumen 1.500 personas en esos dos años."
 
-**1:18 Demo: un candidato de hoy.**
-"Ahora, el verano pasado, en la misma comuna. Diecinueve hectáreas de paltos, verdes todo el verano. Sin derechos de agua inscritos, sin un canal cerca, y nadie lo ha fiscalizado. El mismo patrón, hoy. Ojo: Caudales no acusa, prioriza; la infracción la constata un inspector. Y con un clic, el inspector sale con el expediente escrito, en el formato oficial de denuncias."
+**1:22 Demo: un candidato de hoy.**
+"Ahora vamos al verano pasado, en la misma comuna. Diecinueve hectáreas de paltos, verdes todo el verano. Sin derechos de agua inscritos, sin un canal cerca, y nadie lo ha fiscalizado. El mismo patrón, hoy. Ojo: Caudales no acusa, prioriza; la infracción la confirma un inspector en terreno. Por eso, con un clic, sale con el expediente ya escrito, en el formato oficial de denuncias."
 
-**1:56 Demo: la ruta de mañana.**
-"Y esto es lo que importa: a dónde va mañana. Cinco predios en una mañana, 71 kilómetros. Y en cada uno, dónde mirar."
+**1:58 Demo: la ruta de mañana.**
+"Y esto es lo que importa: a dónde ir primero. Cinco predios en una mañana, 71 kilómetros, y en cada uno, dónde mirar."
 
-**2:10 Qué tan bien funciona.**
-"Lo comprobamos con los casos que la DGA ya multó: partiendo por esta lista se encuentra más del doble de infracciones que eligiendo sin ella. Y hoy hay 501 predios en alerta, entre las dos zonas, que nadie ha ido a mirar."
+**2:12 Qué tan bien funciona.**
+"¿Funciona? Lo probamos con los casos que la DGA ya multó: con esta lista se encuentran más del doble de infracciones que sin ella. Y hoy, entre las dos zonas, hay 501 predios en alerta que nadie ha visitado."
 
-**2:27 Cierre.**
-"El agua que falta no se ve. El verde en pleno verano, sí. Todo esto con datos públicos: estaban ahí, repartidos, y faltaba cruzarlos predio por predio. Somos Nicolás, Felipe, Gabriela y Tomás. Gracias."
+**2:28 Cierre.**
+"El agua que falta no se ve. El verde en pleno verano, sí. Todo esto con datos públicos, que estaban ahí, dispersos: faltaba cruzarlos. Somos Nicolás, Felipe, Gabriela y Tomás. Gracias."
 
-El texto tiene 332 palabras (Intro: 6 · El problema: 54 · la zona: 39 · el caso real: 72 · un candidato de hoy: 62 · la ruta de mañana: 23 · Qué tan bien funciona: 42 · Cierre: 34). A 150 palabras por minuto son 2:13 hablando; el resto son los clics, los vuelos y las pausas.
+El texto tiene 340 palabras (Intro: 6 · El problema: 59 · la zona: 45 · el caso real: 72 · un candidato de hoy: 65 · la ruta de mañana: 23 · Qué tan bien funciona: 39 · Cierre: 31). A 150 palabras por minuto son 2:16 hablando; el resto son los clics, los vuelos y las pausas.
 
 Cuidados al decirlo:
 
@@ -107,7 +107,8 @@ Cuidados al decirlo:
 - **La multa en pantalla dice 1.983,9 UTM, unos $144 millones** al valor de la UTM de `impacto.json`. La DGA informó "más de 127 millones" en su momento. El guion dice "más de 140" para calzar con la pantalla.
 - **Los 5.700 millones son contratos adjudicados**, según el Consejo para la Transparencia. El guion dice "gastó"; la slide solo dice "en camiones aljibe · 2023 y 2024". Si el jurado pregunta, la respuesta exacta es "contratados".
 - **Desde la quinta fila solo se ve el tercio superior.** Cada cifra se dice en voz alta; ninguna se deja a la pantalla.
-- **Si falta tiempo**, se salta "Y en cada uno, dónde mirar" y, si hace falta, la ruta entera.
+- **Si falta tiempo**, se salta "y en cada uno, dónde mirar" y, si hace falta, la ruta entera.
+- **Sin palabras repetidas en frases seguidas.** El texto se revisó para que suene hablado: "camión" va una sola vez, "dos años" no se repite tres veces en el caso, y "mañana" no aparece con dos sentidos en la ruta. Al ensayar, si una frase se traba, se cambia la frase y no la entonación.
 
 ## Cifras del guion y su respaldo
 

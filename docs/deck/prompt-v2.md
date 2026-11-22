@@ -2,7 +2,7 @@
 
 Nov 22, 2026 · @Tomas
 
-Prompt para la herramienta que diseña las slides. Parte del prompt original de Gabi y agrega lo decidido el 22-11: el nombre Caudales, la frase de la portada, la apertura de 27 segundos y las slides de reserva como cifras. Los textos y las cifras son los mismos de [index.html](index.html), que sirve de referencia visual (se abre en el navegador). El guion hablado está en [../pitch-demo.md](../pitch-demo.md).
+Prompt para la herramienta que diseña las slides. Parte del prompt original de Gabi y agrega lo decidido el 22-11: el nombre Caudales, la frase de la portada, la apertura de 29 segundos y las slides de reserva como cifras. Los textos y las cifras son los mismos de [index.html](index.html), que sirve de referencia visual (se abre en el navegador). El guion hablado está en [../pitch-demo.md](../pitch-demo.md).
 
 Pegar desde aquí:
 
@@ -17,7 +17,7 @@ le importa a quien mira. Nada de mercado, modelo de negocio, clientes ni pedidos
 ## Formato del evento
 - 3:00 con corte duro, 2:00 de preguntas del jurado, 1:30 de deliberación y cambio de equipo.
 - Habla una persona (Tomás); otra maneja el computador.
-- El deck solo cubre la apertura (0:00–0:27) y el cierre (2:27–2:43). Entre medio se muestra
+- El deck solo cubre la apertura (0:00–0:29) y el cierre (2:28–2:44). Entre medio se muestra
   el producto en vivo, sin slides. La última slide de apertura y la de cierre tienen que verse
   de la misma familia que el producto, para que el cambio de pantalla no se note.
 
@@ -81,13 +81,13 @@ Lenguaje gráfico:
    Abajo, tenue: silueta de Chile en líneas finas cian, que se funde al negro, con un punto
    en Petorca. Chips: PETORCA · ACONCAGUA BAJO y PLATANUS HACK 26 · PHYSICAL WORLD
 
-2. EL PROBLEMA (0:05–0:27)
+2. EL PROBLEMA (0:05–0:29)
    Grande: "50 litros al día" · secundario: "40 mil personas en Petorca. El agua llega en camión."
    Tercio inferior, tenue: bloque de dato "$5.700 millones", etiqueta "EN CAMIONES ALJIBE · 2023 Y 2024"
    Fuente en mono chica: "RADIO JGM, U. DE CHILE (2020) · CONSEJO PARA LA TRANSPARENCIA (2026)"
    (Después de esta slide se cambia al producto en vivo.)
 
-3. CIERRE (2:27–2:43). Se queda en pantalla durante las preguntas.
+3. CIERRE (2:28–2:44). Se queda en pantalla durante las preguntas.
    Tercio superior: tres bloques de dato en una fila, con el número enorme.
      "2 años"  · etiqueta: ANTES QUE LA INSPECCIÓN, AL MENOS · contexto: CASO REAL EN HIJUELAS
      "2,6×"    · etiqueta: MÁS INFRACCIONES QUE SIN LA LISTA · contexto: 19 CASOS DE LA DGA

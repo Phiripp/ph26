@@ -592,6 +592,15 @@ const CSS = `
 .cm-zona .cm-pill em{color:#cfd8dc;font-size:14px}
 .cm-zona:not(.stk) .cm-pill{height:28px;padding:6px 11px 0;gap:9px}
 .cm-zona .cm-pill b{font-size:15px}
+/* hover / keyboard focus on a zone (dot or label): the label grows so an audience can read it */
+.cm-zona .cm-pill{transition:transform .2s cubic-bezier(.2,.7,.2,1),border-color .2s,background .2s;transform-origin:left bottom}
+.cm-zona.flip .cm-pill{transform-origin:right bottom}
+@media (hover:hover){
+  .cm-zona.lbl .cm-pill{pointer-events:auto;cursor:pointer}
+  .cm-zona:hover,.cm-zona:focus-visible{z-index:9!important}
+  .cm-zona:hover .cm-pill,.cm-zona:focus-visible .cm-pill{transform:scale(1.5);border-color:var(--c);background:rgba(5,8,11,.96)}
+}
+@media (prefers-reduced-motion:reduce){.cm-zona .cm-pill{transition:none}}
 @media (max-width:760px){
   .cm-zona:not(.stk) .cm-pill{padding:7px 8px 0;gap:6px}
   .cm-zona .cm-pill b{font-size:12.5px}

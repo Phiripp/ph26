@@ -12,7 +12,7 @@ Responde tres preguntas, en este orden y nada más (docs/spec-demo.md, "Por qué
 
 Todo sale de las filas de M3 y M5; aquí no se calcula ningún número nuevo, solo se redactan. La misma función
 (`explicacion`) la usan la ficha de la API (api/datos.py) y el expediente PDF (expediente.py), para que digan lo mismo.
-Los m³ van en rango y a 2 cifras significativas. La primera vista no usa términos técnicos (NDVI, z, percentil):
+Los m³ van en rango y redondeados (función `m3`). La primera vista no usa términos técnicos (NDVI, z, percentil):
 los valores crudos van en `valor`, para "ver método".
 
 Entradas de `explicacion`:
@@ -99,13 +99,15 @@ def entero(x) -> str:
 
 
 def m3(x) -> str:
-    """m³ a 2 cifras significativas (igual que el expediente: un rango no merece más precisión)."""
+    """m³ a 2 cifras significativas, o 3 si la primera es 1 (104.648 -> 105.000, no 100.000): un rango no merece más
+    precisión. Es el redondeo de la ficha y del expediente."""
     if _nulo(x):
         return "s/d"
     x = float(x)
     if x == 0:
         return "0"
-    p = 10 ** max(int(math.floor(math.log10(abs(x)))) - 1, 0)
+    e = int(math.floor(math.log10(abs(x))))
+    p = 10 ** max(e - (2 if abs(x) / 10 ** e < 2 else 1), 0)
     return entero(round(x / p) * p)
 
 

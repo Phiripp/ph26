@@ -34,7 +34,7 @@ Seguimos las dos guías de Y Combinator para presentar una empresa: [How to Pitc
 | El problema, corto | 25 segundos, con dos cifras |
 | Si hay resultados, no esconderlos. Sin exagerar: exagerar es un error fatal | El caso real y el 2,6 van con su fuente. Usamos 2,6 y no 3,7. No decimos "en vivo" de algo que ya estaba generado |
 | Tamaño de la oportunidad desde abajo, con números concretos | 501 predios, su agua y los 14 años que tomaría revisarlos |
-| Terminar con lo que quieres, sin rodeos | "Queremos probarlo con la DGA este verano" |
+| Terminar con lo que quieres, sin rodeos | No la usamos: no le pedimos nada al jurado. El cierre repite las ideas y nombra al equipo |
 | Una idea por pantalla; menos de 7 palabras en letra grande | En cada tramo del guion hay una sola cosa que mirar. Quien maneja no abre nada más |
 | Habla una persona, más lento de lo natural, con pausas | 400 palabras para 2:55. Las pausas van en los clics de la demo |
 
@@ -96,9 +96,9 @@ El tono es hablado. No se nombran satélites, índices ni métodos (Sentinel-2, 
 "Un solo predio como el que vieron se toma al año el agua de casi 3.000 personas. O 220 millones de latas de Monster. Como ese hay 501 que nadie ha ido a mirar. Juntos son entre 5 y 20 Torres Costanera llenas de agua, todos los años. Revisarlos uno por uno tomaría 14 años."
 
 **2:38 Cierre.**
-"Caudal vio un caso real dos años antes, encuentra más del doble de infracciones y termina en una ruta para mañana. Con datos públicos, para cualquier valle de Chile. Somos Nicolás, Felipe, Gabriela y Tomás, y queremos probarlo con la DGA este verano."
+"Caudal vio un caso real dos años antes, encuentra más del doble de infracciones y termina en una ruta para mañana. Con datos públicos, para cualquier valle de Chile. Somos Nicolás, Felipe, Gabriela y Tomás. Gracias."
 
-El texto tiene 408 palabras: 2:43 hablando a 150 palabras por minuto. Los 12 segundos que sobran son los clics y los vuelos de la demo.
+El texto tiene 401 palabras: 2:40 hablando a 150 palabras por minuto. Los 15 segundos que sobran son los clics y los vuelos de la demo.
 
 Tres cuidados al decirlo:
 
@@ -129,6 +129,7 @@ Datos de reserva para las preguntas:
 - Acierto de la DGA: 33 % (107 fiscalizaciones por extracción, 2022–2025). Caudal en alerta alta: 7 de 15.
 - Casos esperados entre los 501 candidatos: 39 a 153.
 - Caso de Hijuelas: unos 140.000 m³ sin derecho en los dos años previos a la inspección, el agua de unas 1.900 personas durante esos dos años.
+- Agua potable rural: en las cinco comunas de Petorca hay 60 sistemas de APR, con unas 43 mil personas (13.978 arranques; la DOH estima 3,1 personas por arranque). En las diez comunas de las dos zonas son 90 sistemas, y 59 tienen un predio en alerta alta a 1 km o menos (`apr.parquet`, dato de la DOH al 30-06-2026). Cercanía no es causa: no decir que ese predio le quita el agua a ese APR.
 - Camiones aljibe en Petorca, enero a marzo de 2026: $176,4 millones por 41.201 m³ (Mercado Público).
 - En todo el país, 2023 y 2024: 370 contratos por más de $30.192 millones; la Región de Valparaíso concentra el 47 % del monto (mismo comunicado del Consejo para la Transparencia).
 - Escuela de Petorca con jornada reducida a la mitad por cortes de agua ([BBC Mundo, 16-12-2021](https://www.elmostrador.cl/dia/2021/12/16/petorca-en-la-bbc-mundo-el-pueblo-de-chile-que-esta-cerrando-escuelas-por-culpa-de-la-sequia/)).
@@ -138,7 +139,7 @@ Datos de reserva para las preguntas:
 | Decisión | Elegido | Alternativa | Por qué |
 | --- | --- | --- | --- |
 | Orden del guion | Primero qué hacemos (10 segundos), después el problema | Abrir con el problema de Petorca y decir qué es Caudal a los 22 segundos | Es la regla de YC: quien escucha no debe esperar para saber qué hacemos. El gancho de Petorca se mantiene entero, en segundo lugar |
-| Pedido del cierre | "Queremos probarlo con la DGA este verano" | Cerrar solo con los nombres | YC pide terminar con lo que quieres, sin rodeos. La temporada seca parte en diciembre. Confirmar que el equipo quiere decirlo |
+| Pedido del cierre | Sin pedido: el cierre repite las ideas y nombra al equipo | "Queremos probarlo con la DGA este verano" | No comprometemos al equipo ni a la DGA desde el escenario |
 | Zona de la demo | Z2, Hijuelas | Z1, Cabildo: caso FD-0501-181 y candidato `5344181` (31 ha de palto) | El caso FO-0504-95 es el más sólido (la DGA dijo que lo detectó con satélite y el verdor baja después de la multa). El candidato está en la misma comuna, así que la demo no cambia de zona |
 | Candidato en vivo (D19) | Predio `5301984` | `5344181` (Cabildo), `5345478` (Cabildo, 7 ha de nogal) | Señal en el 100 % de las fechas, sin derechos a 500 m, sin canal a 1 km, sin fiscalización a 500 m, 89 % de la superficie con frutales |
 | Cifra de validación | 2,6 veces | 3,7 veces | Es la cifra sin sesgo de calibración; aguanta una pregunta del jurado |
@@ -166,9 +167,9 @@ Datos de reserva para las preguntas:
 
 | Riesgo | Mitigación |
 | --- | --- |
-| Se cae la red o el servicio | La página funciona sin red desde la segunda visita (service worker). El PDF de la demo queda también como archivo estático. Video de respaldo de 1:45 grabado el sábado en la noche |
+| Se cae la red o el servicio | La página funciona sin red desde la segunda visita (service worker). El PDF de la demo queda también como archivo estático |
 | El expediente tarda en generarse | El del candidato se genera al construir la imagen de la API y abre en menos de 2 segundos. La pantalla muestra su fecha |
-| Nos pasamos de los 3:00 | Ensayar 5 veces con cronómetro. Si a los 2:20 no partió la validación, se salta la frase de los POI |
+| Nos pasamos de los 3:00 | Si a los 2:20 no partió la validación, se salta la frase de los POI y la de las latas de Monster |
 | Arranque en frío de Cloud Run | `min-instances=1` en ambos servicios desde el sábado en la noche |
 | Vuelos del mapa lentos en el computador de la demo | Abrir la página 5 minutos antes y esperar `data-warm=done`; probar en el computador real |
 
@@ -177,6 +178,4 @@ Datos de reserva para las preguntas:
 - [x] Llenar `platanus-hack-project.jsonc` con el nombre, la descripción y la URL de producción.
 - [ ] Prueba del correo (Seibel): mandar las dos frases del mensaje a alguien de fuera del equipo y pedirle que las repita con sus palabras. Si pregunta algo, se reescriben.
 - [ ] Correr el recorrido completo en producción, en el computador de la demo.
-- [ ] Grabar el video de respaldo.
-- [ ] Ensayar 5 veces con cronómetro y con los dos roles (quien habla y quien maneja).
 - [ ] Revisar que las cifras del guion coincidan con `impacto.md`, `validacion.md` y lo que muestra la pantalla (ruta, multa, fecha del expediente).

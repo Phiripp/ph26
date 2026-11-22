@@ -177,16 +177,19 @@ class SolicitudExpediente(BaseModel):
     predio_id: int
     temporada: str | None = None
     regenerar: bool = False
+    rol: bool | None = None  # None: solo si el predio tiene un caso sancionado por la DGA
 
 
 @app.post("/api/expediente", tags=["expediente"])
 def expediente(s: SolicitudExpediente):
-    """Genera el expediente PDF del predio, o devuelve el que ya existe con los mismos insumos (`reutilizado`)."""
-    return expedientes.solicitar(s.predio_id, s.temporada, s.regenerar)
+    """Genera el expediente PDF del predio, o devuelve el que ya existe con los mismos insumos (`reutilizado`).
+    El PDF lleva el rol solo si el predio tiene un caso sancionado por la DGA; `rol` true o false lo fuerza."""
+    return expedientes.solicitar(s.predio_id, s.temporada, s.regenerar, s.rol)
 
 
 @app.get("/api/expediente/eventos", tags=["expediente"])
-async def expediente_eventos(predio_id: int, temporada: str | None = None, regenerar: bool = False):
+async def expediente_eventos(predio_id: int, temporada: str | None = None, regenerar: bool = False,
+                             rol: bool | None = None):
     """Lo mismo que el POST, como eventos (text/event-stream) para mostrar el avance real: un evento `paso` por cada
     paso de la generación, y al final `listo` (la respuesta del POST) o `falla`. Con EventSource:
 
@@ -196,7 +199,7 @@ async def expediente_eventos(predio_id: int, temporada: str | None = None, regen
         es.addEventListener('falla', e => { respaldo(JSON.parse(e.data).detail); es.close() })
     """
     t0 = time.time()
-    clave, r = await run_in_threadpool(expedientes.encolar, predio_id, temporada, regenerar)
+    clave, r = await run_in_threadpool(expedientes.encolar, predio_id, temporada, regenerar, rol)
 
     def evento(nombre: str, dato: dict) -> str:
         return f"event: {nombre}\ndata: {json.dumps(dato, ensure_ascii=False)}\n\n"

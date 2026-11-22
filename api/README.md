@@ -2,7 +2,7 @@
 
 API de lectura y expediente PDF de Caudal. Sirve los recursos del contrato de datos de [docs/spec-demo.md](../docs/spec-demo.md): FastAPI, con DuckDB sobre los Parquet de `data/processed/`. No hay base de datos.
 
-> Caudal prioriza, no acusa. Ninguna ruta devuelve nombres de titulares. El rol solo sale con `?rol=1`; la página no lo pide en modo demo.
+> Caudal prioriza, no acusa. Ninguna ruta devuelve nombres de titulares. Las rutas de lectura entregan el rol solo con `?rol=1`, y la página no lo pide.
 
 ## Correrla en local
 
@@ -89,11 +89,12 @@ curl -X POST localhost:8000/api/expediente -H 'content-type: application/json' -
 
 ```json
 {"id": "CAU-5301984-202611212028", "predio_id": 5301984, "temporada": "2025-26", "banda": "alta", "confianza": "media",
- "reutilizado": true, "segundos": 0.0, "con_imagenes": true, "hash_insumos": "4f4fb442c42d",
+ "reutilizado": true, "segundos": 0.0, "con_imagenes": true, "con_rol": false, "hash_insumos": "4f4fb442c42d",
  "url_pdf": "/api/expediente/CAU-5301984-202611212028/expediente.pdf", "creado": "2026-11-21T20:28:48-03:00"}
 ```
 
 - `reutilizado: true` significa que ya existía un expediente con los mismos insumos. Muestra `creado`; no lo presentes como recién generado. Con `"regenerar": true` se fuerza uno nuevo.
+- **Rol.** El PDF lleva el rol solo si el predio tiene un caso sancionado por la DGA, que es un dato público. Para el resto identifica el predio por su polígono de CIREN y deja el rol para quien presenta la denuncia (`con_rol: false`). Se fuerza con `"rol": true` o `"rol": false` (`&rol=false` en la ruta de eventos); la página manda `rol=false` en modo demo (`?demo=1`).
 - Uno nuevo tarda cerca de 20 segundos; casi todo es bajar las imágenes. Si las fuentes de imágenes no responden, sale sin imágenes (`con_imagenes: false`).
 - Tope: 60 segundos. Pasado el tope responde 503; la generación termina en segundo plano y la siguiente solicitud la encuentra hecha.
 - Los expedientes del candidato y del caso de `data/demo.json` se generan al construir la imagen, así que en producción abren al instante.

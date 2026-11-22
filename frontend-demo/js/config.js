@@ -21,6 +21,12 @@ function localOverride() {
   }
 }
 
+/** ?demo=1: modo demo. No se muestra ningún rol, tampoco el de los casos sancionados (docs/spec-demo.md, F7). */
+export const MODO_DEMO = new URLSearchParams(location.search).get('demo') === '1';
+
+/** Repositorio: base de los enlaces "ver método" de la explicación (rutas dentro del repo). */
+export const REPO_URL = 'https://github.com/platanus-hack/platanus-hack-26-cl-team-15/blob/develop/';
+
 /** Origen del backend, sin barra final. */
 export const API_BASE = localOverride() || (isLocal(location.hostname) ? LOCAL_API : PROD_API);
 

@@ -142,7 +142,8 @@ export function mountExpedientePdf(host, { predioId, fileName }) {
       const meta = await requestLive(predioId, { onPaso: (t) => alive() && addStep(t), signal: ctl.signal });
       const url = await pdfBlobUrl(apiUrl(meta.url_pdf), ctl.signal);
       if (!alive()) { URL.revokeObjectURL(url); return; }
-      setState('ready', meta.reutilizado ? 'del servidor' : 'en vivo', liveNote(meta));
+      // uno ya generado no lleva etiqueta: la nota dice cuándo se generó y que el servidor lo reutiliza
+      setState('ready', meta.reutilizado ? '' : 'en vivo', liveNote(meta));
       show(url);
       return;
     } catch (err) {

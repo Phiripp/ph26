@@ -18,60 +18,93 @@ No hay una rúbrica oficial publicada.
 
 Consecuencias para nosotros:
 
-- El guion tiene 430 palabras como máximo (unas 150 por minuto) y termina a los 2:55.
+- El guion tiene 400 palabras (unas 150 por minuto) y termina a los 2:55.
 - Todo lo que se muestra corre en producción con datos reales. Nada de botones simulados.
 - Una persona habla y otra maneja el computador.
 
+## Estándar del pitch
+
+Seguimos las dos guías de Y Combinator para presentar una empresa: [How to Pitch Your Company](https://www.ycombinator.com/blog/how-to-pitch-your-company/) (Michael Seibel) y [A Guide to Demo Day Presentations](https://www.ycombinator.com/blog/guide-to-demo-day-pitches/) (Geoff Ralston).
+
+| Regla de YC | Cómo la aplicamos |
+| --- | --- |
+| La primera frase dice qué haces, en palabras simples. Demorarlo "siempre es un error" | El guion parte con "Somos Caudal" y qué hacemos. El problema va después |
+| Sin jerga, siglas ni lenguaje de marketing. Que suene "más tonto de lo que crees que debería" | No se nombran satélites, índices ni métodos. "DGA" se dice completo la primera vez |
+| El oyente retiene 3 o 4 ideas. Decirlas y repetirlas al final | Cuatro ideas (abajo); el cierre las repite |
+| El problema, corto | 25 segundos, con dos cifras |
+| Si hay resultados, no esconderlos. Sin exagerar: exagerar es un error fatal | El caso real y el 2,6 van con su fuente. Usamos 2,6 y no 3,7. No decimos "en vivo" de algo que ya estaba generado |
+| Tamaño de la oportunidad desde abajo, con números concretos | 501 predios, su agua y los 14 años que tomaría revisarlos |
+| Terminar con lo que quieres, sin rodeos | "Queremos probarlo con la DGA este verano" |
+| Una idea por pantalla; menos de 7 palabras en letra grande | En cada tramo del guion hay una sola cosa que mirar. Quien maneja no abre nada más |
+| Habla una persona, más lento de lo natural, con pausas | 400 palabras para 2:55. Las pausas van en los clics de la demo |
+
 ## Mensaje
 
-**Caudal le dice a la DGA qué predios inspeccionar mañana.** Usa satélite, clima y el registro público de derechos de agua, y entrega una ruta de inspección y un expediente listo para presentar.
+Las dos frases que todo el equipo dice igual:
 
-Tres ideas que el jurado debe recordar:
+> **Caudal mira desde el satélite qué predios riegan sin tener derechos de agua, y le dice a la Dirección General de Aguas a cuáles ir primero.** Entrega la ruta del inspector y el expediente de denuncia listo.
 
-1. **Funciona con un caso real.** Caudal marca dos años antes un predio que la DGA multó con $127 millones.
-2. **Termina en una acción física.** La salida es una ruta para un inspector y un expediente con el formato de la DGA.
-3. **Está validado y no exagera.** Se probó contra las fiscalizaciones reales de la DGA y todo va en rango.
+Cuatro ideas que el jurado debe recordar:
+
+1. **Qué es y para quién.** Le dice al fiscalizador de aguas a dónde ir mañana.
+2. **Funciona con un caso real.** Caudal tenía en alerta, dos años antes de la inspección, un predio que la DGA multó.
+3. **Está medido y no exagera.** En alerta alta hay 2,6 veces más infractores que al azar. Todo va en rango.
+4. **El problema es grande y hoy nadie lo mira.** 501 predios en alerta sin fiscalizar; revisarlos uno por uno tomaría 14 años.
 
 ## Guion
 
-Toda la demo ocurre en una sola zona (Aconcagua bajo, comuna de Hijuelas) para no gastar tiempo en vuelos entre zonas. El producto está en pantalla desde el 0:22 hasta el cierre; el recorrido en vivo va de 0:22 a 2:00.
+Toda la demo ocurre en una sola zona (Aconcagua bajo, comuna de Hijuelas) para no gastar tiempo en vuelos entre zonas. El producto está en pantalla desde el 0:35 hasta el cierre; el recorrido en vivo dura 1:30.
 
-| Tiempo | Qué se dice | Qué se ve |
+| Tiempo | Tramo | Qué se ve |
 | --- | --- | --- |
-| 0:00–0:22 | Gancho | Portada: mapa de Chile con las dos zonas |
-| 0:22–0:37 | Qué es Caudal | Vuelo a la zona; aparecen los predios por banda |
-| 0:37–1:02 | Demo 1: el caso real | Ficha del caso FO-0504-95: serie y antes/después |
-| 1:02–1:35 | Demo 2: un candidato de hoy y su expediente | Ficha del candidato; se genera el PDF en vivo |
-| 1:35–2:00 | Demo 3: la ruta de mañana | Pestaña Ruta: paradas, horas y botón de navegación |
-| 2:00–2:45 | Validación e impacto | Panel de impacto |
-| 2:45–2:55 | Cierre | Logo, URL y equipo |
+| 0:00–0:10 | Qué hacemos | Portada: nombre y mapa de Chile |
+| 0:10–0:35 | El problema | Portada: las dos zonas |
+| 0:35–0:52 | Demo: cómo funciona | Vuelo a la zona; aparecen los predios por banda |
+| 0:52–1:17 | Demo: el caso real | Ficha del caso FO-0504-95: serie y línea de la inspección |
+| 1:17–1:45 | Demo: un candidato de hoy | Ficha del candidato; se abre el expediente PDF |
+| 1:45–2:05 | Demo: la ruta de mañana | Pestaña Ruta: paradas, horas y botón de navegación |
+| 2:05–2:15 | Qué tan bien funciona | La zona completa, con los predios en alerta |
+| 2:15–2:38 | De qué tamaño es | La zona completa |
+| 2:38–2:55 | Cierre | Portada: nombre, URL y equipo |
 
 ### Texto
 
 El tono es hablado. No se nombran satélites, índices ni métodos (Sentinel-2, NDVI, FAO-56): van en el material de apoyo y en las respuestas.
 
-**0:00 Gancho.**
-"En Petorca hay 40 mil personas que han tenido que vivir con 50 litros de agua al día, y esa agua les llega en camión aljibe. Solo en 2023 y 2024, el Estado contrató más de 5.700 millones de pesos en esos camiones. Mientras tanto, ahí mismo, hay huertos verdes en pleno verano que riegan sin tener derechos de agua. ¿Y cómo se pilla eso hoy? Solo si un vecino denuncia."
+**0:00 Qué hacemos.**
+"Somos Caudal. Miramos desde el satélite qué predios riegan sin tener derechos de agua, y le decimos a la Dirección General de Aguas a cuáles ir primero."
 
-**0:22 Qué es.**
-"Caudal mira desde el satélite los casi 8 mil predios de Petorca y Aconcagua, cada cinco días. Si lleva diez días sin llover y un predio sigue más verde que el cerro de al lado, alguien lo está regando. Y si riega más de lo que sus derechos le permiten, lo marcamos."
+**0:10 El problema.**
+"En Petorca hay 40 mil personas que han tenido que vivir con 50 litros de agua al día, que les llega en camión aljibe. Solo en 2023 y 2024, el Estado contrató más de 5.700 millones de pesos en esos camiones. Y ahí mismo hay huertos verdes en pleno verano, regando sin derechos. ¿Cómo se pilla eso hoy? Solo si un vecino denuncia."
 
-**0:37 Demo 1, el caso real.**
-"Esto es Hijuelas. En 2021 la DGA multó a este predio de paltos con 127 millones de pesos por sacar agua sin derechos. Miren su historia: la línea gris es el cerro seco, la verde es el predio. Caudal lo tenía en alerta alta desde 2019. Dos años antes de que llegara un inspector."
+**0:35 Demo: cómo funciona.**
+"Esto es Caudal, funcionando. Casi 8 mil predios. Si lleva diez días sin llover y un predio sigue más verde que el cerro de al lado, alguien lo está regando. Y si riega más de lo que sus derechos le permiten, queda en alerta."
 
-**1:02 Demo 2, un candidato de hoy.**
-"Ahora, el verano pasado, en la misma comuna. Diecinueve hectáreas de paltos, verdes todo el verano. No tiene derechos de agua inscritos, no tiene un canal cerca y nunca lo han fiscalizado. Ojo: Caudal no acusa, prioriza. Y con un clic arma el expediente, con el formato oficial de denuncias de la DGA. Esto se está generando ahora, en producción."
+**0:52 Demo: el caso real.**
+"Esto es Hijuelas. En 2021 la DGA fiscalizó este predio de paltos y lo multó con más de 140 millones de pesos por sacar agua sin derechos. La línea gris es el cerro seco; la verde, el predio. Caudal lo tenía en alerta alta desde 2019: dos años antes de que llegara un inspector."
 
-**1:35 Demo 3, la ruta.**
-"Y esto es lo que importa: a dónde va el inspector mañana. Cinco predios, cuatro horas, 71 kilómetros. Se abre en Google Maps. Y dentro de cada predio le decimos dónde mirar: el parche regado, el tranque, el pozo."
+**1:17 Demo: un candidato de hoy.**
+"Ahora, el verano pasado, en la misma comuna. Diecinueve hectáreas de paltos, verdes todo el verano. Sin derechos de agua inscritos, sin un canal cerca, nunca fiscalizado. Ojo: Caudal no acusa, prioriza. Y con un clic, el expediente: lo arma el servidor, con el formato oficial de denuncias de la DGA."
 
-**2:00 Validación e impacto.**
-"Esto lo probamos contra las fiscalizaciones reales de la DGA: donde Caudal marca alerta alta, hay 2,6 veces más infractores que si uno eligiera al azar. Y para que se hagan una idea: un solo predio como el que acaban de ver se toma al año el agua de casi 3.000 personas. O, si prefieren, 220 millones de latas de Monster. Como ese hay 501 predios que nadie ha ido a mirar. Juntos son entre 5 y 20 Torres Costanera llenas de agua, todos los años. Revisarlos uno por uno tomaría 14 años. Caudal te dice por cuáles cinco partir mañana."
+**1:45 Demo: la ruta.**
+"Y esto es lo que importa: a dónde va el inspector mañana. Cinco predios, cuatro horas, 71 kilómetros. Se abre en Google Maps, y en cada predio le dice dónde mirar: el parche regado, el tranque, el pozo."
 
-**2:45 Cierre.**
-"Todo esto con datos públicos, y sirve para cualquier valle de Chile. Somos Nicolás, Felipe, Gabriela y Tomás. Gracias."
+**2:05 Qué tan bien funciona.**
+"Lo probamos contra las fiscalizaciones reales de la DGA. Donde Caudal marca alerta alta, hay 2,6 veces más infractores que eligiendo al azar."
 
-El texto tiene unas 410 palabras.
+**2:15 De qué tamaño es.**
+"Un solo predio como el que vieron se toma al año el agua de casi 3.000 personas. O 220 millones de latas de Monster. Como ese hay 501 que nadie ha ido a mirar. Juntos son entre 5 y 20 Torres Costanera llenas de agua, todos los años. Revisarlos uno por uno tomaría 14 años."
+
+**2:38 Cierre.**
+"Caudal vio un caso real dos años antes, encuentra 2,6 veces más que el azar y termina en una ruta para mañana. Con datos públicos, para cualquier valle de Chile. Somos Nicolás, Felipe, Gabriela y Tomás, y queremos probarlo con la DGA este verano."
+
+El texto tiene 399 palabras: 2:40 hablando a 150 palabras por minuto. Los 15 segundos que sobran son los clics y los vuelos de la demo.
+
+Tres cuidados al decirlo:
+
+- **El expediente del candidato ya está generado.** La pantalla dice "Generado el…, el servidor lo reutiliza". Por eso el guion dice "lo arma el servidor" y no "se está generando ahora". Si el jurado pide verlo generarse, se pide el de otro predio: tarda unos 20 segundos.
+- **La multa en pantalla dice 1.983,9 UTM, unos $144 millones** al valor de la UTM de `impacto.json`. La DGA informó "más de 127 millones" en su momento. El guion dice "más de 140" para calzar con la pantalla.
+- **Si falta tiempo**, la primera frase que se salta es la de las latas de Monster; la segunda, "el parche regado, el tranque, el pozo".
 
 ## Cifras del guion y su respaldo
 
@@ -80,9 +113,9 @@ El texto tiene unas 410 palabras.
 | 40 mil personas con 50 litros al día | 40.000 personas en la provincia de Petorca | [Radio JGM, U. de Chile, 04-05-2020](https://radiojgm.uchile.cl/de-50-a-100-litros-de-agua-el-suministro-que-el-minsal-no-pudo-cumplir/) | Es un dato de 2020: decir "han tenido que vivir". En 2021 la Corte Suprema subió la dotación a 100 litros |
 | 5.700 millones en camiones aljibe | $5.710 millones en contratos de la Delegación Presidencial Provincial de Petorca, 2023 y 2024 sumados | [Consejo para la Transparencia, 05-10-2026](https://www.consejotransparencia.cl/fiscalizacion-cplt-municipios-y-delegaciones-contrataron-mas-de-30-mil-millones-en-camiones-aljibe-en-2023-y-2024-pero-a-cuantas-familias-llego-el-agua-potable/) | Son montos contratados e informados por la delegación, no pagos: decir "contrató", no "gastó". Leímos el comunicado; el informe completo no abrió |
 | Casi 8 mil predios | 7.911 | `puntaje.parquet` | Predios con rol válido y 1 ha o más |
-| Multa de 127 millones | 1.983,9 UTM | Planilla de la DGA y nota de prensa de la DGA | — |
-| Alerta alta desde 2019, dos años antes | Temporada 2019-20; inspección el 23-11-2021 | `impacto.md` | La serie parte en 2019-20: es una cota inferior |
-| Diecinueve hectáreas, sin derechos, sin canal cerca, nunca fiscalizado | 18,8 ha, 89 % palto, sin derechos a 500 m, canal a 1,2 km, sin fiscalización a 500 m desde 2018 | `puntaje.parquet`, predio `5301984` | No mostrar rol ni dueño |
+| Multa de más de 140 millones | 1.983,9 UTM × $72.450 = $143,7 millones | Planilla de la DGA; UTM de `impacto.json` (`supuestos.utm_clp`) | Es lo que muestra la ficha del caso. La nota de prensa de la DGA dijo "más de 127 millones", con la UTM de entonces |
+| Fiscalizó en 2021; alerta alta desde 2019, dos años antes | Temporada 2019-20; inspección el 23-11-2021 (1,98 años); resolución de multa el 29-11-2023 | `impacto.md`, `/api/casos/FO-0504-95` | La serie parte en 2019-20: es una cota inferior. La multa se resolvió en 2023: decir "fiscalizó en 2021 y lo multó", no "multó en 2021" |
+| Diecinueve hectáreas, sin derechos inscritos, sin un canal cerca, nunca fiscalizado | 18,8 ha, 89 % palto, sin derechos a 500 m, canal a 1,2 km, sin fiscalización a 500 m desde 2018 | `puntaje.parquet`, predio `5301984` | No mostrar rol ni dueño |
 | Cinco predios, cuatro horas, 71 km | Ruta de Z2 (5 paradas, 08:30 a 12:28, 71,3 km) | `ruta_z2.json` | Cambia si se regenera la ruta. Con tope de 5 paradas desde el 21-11; antes eran 12 predios, 8 horas y 91 km |
 | 2,6 veces más infractores | IC 95 %: 1,3–4,4 | `validacion.md` | Usar 2,6 y no 3,7: el 3,7 se midió con los mismos casos que calibraron los umbrales |
 | El agua de casi 3.000 personas | 105.000 m³ al año ÷ 36,5 m³ por persona = 2.877 | `puntaje.parquet`; dotación de 100 litros al día ([Corte Suprema, 2021](https://www.24horas.cl/regiones/valparaiso/corte-suprema-determina-100-litros-de-agua-por-habitantes-de-petorca-4708851)) | 105.000 m³ es el mínimo del rango del candidato |
@@ -104,6 +137,8 @@ Datos de reserva para las preguntas:
 
 | Decisión | Elegido | Alternativa | Por qué |
 | --- | --- | --- | --- |
+| Orden del guion | Primero qué hacemos (10 segundos), después el problema | Abrir con el problema de Petorca y decir qué es Caudal a los 22 segundos | Es la regla de YC: quien escucha no debe esperar para saber qué hacemos. El gancho de Petorca se mantiene entero, en segundo lugar |
+| Pedido del cierre | "Queremos probarlo con la DGA este verano" | Cerrar solo con los nombres | YC pide terminar con lo que quieres, sin rodeos. La temporada seca parte en diciembre. Confirmar que el equipo quiere decirlo |
 | Zona de la demo | Z2, Hijuelas | Z1, Cabildo: caso FD-0501-181 y candidato `5344181` (31 ha de palto) | El caso FO-0504-95 es el más sólido (la DGA dijo que lo detectó con satélite y el verdor baja después de la multa). El candidato está en la misma comuna, así que la demo no cambia de zona |
 | Candidato en vivo (D19) | Predio `5301984` | `5344181` (Cabildo), `5345478` (Cabildo, 7 ha de nogal) | Señal en el 100 % de las fechas, sin derechos a 500 m, sin canal a 1 km, sin fiscalización a 500 m, 89 % de la superficie con frutales |
 | Cifra de validación | 2,6 veces | 3,7 veces | Es la cifra sin sesgo de calibración; aguanta una pregunta del jurado |
@@ -124,22 +159,24 @@ Datos de reserva para las preguntas:
 | ¿El satélite es "mundo físico"? | La entrada son mediciones físicas (reflectancia, lluvia, evapotranspiración) y la salida es una inspección en terreno con ruta y puntos a revisar |
 | ¿Por qué el AUC entre fiscalizados es bajo (0,62)? | La DGA ya fiscaliza predios regados, así que entre ellos el verdor no separa. La pregunta útil es otra: frente a todos los predios, Caudal concentra 2,6 veces más infractores |
 | ¿Escala a otros valles? | Sí: Sentinel-2, DGA, CIREN y CONAF cubren todo Chile. Sumar una zona es correr los mismos scripts con otro polígono |
-| ¿Modelo de negocio? | El cliente es la DGA y las juntas de vigilancia. También sirve a APR y comunidades que hoy denuncian sin pruebas |
+| ¿Modelo de negocio? | El cliente es la DGA y las juntas de vigilancia, que deben decidir a dónde mandar un inspector. También sirve a APR y comunidades que hoy denuncian sin pruebas |
+| ¿Por qué no se había hecho? | Los datos son públicos, pero están repartidos en varias instituciones y nadie los había cruzado predio por predio. Y el verdor solo no basta: hay que compararlo con el cerro seco y con la lluvia |
 
 ## Riesgos de la presentación
 
 | Riesgo | Mitigación |
 | --- | --- |
 | Se cae la red o el servicio | La página funciona sin red desde la segunda visita (service worker). El PDF de la demo queda también como archivo estático. Video de respaldo de 1:45 grabado el sábado en la noche |
-| El expediente tarda en generarse | El backend guarda los PDF ya generados; el del candidato se genera antes y sale del caché en menos de 2 segundos |
+| El expediente tarda en generarse | El del candidato se genera al construir la imagen de la API y abre en menos de 2 segundos. La pantalla muestra su fecha |
 | Nos pasamos de los 3:00 | Ensayar 5 veces con cronómetro. Si a los 2:20 no partió la validación, se salta la frase de los POI |
 | Arranque en frío de Cloud Run | `min-instances=1` en ambos servicios desde el sábado en la noche |
 | Vuelos del mapa lentos en el computador de la demo | Abrir la página 5 minutos antes y esperar `data-warm=done`; probar en el computador real |
 
 ## Antes de presentar
 
-- [ ] Llenar `platanus-hack-project.jsonc` con el nombre, la descripción y la URL de producción.
+- [x] Llenar `platanus-hack-project.jsonc` con el nombre, la descripción y la URL de producción.
+- [ ] Prueba del correo (Seibel): mandar las dos frases del mensaje a alguien de fuera del equipo y pedirle que las repita con sus palabras. Si pregunta algo, se reescriben.
 - [ ] Correr el recorrido completo en producción, en el computador de la demo.
 - [ ] Grabar el video de respaldo.
 - [ ] Ensayar 5 veces con cronómetro y con los dos roles (quien habla y quien maneja).
-- [ ] Revisar que las cifras del guion coincidan con `impacto.md` y `validacion.md`.
+- [ ] Revisar que las cifras del guion coincidan con `impacto.md`, `validacion.md` y lo que muestra la pantalla (ruta, multa, fecha del expediente).

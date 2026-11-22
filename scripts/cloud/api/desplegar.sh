@@ -5,11 +5,11 @@
 #   1. Arma un contexto mínimo: api/, scripts/models/ y los datos que lee la API (los Parquet menos las series crudas,
 #      las rutas, impacto.json, zonas.json, demo.json, los casos). predio.parquet no está en git: sale del disco local.
 #   2. Escribe data/VERSION (commit y fecha de cálculo de puntaje.parquet): es la versión que muestra /api/health.
-#   3. Construye la imagen en local con Docker (Cloud Build dio PERMISSION_DENIED en el job de POI). Al construir se
-#      generan los expedientes de la demo (data/demo.json), con red.
+#   3. Construye la imagen: con Docker en local si está, y si no con Cloud Build (CONSTRUIR=cloud lo fuerza). Al
+#      construir se generan los expedientes de la demo (data/demo.json), con red.
 #   4. Sube la imagen a Artifact Registry y despliega el servicio con los parámetros de docs/spec-demo.md.
 #
-# Uso (desde cualquier carpeta del repo, con `gcloud auth login` hecho y Docker corriendo):
+# Uso (desde cualquier carpeta del repo, con `gcloud auth login` hecho):
 #   scripts/cloud/api/desplegar.sh                       construye, sube y despliega
 #   SOLO_IMAGEN=1 scripts/cloud/api/desplegar.sh         solo construye la imagen local `caudal-api`, para probar:
 #       docker run --rm -p 8080:8080 caudal-api          y luego  curl localhost:8080/api/health
@@ -59,9 +59,16 @@ IMAGEN="$REGION-docker.pkg.dev/$PROYECTO/$REPO/$SERVICIO:$COMMIT"
 gcloud artifacts repositories describe "$REPO" --project "$PROYECTO" --location "$REGION" >/dev/null 2>&1 \
   || gcloud artifacts repositories create "$REPO" --project "$PROYECTO" --location "$REGION" --repository-format docker \
        --description "Imágenes de Caudal"
-gcloud auth configure-docker "$REGION-docker.pkg.dev" --quiet
-docker build --platform linux/amd64 -t "$IMAGEN" -f "$CTX/api/Dockerfile" "$CTX"
-docker push "$IMAGEN"
+CONSTRUIR=${CONSTRUIR:-$(command -v docker >/dev/null && docker info >/dev/null 2>&1 && echo local || echo cloud)}
+if [ "$CONSTRUIR" = local ]; then
+  gcloud auth configure-docker "$REGION-docker.pkg.dev" --quiet
+  docker build --platform linux/amd64 -t "$IMAGEN" -f "$CTX/api/Dockerfile" "$CTX"
+  docker push "$IMAGEN"
+else
+  # Cloud Build pide el Dockerfile en la raíz del contexto. Sube el contexto mínimo de arriba, no el repo.
+  cp "$CTX/api/Dockerfile" "$CTX/Dockerfile"
+  gcloud builds submit "$CTX" --project "$PROYECTO" --region "$REGION" --tag "$IMAGEN" --timeout 1200s
+fi
 
 # CORS: solo la página. Si caudal-web ya está desplegado, se toma su URL; si no, se pasa con ORIGENES=...
 ORIGENES=${ORIGENES:-$(gcloud run services describe "$WEB" --project "$PROYECTO" --region "$REGION" --format 'value(status.url)' 2>/dev/null || true)}

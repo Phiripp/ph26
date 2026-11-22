@@ -37,6 +37,10 @@ const CYAN = '#45d6ee';
 const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
 const easeInOutCubic = (t) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2);
 const easeInOutSine = (t) => -(Math.cos(Math.PI * t) - 1) / 2;
+/** signed shortest turn from angle a to angle b (radians, -PI..PI) */
+const angDiff = (a, b) => { let d = (b - a) % (2 * Math.PI); if (d > Math.PI) d -= 2 * Math.PI; if (d < -Math.PI) d += 2 * Math.PI; return d; };
+const hhmm = (s) => { const m = /^(\d{1,2}):(\d{2})/.exec(String(s || '')); return m ? +m[1] * 60 + +m[2] : null; };
+const fmtHHMM = (m) => `${String(Math.floor(m / 60) % 24).padStart(2, '0')}:${String(Math.round(m % 60) % 60).padStart(2, '0')}`;
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const expShort = (e) => String(e || '').replace(/^(\w+)-\d+-(\d+)$/, '$1-$2');
 const titleCase = (s) => String(s || '').toLowerCase().replace(/(^|\s)\p{L}/gu, (c) => c.toUpperCase());
@@ -340,6 +344,34 @@ export async function initValle({
   const camera = new THREE.PerspectiveCamera(38, 1, 0.05, 800);
   const dpr = () => Math.min(2, window.devicePixelRatio || 1);
 
+  // route playback vehicle: a flat chevron on the road + an additive glow under it (screen-constant size)
+  const vehicle = new THREE.Group();
+  {
+    const g = new THREE.BufferGeometry();
+    // tip on +z (rotation.y = heading), notch at the back
+    g.setAttribute('position', new THREE.BufferAttribute(new Float32Array([
+      0, 0, 1, -0.62, 0, -0.75, 0, 0, -0.36,
+      0, 0, 1, 0, 0, -0.36, 0.62, 0, -0.75,
+    ]), 3));
+    const body = new THREE.Mesh(g, new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, depthTest: false, depthWrite: false, side: THREE.DoubleSide }));
+    body.renderOrder = 12;
+    // dark rim under the white chevron so it reads on bright ground
+    const rim = new THREE.Mesh(g, new THREE.MeshBasicMaterial({ color: 0x05080b, transparent: true, opacity: 0.85, depthTest: false, depthWrite: false, side: THREE.DoubleSide }));
+    rim.renderOrder = 11.5; rim.scale.setScalar(1.35); rim.position.z = -0.08;
+    body.add(rim);
+    const c = document.createElement('canvas'); c.width = c.height = 128;
+    const x = c.getContext('2d'), gr = x.createRadialGradient(64, 64, 0, 64, 64, 64);
+    gr.addColorStop(0, 'rgba(160,240,250,.55)'); gr.addColorStop(0.3, 'rgba(69,214,238,.22)'); gr.addColorStop(1, 'rgba(69,214,238,0)');
+    x.fillStyle = gr; x.fillRect(0, 0, 128, 128);
+    const glowTex = new THREE.CanvasTexture(c);
+    const glow = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTex, blending: THREE.AdditiveBlending, transparent: true, depthTest: false, depthWrite: false }));
+    glow.renderOrder = 11; glow.scale.setScalar(4.2);
+    vehicle.add(glow, body);
+    vehicle.userData = { body, glow, heading: 0 };
+    vehicle.visible = false;
+    scene.add(vehicle);
+  }
+
   const uniforms = {
     uTexA: { value: null },
     uTexB: { value: null },
@@ -409,6 +441,16 @@ export async function initValle({
     transform: OFF, opacity: '0', transition: 'opacity .3s', zIndex: '2',
   });
   layer.appendChild(headDot);
+  // route playback HUD: clock · km · next stop, top-centre of the visible area
+  const telem = document.createElement('div');
+  telem.className = 'v-telem';
+  telem.style.transform = OFF;
+  layer.appendChild(telem);
+  // arrival card: shown above the vehicle while it stops at a predio
+  const arrive = document.createElement('div');
+  arrive.className = 'v-arrive';
+  arrive.style.transform = OFF;
+  layer.appendChild(arrive);
   const selLabel = document.createElement('div');
   Object.assign(selLabel.style, {
     position: 'absolute', left: '0', top: '0', transform: OFF, whiteSpace: 'nowrap', zIndex: '4',
@@ -453,6 +495,7 @@ export async function initValle({
   let dirty = true;
   let overlayAmt = 0, routeAmt = 0;
   let routePlay = null;
+  let chase = null; // route chase camera while "Recorrer ruta" plays: {az, t: Vector3, r, rNow}
   let hoverId = null;
   let hoverCaso = null; // case badge under the mouse: its tag always shows
   let selectedId = null;
@@ -461,7 +504,7 @@ export async function initValle({
 
   // camera: current target + polar angle + radius; "home" frames the whole zone, "focus" one predio/case
   const camT = new THREE.Vector3();
-  const cam = { pol: THREE.MathUtils.degToRad(25), r: 10 };
+  const cam = { pol: THREE.MathUtils.degToRad(25), r: 10, az: 0 }; // az: camera bearing around the target (0 = looking north)
   const FINAL_POL = THREE.MathUtils.degToRad(50);
   const START_POL = THREE.MathUtils.degToRad(25);
   const FOCUS_POL = THREE.MathUtils.degToRad(48);
@@ -483,12 +526,13 @@ export async function initValle({
   const startPose = () => ({ pol: START_POL, r: home.r * 2.6, target: home.target.clone() });
   const homePose = () => ({ pol: homePol(), r: home.r, target: home.target.clone() });
 
-  function placeCameraWith(t, pol, r) {
-    camera.position.set(t.x, t.y + r * Math.cos(pol), t.z + r * Math.sin(pol));
+  function placeCameraWith(t, pol, r, az = 0) {
+    const h = r * Math.sin(pol);
+    camera.position.set(t.x + h * Math.sin(az), t.y + r * Math.cos(pol), t.z + h * Math.cos(az));
     camera.lookAt(t);
   }
   function placeCamera() {
-    placeCameraWith(camT, cam.pol, cam.r);
+    placeCameraWith(camT, cam.pol, cam.r, cam.az);
     uniforms.uFogNear.value = cam.r + span * 0.45;
     uniforms.uFogFar.value = cam.r + span * 1.2;
     // dots slightly larger when zoomed in on a predio
@@ -631,10 +675,10 @@ export async function initValle({
     userCam = false;
     return new Promise((resolve) => {
       if (reduced || dur <= 0) {
-        cam.pol = to.pol; cam.r = to.r; if (to.target) camT.copy(to.target);
+        cam.pol = to.pol; cam.r = to.r; cam.az = to.az || 0; if (to.target) camT.copy(to.target);
         placeCamera(); dirty = true; resolve(); finishAnim(kind); return;
       }
-      anim = { from: { pol: cam.pol, r: cam.r, target: camT.clone() }, to, t0: performance.now(), dur, kind, resolve };
+      anim = { from: { pol: cam.pol, r: cam.r, az: cam.az, target: camT.clone() }, to, t0: performance.now(), dur, kind, resolve };
     });
   }
   function stepAnim(now) {
@@ -643,6 +687,7 @@ export async function initValle({
     const e = easeInOutCubic(k);
     cam.pol = anim.from.pol + (anim.to.pol - anim.from.pol) * e;
     cam.r = anim.from.r + (anim.to.r - anim.from.r) * e;
+    cam.az = anim.from.az + angDiff(anim.from.az, anim.to.az || 0) * e;
     if (anim.to.target) camT.lerpVectors(anim.from.target, anim.to.target, e);
     dirty = true;
     if (k >= 1) {
@@ -682,10 +727,11 @@ export async function initValle({
       if (anim.kind === 'enter' || anim.kind === 'home') { const hp = homePose(); anim.to.pol = hp.pol; anim.to.r = hp.r; anim.to.target = hp.target; }
       else if (anim.kind === 'focus' && focus) anim.to = { pol: focus.pose.pol, r: focus.pose.r, target: focus.pose.target.clone() };
     }
-    if (userCam && !anim && SB) { clampCam(); placeCamera(); }
+    if (chase) { /* the route chase camera places itself every frame */ }
+    else if (userCam && !anim && SB) { clampCam(); placeCamera(); }
     else if (!anim && SB) {
       const p = entered ? (focus ? focus.pose : homePose()) : startPose();
-      cam.pol = p.pol; cam.r = p.r; camT.copy(p.target);
+      cam.pol = p.pol; cam.r = p.r; cam.az = 0; camT.copy(p.target);
       placeCamera();
     }
     dirty = true;
@@ -781,7 +827,7 @@ export async function initValle({
 
   // ---------- zone build ----------
   function disposeZone() {
-    if (routePlay) { const r = routePlay.resolve; routePlay = null; r(); }
+    stopPlay();
     if (terrain) { scene.remove(terrain); terrain.geometry.dispose(); terrain = null; }
     if (routeMesh) { scene.remove(routeMesh); routeMesh.geometry.dispose(); routeMesh = null; }
     if (dots) { scene.remove(dots); dots.geometry.dispose(); dots = null; }
@@ -1300,7 +1346,7 @@ export async function initValle({
         c.tag.style.color = sel ? '#05080b' : '#fff';
       }
     }
-    const head = showStops && state.routeT > 0 && state.routeT < 1 ? pointAt(drawn) : null;
+    const head = showStops && !chase && state.routeT > 0 && state.routeT < 1 ? pointAt(drawn) : null;
     if (head) {
       const g = project(head);
       headDot.style.transform = `translate(${g.x.toFixed(1)}px, ${g.y.toFixed(1)}px)`;
@@ -1439,7 +1485,7 @@ export async function initValle({
   const ptrs = new Map(); // pointerId -> {x, y}
   let gest = null;        // {moved, dist, mx, my}
   let suppressClick = false;
-  const gestureOk = () => active && entered && !!SB && !(anim && (anim.kind === 'enter' || anim.kind === 'exit'));
+  const gestureOk = () => active && entered && !!SB && !chase && !(anim && (anim.kind === 'enter' || anim.kind === 'exit' || anim.kind === 'chase-in'));
   const wppNow = () => (2 * cam.r * Math.tan(THREE.MathUtils.degToRad(camera.fov) / 2)) / Math.max(1, host.clientHeight);
   function clampCam() {
     const rLo = Math.max(0.6, minCamR() * 0.75), rHi = Math.max(rLo, home.r * 1.6);
@@ -1546,6 +1592,201 @@ export async function initValle({
 
   // ---------- route callbacks ----------
   let lastT = 0, lastReached = 0;
+  // ---------- route playback: the camera follows a vehicle along the road ----------
+  // timeline: swoop to the start (INTRO) -> drive leg by leg, easing into each stop and pausing on it (DWELL)
+  // -> rise back to the zone view with the whole route drawn (OUTRO). Same total duration as before.
+  const CHASE_POL = THREE.MathUtils.degToRad(58);
+  const INTRO = 1300, OUTRO = 1700, DWELL = 900;
+  function chaseR() {
+    const want = clamp(home.r * (isSmall() ? 0.36 : 0.27), 2.2, 60);
+    return Math.max(want, minCamR());
+  }
+  function headingAt(d, back = 0.6, ahead = 2.6) {
+    const a = pointAt(Math.max(0, d - back)), b = pointAt(Math.min(routeLen, d + ahead));
+    if (!a || !b) return 0;
+    return Math.atan2(b.x - a.x, b.z - a.z);
+  }
+  function chaseTarget(d, r) {
+    // a little ahead of the vehicle so the road it is about to take stays in view
+    const p = pointAt(Math.min(routeLen, d + r * 0.18)) || pointAt(d);
+    return p;
+  }
+  function buildTimeline(duration) {
+    const pts = stops.map((st, i) => ({ d: clamp(st.d, 0, routeLen), st, i })).sort((x, y) => x.d - y.d);
+    const drive = Math.max(4000, duration - INTRO - OUTRO - DWELL * pts.length);
+    const segs = [];
+    let t = INTRO, d0 = 0;
+    const legs = [...pts.map((p) => ({ d: p.d, stop: p })), { d: routeLen, stop: null }];
+    for (const leg of legs) {
+      const len = Math.max(0, leg.d - d0);
+      const dt = drive * (routeLen ? len / routeLen : 0);
+      if (dt > 0) segs.push({ type: 'drive', t0: t, t1: t + dt, d0, d1: leg.d, next: leg.stop });
+      t += dt;
+      if (leg.stop) { segs.push({ type: 'dwell', t0: t, t1: t + DWELL, d0: leg.d, d1: leg.d, stop: leg.stop }); t += DWELL; }
+      d0 = leg.d;
+    }
+    // clock keyframes along the road (minutes of the day), from the route's own times
+    const keys = [];
+    const kmKeys = [{ d: 0, km: 0 }];
+    let kmAcc = 0;
+    const ini = hhmm(ruta && (ruta.hora_inicio || (ruta.inicio && ruta.inicio.hora)));
+    if (ini != null) keys.push({ d: 0, m: ini });
+    for (const p of pts) {
+      const ll = hhmm(p.st.s.llegada), sa = hhmm(p.st.s.salida);
+      if (ll != null) keys.push({ d: p.d, m: ll, out: sa != null ? sa : ll });
+      if (isFinite(+p.st.s.km_desde_anterior)) { kmAcc += +p.st.s.km_desde_anterior; kmKeys.push({ d: p.d, km: kmAcc }); }
+    }
+    const totKm = +(ruta && (ruta.total_km ?? ruta.distancia_km)) || 0;
+    if (totKm) kmKeys.push({ d: routeLen, km: totKm });
+    const fin = hhmm(ruta && (ruta.hora_termino || (ruta.regreso && ruta.regreso.llegada)));
+    if (fin != null) keys.push({ d: routeLen, m: fin });
+    return { segs, driveEnd: t, keys, kmKeys, n: pts.length };
+  }
+  function clockAt(tl, d, dwellSeg, k) {
+    const K = tl.keys;
+    if (K.length < 2) return null;
+    if (dwellSeg) { const kk = K.find((x) => Math.abs(x.d - dwellSeg.d0) < 1e-6); if (kk) return kk.m + ((kk.out ?? kk.m) - kk.m) * k; }
+    for (let i = 0; i < K.length - 1; i++) {
+      const a = K[i], b = K[i + 1];
+      if (d <= b.d) { const m0 = a.out ?? a.m; return m0 + (b.m - m0) * clamp((d - a.d) / ((b.d - a.d) || 1), 0, 1); }
+    }
+    return K[K.length - 1].m;
+  }
+  function startChase(duration, resolve) {
+    pick(null, false); focus = null;
+    const r = chaseR();
+    const az = headingAt(0) + Math.PI;
+    const target = chaseTarget(0, r);
+    chase = { az, t: target.clone(), r, rNow: r, live: false, stopShown: -1 };
+    routePlay = { chase: true, t0: performance.now(), dur: duration, tl: buildTimeline(duration), resolve, phase: 'intro' };
+    state.routeT = 0; lastT = -1; lastReached = 0; checkRoute();
+    vehicle.userData.heading = headingAt(0, 0.2, 0.6);
+    vehicle.visible = true;
+    startAnim({ pol: CHASE_POL, r, az, target }, INTRO, 'chase-in');
+    dirty = true;
+  }
+  function placeVehicle(d, dt, snap) {
+    const p = pointAt(d);
+    if (!p) return;
+    const ud = vehicle.userData;
+    const h = headingAt(d, 0.25, 0.7);
+    ud.heading = snap ? h : ud.heading + angDiff(ud.heading, h) * (1 - Math.exp(-dt * 10));
+    vehicle.position.set(p.x, p.y + 0.04, p.z);
+    vehicle.rotation.y = ud.heading;
+    const sc = clamp(cam.r * 0.03, 0.1, 3);
+    ud.body.scale.setScalar(sc);
+    ud.glow.scale.setScalar(sc * 3.2);
+  }
+  function showTelem(txt) {
+    if (!txt) { telem.style.transform = OFF; return; }
+    if (telem._t !== txt) { telem.innerHTML = txt; telem._t = txt; }
+    const { vx0, vx1, vy0 } = viewport();
+    const w = telem.offsetWidth || 220;
+    telem.style.transform = `translate(${((vx0 + vx1) / 2 - w / 2).toFixed(1)}px, ${(vy0 - (isSmall() ? 4 : 56)).toFixed(1)}px)`;
+  }
+  function arriveHTML(st, n) {
+    const f = byId.get(String(st.s.predio_id));
+    const p = f ? f.properties : {};
+    const what = [p.cultivo && p.cultivo !== 'sin catastro' ? esc(p.cultivo) : null, isFinite(p.area_ha) && p.area_ha != null ? `${(+p.area_ha).toLocaleString('es-CL', { maximumFractionDigits: 1 })} ha` : null, p.comuna ? esc(titleCase(p.comuna)) : null].filter(Boolean).join(' · ');
+    const der = +(p.m3_derecho_rol ?? p.m3_derecho ?? NaN);
+    let vs = '';
+    if (p.m3_estimado_min != null && !Number.isNaN(der)) {
+      if (der <= 0) vs = '<b>sin derecho de agua</b> registrado';
+      else {
+        const lo = p.m3_estimado_min / der, hi = p.m3_estimado_max / der, fx = (v) => v.toLocaleString('es-CL', { maximumFractionDigits: v < 10 ? 1 : 0 });
+        vs = hi >= 1.5 ? `usa <b>${fx(lo)}–${fx(hi)} veces</b> su derecho` : 'cerca de su derecho';
+      }
+    }
+    const col = BAND_HEX[p.banda] || st.col;
+    return `<div class="v-arrive-k" style="color:${col}">Parada ${esc(st.s.orden)} de ${n}${st.s.llegada ? ` · ${esc(st.s.llegada)}` : ''}</div>`
+      + `<div class="v-arrive-t">${what || 'Predio ' + esc(st.s.predio_id)}</div>`
+      + (vs ? `<div class="v-arrive-v">${vs}</div>` : '');
+  }
+  function placeArrive(on) {
+    if (!on) { arrive.classList.remove('on'); return; }
+    const g = project(vehicle.position);
+    if (!g.ok) return;
+    const { vx0, vx1, vy0 } = viewport();
+    const w = arrive.offsetWidth || 220, h = arrive.offsetHeight || 64;
+    const x = clamp(g.x - w / 2, vx0, Math.max(vx0, vx1 - w)), y = Math.max(vy0, g.y - h - 34);
+    arrive.style.transform = `translate(${x.toFixed(1)}px, ${y.toFixed(1)}px)`;
+    arrive.classList.add('on');
+  }
+  function ripple(st) {
+    if (!st || !st.el || !st.el.animate) return;
+    const r = document.createElement('span');
+    Object.assign(r.style, { position: 'absolute', left: '0', top: '0', width: '22px', height: '22px', borderRadius: '50%', border: `2px solid ${st.col}`, pointerEvents: 'none', boxSizing: 'border-box' });
+    st.el.appendChild(r);
+    const a = r.animate([{ transform: 'scale(1)', opacity: 0.95 }, { transform: 'scale(4.2)', opacity: 0 }], { duration: 1100, easing: 'cubic-bezier(.2,.7,.2,1)' });
+    a.onfinish = () => r.remove();
+    st.num.animate([{ transform: 'scale(1)' }, { transform: 'scale(1.45)' }, { transform: 'scale(1)' }], { duration: 520, easing: 'ease-out' });
+  }
+  function stepChase(now, dt) {
+    const P = routePlay, tl = P.tl;
+    const e = now - P.t0;
+    if (P.phase === 'intro') {
+      placeVehicle(0, dt, true);
+      showTelem(telemTxt(tl, 0, null, 0));
+      if (e >= INTRO || !anim) { P.phase = 'drive'; chase.az = cam.az; chase.t.copy(camT); chase.live = true; }
+      dirty = true;
+      return;
+    }
+    if (P.phase === 'drive') {
+      const seg = tl.segs.find((g) => e < g.t1) || null;
+      if (!seg) {
+        P.phase = 'outro';
+        state.routeT = 1; checkRoute();
+        chase = null; showTelem(null); placeArrive(false);
+        vehicle.visible = false;
+        startAnim(homePose(), OUTRO, 'home').then(() => { if (routePlay === P) { routePlay = null; P.resolve(); } });
+        dirty = true;
+        return;
+      }
+      const k = clamp((e - seg.t0) / ((seg.t1 - seg.t0) || 1), 0, 1);
+      const d = seg.type === 'drive' ? seg.d0 + (seg.d1 - seg.d0) * easeInOutSine(k) : seg.d0;
+      state.routeT = clamp(d / routeLen, 0, 1);
+      if (seg.type === 'dwell' && chase.stopShown !== seg.stop.i) { chase.stopShown = seg.stop.i; ripple(seg.stop.st); arrive.innerHTML = arriveHTML(seg.stop.st, tl.n); }
+      // camera: behind the vehicle, heading smoothed; a slight push-in while it stops at a predio
+      const az = headingAt(d) + Math.PI;
+      chase.az += angDiff(chase.az, az) * (1 - Math.exp(-dt * 2.2));
+      const rWant = seg.type === 'dwell' ? chase.r * 0.82 : chase.r;
+      chase.rNow += (rWant - chase.rNow) * (1 - Math.exp(-dt * 3));
+      const tgt = chaseTarget(d, chase.rNow);
+      if (tgt) chase.t.lerp(tgt, 1 - Math.exp(-dt * 6));
+      cam.az = chase.az; cam.pol = CHASE_POL; cam.r = chase.rNow; camT.copy(chase.t);
+      placeVehicle(d, dt, false);
+      placeArrive(seg.type === 'dwell');
+      showTelem(telemTxt(tl, d, seg.type === 'dwell' ? seg : null, k, seg));
+      dirty = true;
+      return;
+    }
+    // outro: the 'home' animation runs in stepAnim and resolves the playback
+  }
+  function telemTxt(tl, d, dwellSeg, k, seg) {
+    const m = clockAt(tl, d, dwellSeg, k);
+    let km = null;
+    const KK = tl.kmKeys;
+    if (KK.length > 1) for (let i = 0; i < KK.length - 1; i++) {
+      const a = KK[i], b = KK[i + 1];
+      if (d <= b.d || i === KK.length - 2) { km = a.km + (b.km - a.km) * clamp((d - a.d) / ((b.d - a.d) || 1), 0, 1); break; }
+    }
+    let what;
+    if (dwellSeg) what = `<b class="v-telem-hot">PARADA ${dwellSeg.stop.st.s.orden} de ${tl.n}</b>`;
+    else if (seg && seg.next) what = `→ parada ${seg.next.st.s.orden}`;
+    else if (d <= 0) what = 'saliendo';
+    else what = '→ regreso';
+    return `${m != null ? `<span class="v-telem-clock">${fmtHHMM(m)}</span>` : ''}${km != null ? `<span>${Math.round(km)} km</span>` : ''}<span>${what}</span>`;
+  }
+  /** ends a playback in progress (resolves its promise); home:true flies back to the zone view if it was chasing */
+  function stopPlay({ home = false } = {}) {
+    if (!routePlay) return;
+    const P = routePlay; routePlay = null;
+    const wasChase = !!P.chase;
+    chase = null; vehicle.visible = false; showTelem(null); placeArrive(false);
+    if (wasChase && anim && anim.kind === 'chase-in') cancelAnim();
+    if (wasChase && home && entered && active) startAnim(homePose(), 700, 'home');
+    P.resolve();
+  }
   function checkRoute() {
     const t = state.routeT;
     if (t === lastT) return;
@@ -1596,7 +1837,8 @@ export async function initValle({
     const rTarget = state.routeOn && entered && !(anim && anim.kind === 'exit') ? 1 : 0;
     if (routeAmt !== rTarget) { routeAmt = clamp(routeAmt + Math.sign(rTarget - routeAmt) * dt * 3, 0, 1); dirty = true; }
 
-    if (routePlay) {
+    if (routePlay && routePlay.chase) stepChase(now, dt);
+    else if (routePlay) {
       const k = clamp((now - routePlay.t0) / routePlay.dur, 0, 1);
       state.routeT = routePlay.from + (routePlay.to - routePlay.from) * easeInOutSine(k);
       dirty = true;
@@ -1678,7 +1920,7 @@ export async function initValle({
       return startAnim(homePose(), duration, 'enter');
     },
     exit({ duration = 1400 } = {}) {
-      if (routePlay) { const r = routePlay.resolve; routePlay = null; r(); }
+      stopPlay();
       entered = false;
       focus = null; pendingFocus = null;
       showLayer(false);
@@ -1715,21 +1957,19 @@ export async function initValle({
     },
     isFocused() { return !!focus; },
     setRouteProgress(t) {
-      if (routePlay) { const r = routePlay.resolve; routePlay = null; r(); }
+      stopPlay({ home: true });
       state.routeT = clamp(Number(t) || 0, 0, 1);
       dirty = true;
       if (!active) checkRoute();
     },
     playRoute({ duration = 9000 } = {}) {
-      if (routePlay) { const r = routePlay.resolve; routePlay = null; r(); }
+      stopPlay({ home: false });
       state.routeOn = true;
-      // the route is framed by the zone view: undo a touch pan / pinch first (the camera never moves on its own)
-      if (userCam && entered && active && !anim) startAnim(homePose(), reduced ? 0 : 700, 'home');
-      const from = state.routeT >= 0.999 ? 0 : state.routeT;
-      if (reduced || !active) { state.routeT = 1; dirty = true; checkRoute(); return Promise.resolve(); }
-      return new Promise((resolve) => {
-        routePlay = { from, to: 1, t0: performance.now(), dur: Math.max(300, duration * (1 - from)), resolve };
-      });
+      if (reduced || !active || !entered || routeLen <= 0 || !routeSamples.length) {
+        if (userCam && entered && active && !anim) startAnim(homePose(), reduced ? 0 : 700, 'home');
+        state.routeT = 1; dirty = true; checkRoute(); return Promise.resolve();
+      }
+      return new Promise((resolve) => { startChase(duration, resolve); });
     },
     showRoute(on) { state.routeOn = !!on; dirty = true; },
     setYear(y) {

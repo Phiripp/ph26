@@ -11,7 +11,9 @@
 # REHACER_PLAN=1 (rehace plan/ aunque exista).
 set -euo pipefail
 PROYECTO=${PROYECTO:-ph-26-caudal}
-CUENTA=${CUENTA:-gacuna.latam.challenge@gmail.com}
+# Cuenta de gcloud: la de CUENTA o, si no se pasa, la cuenta activa (no se deja un correo fijo en el repo).
+CUENTA=${CUENTA:-$(gcloud config get-value account 2>/dev/null || true)}
+: "${CUENTA:?sin cuenta de gcloud: corre 'gcloud auth login' o pasa CUENTA=correo}"
 ETAPA=${1:?uso: ejecutar.sh base|plan|satelite|region|nacional [TAREAS]}
 CORRIDA=${CORRIDA:-$(date +%Y%m%d)}
 g() { gcloud --project="$PROYECTO" --account="$CUENTA" "$@"; }

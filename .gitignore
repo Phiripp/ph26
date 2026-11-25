@@ -15,3 +15,27 @@ __pycache__/
 
 # Frontend demo: caché de descargas de los scripts (se regenera)
 frontend-demo/scripts/.cache/
+
+# Secretos y credenciales: nunca van a git (el ejemplo sí)
+.env.*
+!.env.example
+*.pem
+*.key
+*credentials*.json
+*service-account*.json
+.cdsapirc
+
+# Terraform (también en infra/.gitignore)
+*.tfstate
+*.tfstate.*
+*.tfvars
+
+# Herramientas y editores
+node_modules/
+*.pyc
+.pytest_cache/
+.ruff_cache/
+.ipynb_checkpoints/
+.idea/
+.vscode/
+*.log

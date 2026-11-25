@@ -4,7 +4,9 @@
 # Uso: scripts/cloud/chile/progreso.sh [LINEAS_DE_LOG=15]     (CORRIDA=... para otra corrida que la de hoy)
 set -euo pipefail
 PROYECTO=${PROYECTO:-ph-26-caudal}
-CUENTA=${CUENTA:-gacuna.latam.challenge@gmail.com}
+# Cuenta de gcloud: la de CUENTA o, si no se pasa, la cuenta activa (no se deja un correo fijo en el repo).
+CUENTA=${CUENTA:-$(gcloud config get-value account 2>/dev/null || true)}
+: "${CUENTA:?sin cuenta de gcloud: corre 'gcloud auth login' o pasa CUENTA=correo}"
 BUCKET=${BUCKET:-ph-26-caudal-chile}
 CORRIDA=${CORRIDA:-$(date +%Y%m%d)}
 LINEAS=${1:-15}

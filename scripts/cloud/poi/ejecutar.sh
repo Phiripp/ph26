@@ -3,7 +3,9 @@
 # Uso: scripts/cloud/poi/ejecutar.sh [TAREAS=20] [LIMITE=0] [CORRIDA=fecha]   (LIMITE>0: prueba con los primeros N predios)
 set -euo pipefail
 PROYECTO=${PROYECTO:-ph-26-caudal}
-CUENTA=${CUENTA:-gacuna.latam.challenge@gmail.com}
+# Cuenta de gcloud: la de CUENTA o, si no se pasa, la cuenta activa (no se deja un correo fijo en el repo).
+CUENTA=${CUENTA:-$(gcloud config get-value account 2>/dev/null || true)}
+: "${CUENTA:?sin cuenta de gcloud: corre 'gcloud auth login' o pasa CUENTA=correo}"
 REGION=${REGION:-us-west1}          # misma región que el bucket y cerca de Earth Search (AWS Oregón)
 BUCKET=${BUCKET:-ph-26-caudal-sentinel2}
 IMAGEN=${IMAGEN:-mirror.gcr.io/library/python:3.12-slim}
